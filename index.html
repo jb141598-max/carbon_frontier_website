@@ -1,0 +1,2479 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Carbon Frontier Roadmap</title>
+    <style>
+      :root {
+        --cf-red-45: rgba(223, 37, 49, 0.45);
+        --cf-red-65: rgba(223, 37, 49, 0.65);
+        --cf-red: #df2531;
+        --cf-orange: #f08c2b;
+        --cf-orange-24: rgba(240, 140, 43, 0.24);
+        --cf-green: #2fb86a;
+        --cf-green-24: rgba(47, 184, 106, 0.24);
+        --cf-white: #ffffff;
+        --cf-black: #000000;
+        --cf-panel: rgba(255, 255, 255, 0.04);
+        --cf-panel-strong: rgba(255, 255, 255, 0.08);
+        --cf-border: rgba(255, 255, 255, 0.12);
+        --cf-text-muted: rgba(255, 255, 255, 0.72);
+        --cf-text-soft: rgba(255, 255, 255, 0.52);
+        --cf-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        min-height: 100vh;
+        color: var(--cf-white);
+        font-family: "Trebuchet MS", "Gill Sans", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(223, 37, 49, 0.26), transparent 30%),
+          radial-gradient(circle at 85% 12%, rgba(223, 37, 49, 0.18), transparent 24%),
+          linear-gradient(180deg, #080808 0%, #000000 42%, #050505 100%);
+      }
+
+      body.admin-open {
+        overflow: hidden;
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .page-shell {
+        position: relative;
+        min-height: 100vh;
+        padding: 28px;
+        overflow: hidden;
+      }
+
+      .page-shell::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+        background-size: 96px 96px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent 80%);
+        pointer-events: none;
+      }
+
+      .content {
+        position: relative;
+        z-index: 1;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 56px;
+      }
+
+      .brand-lockup {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .brand {
+        margin: 0;
+        font-size: 0.92rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      .brand-subline {
+        margin: 0;
+        color: var(--cf-text-soft);
+        font-size: 0.92rem;
+      }
+
+      .topbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .account-pill,
+      .admin-button,
+      .subtle-button,
+      .icon-button,
+      .save-button,
+      .ghost-button,
+      .mini-button,
+      .danger-button {
+        border: 1px solid transparent;
+        border-radius: 999px;
+        transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+      }
+
+      .account-pill {
+        padding: 10px 14px;
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+        color: var(--cf-text-muted);
+        font-size: 0.86rem;
+      }
+
+      .admin-button,
+      .save-button,
+      .subtle-button,
+      .ghost-button,
+      .danger-button,
+      .mini-button,
+      .icon-button {
+        background: transparent;
+        color: var(--cf-white);
+      }
+
+      .admin-button,
+      .save-button {
+        padding: 12px 18px;
+        background: var(--cf-red-45);
+        border-color: rgba(223, 37, 49, 0.9);
+        font-size: 0.92rem;
+        font-weight: 700;
+      }
+
+      .admin-button:hover,
+      .save-button:hover {
+        background: var(--cf-red-65);
+        transform: translateY(-1px);
+      }
+
+      .subtle-button,
+      .ghost-button,
+      .danger-button,
+      .mini-button,
+      .icon-button {
+        border-color: var(--cf-border);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .subtle-button,
+      .ghost-button,
+      .danger-button {
+        padding: 11px 16px;
+      }
+
+      .mini-button {
+        padding: 8px 12px;
+        font-size: 0.84rem;
+      }
+
+      .icon-button {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+      }
+
+      .danger-button:hover,
+      .ghost-button:hover,
+      .subtle-button:hover,
+      .mini-button:hover,
+      .icon-button:hover {
+        border-color: rgba(223, 37, 49, 0.65);
+        background: rgba(223, 37, 49, 0.12);
+      }
+
+      .danger-button.is-armed {
+        border-color: rgba(223, 37, 49, 0.82);
+        background: rgba(223, 37, 49, 0.26);
+      }
+
+      .drag-handle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--cf-text-muted);
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        cursor: grab;
+        user-select: none;
+      }
+
+      .drag-handle::before {
+        content: ":::";
+        color: var(--cf-red);
+        font-family: "Courier New", monospace;
+        letter-spacing: -0.08em;
+      }
+
+      .drag-handle:hover {
+        border-color: rgba(223, 37, 49, 0.48);
+        background: rgba(223, 37, 49, 0.12);
+      }
+
+      .drag-handle.is-armed,
+      .admin-roadmap-card.is-dragging .drag-handle {
+        cursor: grabbing;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.9fr);
+        gap: 24px;
+        align-items: stretch;
+        margin-bottom: 44px;
+      }
+
+      .hero-copy,
+      .signal-panel,
+      .roadmap-section,
+      .admin-panel,
+      .card-form,
+      .admin-preview-panel,
+      .empty-state,
+      .roadmap-card,
+      .status-ribbon {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+        border: 1px solid var(--cf-border);
+        box-shadow: var(--cf-shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .hero-copy,
+      .signal-panel,
+      .roadmap-section,
+      .card-form,
+      .admin-preview-panel,
+      .status-ribbon {
+        border-radius: 28px;
+      }
+
+      .hero-copy,
+      .signal-panel,
+      .roadmap-section {
+        padding: 30px;
+      }
+
+      .eyebrow,
+      .section-tag,
+      .panel-tag,
+      .meta-tag {
+        margin: 0 0 12px;
+        color: var(--cf-red);
+        font-size: 0.86rem;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      .card-title {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-weight: 700;
+      }
+
+      h1 {
+        font-size: clamp(3rem, 8vw, 5.9rem);
+        line-height: 0.93;
+        letter-spacing: -0.05em;
+        max-width: 10ch;
+      }
+
+      .intro {
+        max-width: 40rem;
+        margin: 22px 0 0;
+        color: var(--cf-text-muted);
+        font-size: 1.05rem;
+        line-height: 1.7;
+      }
+
+      .status-ribbon {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 28px;
+        padding: 16px 18px;
+        color: var(--cf-text-muted);
+        font-size: 0.95rem;
+      }
+
+      .status-dot {
+        flex: 0 0 auto;
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: var(--cf-red);
+        box-shadow: 0 0 0 6px rgba(223, 37, 49, 0.18);
+      }
+
+      .signal-panel {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        align-content: start;
+      }
+
+      .signal-card {
+        padding: 18px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .signal-label {
+        margin: 0 0 10px;
+        color: var(--cf-text-soft);
+        font-size: 0.82rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .signal-value {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+      }
+
+      .signal-detail {
+        margin: 8px 0 0;
+        color: var(--cf-text-muted);
+        font-size: 0.92rem;
+        line-height: 1.5;
+      }
+
+      .roadmap-section {
+        padding-bottom: 32px;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 24px;
+      }
+
+      .section-copy {
+        max-width: 44rem;
+      }
+
+      .section-copy p:last-child {
+        margin: 10px 0 0;
+        color: var(--cf-text-muted);
+        line-height: 1.6;
+      }
+
+      .storage-pill {
+        padding: 10px 14px;
+        border-radius: 999px;
+        color: var(--cf-text-muted);
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.85rem;
+      }
+
+      .roadmap-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .admin-card-list {
+        display: grid;
+        gap: 14px;
+        align-items: start;
+        grid-template-columns: 1fr;
+      }
+
+      .roadmap-grid > .empty-state,
+      .admin-card-list > .admin-panel-empty {
+        grid-column: 1 / -1;
+      }
+
+      .roadmap-card,
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        border-radius: 24px;
+        overflow: hidden;
+      }
+
+      .public-roadmap-card {
+        width: 100%;
+        min-height: 290px;
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr);
+        background:
+          radial-gradient(circle at top right, rgba(223, 37, 49, 0.18), transparent 42%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+      }
+
+      .public-roadmap-card.card-media-right {
+        grid-template-areas: "body visual";
+      }
+
+      .public-roadmap-card.card-media-left {
+        grid-template-areas: "visual body";
+      }
+
+      .public-roadmap-card .card-body {
+        grid-area: body;
+        justify-content: center;
+        gap: 14px;
+        padding: 24px;
+      }
+
+      .public-roadmap-card .card-visual {
+        grid-area: visual;
+        min-height: 100%;
+        aspect-ratio: auto;
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .public-roadmap-card.card-media-left .card-visual {
+        border-left: 0;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .public-card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .public-roadmap-card .card-title {
+        font-size: clamp(1.65rem, 2.2vw, 2.2rem);
+        line-height: 1.02;
+        max-width: 16ch;
+      }
+
+      .public-roadmap-card .card-description {
+        max-width: 34ch;
+        font-size: 1rem;
+      }
+
+      .public-roadmap-card .card-dropdown {
+        margin-top: 2px;
+      }
+
+      .admin-roadmap-card {
+        width: 100%;
+        min-height: 218px;
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(160px, 0.85fr);
+        background:
+          radial-gradient(circle at top right, rgba(223, 37, 49, 0.14), transparent 40%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
+      }
+
+      .admin-roadmap-card.card-media-right {
+        grid-template-areas: "body visual";
+      }
+
+      .admin-roadmap-card.card-media-left {
+        grid-template-areas: "visual body";
+      }
+
+      .admin-roadmap-card .card-body {
+        grid-area: body;
+        justify-content: center;
+        gap: 10px;
+        padding: 18px;
+      }
+
+      .admin-roadmap-card .card-visual {
+        grid-area: visual;
+        min-height: 100%;
+        aspect-ratio: auto;
+        border-left: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .admin-roadmap-card.card-media-left .card-visual {
+        border-left: 0;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .admin-card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .admin-roadmap-card .card-title {
+        font-size: 1.18rem;
+        line-height: 1.05;
+        max-width: 15ch;
+      }
+
+      .admin-roadmap-card .card-description {
+        max-width: 30ch;
+        font-size: 0.9rem;
+        line-height: 1.48;
+      }
+
+      .admin-roadmap-card .card-bullets {
+        gap: 8px;
+        font-size: 0.9rem;
+      }
+
+      .admin-card-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: auto;
+        padding-top: 4px;
+      }
+
+      .admin-card-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .admin-roadmap-card.is-dragging {
+        opacity: 0.52;
+        transform: scale(0.985);
+      }
+
+      .admin-roadmap-card.drop-before {
+        box-shadow:
+          inset 0 3px 0 0 rgba(223, 37, 49, 0.95),
+          var(--cf-shadow);
+      }
+
+      .admin-roadmap-card.drop-after {
+        box-shadow:
+          inset 0 -3px 0 0 rgba(223, 37, 49, 0.95),
+          var(--cf-shadow);
+      }
+
+      .card-visual {
+        position: relative;
+        aspect-ratio: 16 / 11;
+        overflow: hidden;
+        background:
+          linear-gradient(135deg, rgba(223, 37, 49, 0.62), rgba(223, 37, 49, 0.18)),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent 40%),
+          #090909;
+      }
+
+      .card-visual::before,
+      .card-visual::after {
+        content: "";
+        position: absolute;
+        inset: auto auto 14px 14px;
+        width: 54px;
+        height: 54px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .card-visual::after {
+        inset: 18px 18px auto auto;
+        width: 84px;
+        height: 28px;
+        border-radius: 999px;
+      }
+
+      .card-visual img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .card-body {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 12px;
+        padding: 18px;
+      }
+
+      .card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .card-date,
+      .status-badge {
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.84rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .card-date {
+        color: var(--cf-white);
+        background: rgba(223, 37, 49, 0.18);
+        border: 1px solid rgba(223, 37, 49, 0.44);
+      }
+
+      .status-badge {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      .status-badge[data-status="PLANNED"] {
+        color: var(--cf-text-muted);
+      }
+
+      .status-badge[data-status="IN PROGRESS"] {
+        background: var(--cf-orange);
+        border-color: var(--cf-orange);
+        color: var(--cf-white);
+      }
+
+      .status-badge[data-status="FINISHED"] {
+        background: var(--cf-green);
+        border-color: var(--cf-green);
+        color: var(--cf-white);
+      }
+
+      .card-title {
+        font-size: 1.28rem;
+        line-height: 1.08;
+      }
+
+      .card-description {
+        margin: 0;
+        font-size: 0.96rem;
+        color: var(--cf-text-muted);
+        line-height: 1.55;
+      }
+
+      .card-bullets {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding-left: 20px;
+        color: var(--cf-white);
+      }
+
+      .card-bullets li::marker {
+        color: var(--cf-red);
+      }
+
+      .card-dropdown {
+        display: grid;
+        gap: 10px;
+        align-self: flex-start;
+        width: fit-content;
+        max-width: 100%;
+      }
+
+      .card-dropdown summary {
+        list-style: none;
+        display: grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+        cursor: pointer;
+        transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+      }
+
+      .card-dropdown summary:hover {
+        border-color: rgba(223, 37, 49, 0.48);
+        background: rgba(223, 37, 49, 0.12);
+      }
+
+      .card-dropdown summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .card-dropdown summary::after {
+        content: "";
+        display: block;
+        width: 80%;
+        height: 80%;
+        background:
+          center / 100% 100% no-repeat
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23df2531' stroke-width='2.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 8.5l7 7 7-7'/%3E%3C/svg%3E");
+        transition: transform 180ms ease;
+      }
+
+      .card-dropdown[open] summary::after {
+        transform: rotate(180deg);
+      }
+
+      .card-dropdown .card-bullets {
+        width: min(100%, 320px);
+        margin: 0;
+        padding: 14px 18px 14px 34px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .admin-roadmap-card .card-dropdown summary {
+        width: 34px;
+        height: 34px;
+      }
+
+      .admin-roadmap-card .card-dropdown .card-bullets {
+        width: min(100%, 280px);
+        padding: 12px 16px 12px 28px;
+      }
+
+      .card-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: auto;
+        padding-top: 4px;
+      }
+
+      .empty-state {
+        justify-content: center;
+        min-height: 320px;
+        padding: 28px;
+      }
+
+      .empty-state h3 {
+        font-size: 1.9rem;
+        margin-bottom: 14px;
+      }
+
+      .empty-state p {
+        margin: 0;
+        max-width: 34rem;
+        color: var(--cf-text-muted);
+        line-height: 1.7;
+      }
+
+      .panel-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.58);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 180ms ease;
+        z-index: 20;
+      }
+
+      .panel-backdrop.is-open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .admin-panel {
+        position: fixed;
+        inset: 0 0 0 auto;
+        width: min(1120px, 100%);
+        height: 100vh;
+        padding: 28px;
+        border-left: 1px solid rgba(223, 37, 49, 0.26);
+        background:
+          linear-gradient(180deg, rgba(15, 15, 15, 0.98), rgba(0, 0, 0, 0.98)),
+          rgba(0, 0, 0, 0.96);
+        transform: translateX(100%);
+        transition: transform 220ms ease;
+        overflow: auto;
+        z-index: 30;
+      }
+
+      .admin-panel.is-open {
+        transform: translateX(0);
+      }
+
+      .admin-panel-shell {
+        display: grid;
+        gap: 22px;
+      }
+
+      .admin-header {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .panel-title {
+        font-size: clamp(2rem, 3vw, 3rem);
+        line-height: 1;
+      }
+
+      .panel-description {
+        margin: 12px 0 0;
+        max-width: 48rem;
+        color: var(--cf-text-muted);
+        line-height: 1.65;
+      }
+
+      .admin-layout {
+        display: grid;
+        grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+        gap: 22px;
+        align-items: start;
+      }
+
+      .card-form,
+      .admin-preview-panel {
+        padding: 24px;
+      }
+
+      .card-form {
+        display: grid;
+        gap: 18px;
+        position: sticky;
+        top: 0;
+      }
+
+      .form-header,
+      .admin-preview-header,
+      .bullet-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .form-copy h3,
+      .admin-preview-header h3 {
+        font-size: 1.5rem;
+      }
+
+      .form-copy p,
+      .admin-preview-header p,
+      .field-note,
+      .panel-note,
+      .feedback {
+        margin: 8px 0 0;
+        color: var(--cf-text-muted);
+        line-height: 1.55;
+      }
+
+      .feedback {
+        margin: 0;
+        min-height: 1.4em;
+      }
+
+      .form-grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .form-field {
+        display: grid;
+        gap: 8px;
+      }
+
+      .form-field span,
+      .checkbox-row label {
+        font-size: 0.92rem;
+        font-weight: 700;
+      }
+
+      .form-field input,
+      .form-field textarea {
+        width: 100%;
+        padding: 14px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .form-field input:focus,
+      .form-field textarea:focus {
+        outline: none;
+        border-color: rgba(223, 37, 49, 0.8);
+        box-shadow: 0 0 0 4px rgba(223, 37, 49, 0.14);
+      }
+
+      .form-field textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      .checkbox-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .checkbox-row input {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--cf-red);
+      }
+
+      .status-field {
+        display: grid;
+        gap: 10px;
+      }
+
+      .status-control {
+        --status-index: 0;
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0;
+        padding: 4px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.03);
+        overflow: hidden;
+      }
+
+      .status-control::before {
+        content: "";
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        left: 4px;
+        width: calc((100% - 8px) / 3);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(223, 37, 49, 0.8), rgba(223, 37, 49, 0.45));
+        box-shadow: 0 10px 24px rgba(223, 37, 49, 0.2);
+        transform: translateX(calc(var(--status-index) * 100%));
+        transition: transform 180ms ease;
+      }
+
+      .status-option-input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .status-option {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        padding: 10px 8px;
+        color: var(--cf-text-muted);
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        line-height: 1.08;
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .status-option-input:checked + .status-option {
+        color: var(--cf-white);
+      }
+
+      .bullet-editor {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .bullet-editor[hidden] {
+        display: none;
+      }
+
+      .bullet-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .bullet-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .bullet-row-main {
+        display: grid;
+        gap: 10px;
+      }
+
+      .bullet-status-shell {
+        display: grid;
+        gap: 6px;
+      }
+
+      .bullet-status-label {
+        color: var(--cf-text-soft);
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .bullet-row input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 16px;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .bullet-status-control {
+        --bullet-status-index: 3;
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0;
+        min-width: 0;
+        padding: 3px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.03);
+        overflow: hidden;
+      }
+
+      .bullet-status-control::before {
+        content: "";
+        position: absolute;
+        top: 3px;
+        bottom: 3px;
+        left: 3px;
+        width: calc((100% - 6px) / 4);
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(223, 37, 49, 0.8), rgba(223, 37, 49, 0.45));
+        box-shadow: 0 8px 18px rgba(223, 37, 49, 0.18);
+        transform: translateX(calc(var(--bullet-status-index) * 100%));
+        transition: transform 180ms ease;
+      }
+
+      .bullet-status-option-input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .bullet-status-option {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 40px;
+        padding: 8px 6px;
+        color: var(--cf-text-muted);
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        line-height: 1.05;
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .bullet-status-option-input:checked + .bullet-status-option {
+        color: var(--cf-white);
+      }
+
+      .bullet-row .mini-button {
+        min-height: 48px;
+      }
+
+      .field-note code,
+      .panel-note code,
+      .storage-pill code {
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        font-family: "Courier New", monospace;
+        font-size: 0.86em;
+      }
+
+      .form-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .admin-preview-panel {
+        display: grid;
+        gap: 18px;
+      }
+
+      .admin-panel-empty {
+        padding: 24px;
+        border-radius: 24px;
+        border: 1px dashed rgba(255, 255, 255, 0.16);
+        color: var(--cf-text-muted);
+        line-height: 1.7;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .admin-panel-empty h4 {
+        margin: 0 0 12px;
+        font-size: 1.35rem;
+        color: var(--cf-white);
+      }
+
+      .bullet-line {
+        display: inline-flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .bullet-text {
+        line-height: 1.5;
+      }
+
+      .bullet-status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 9px;
+        font-size: 0.66rem;
+        letter-spacing: 0.06em;
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        border: 0;
+      }
+
+      @media (max-width: 920px) {
+        .roadmap-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .public-roadmap-card {
+          grid-template-columns: 1fr;
+          grid-template-areas:
+            "visual"
+            "body";
+        }
+
+        .public-roadmap-card .card-visual,
+        .public-roadmap-card.card-media-left .card-visual {
+          min-height: 220px;
+          border-right: 0;
+          border-left: 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .public-roadmap-card .card-title,
+        .public-roadmap-card .card-description {
+          max-width: none;
+        }
+      }
+
+      @media (max-width: 820px) {
+        .admin-roadmap-card {
+          grid-template-columns: 1fr;
+          grid-template-areas:
+            "visual"
+            "body";
+        }
+
+        .admin-roadmap-card .card-visual,
+        .admin-roadmap-card.card-media-left .card-visual {
+          min-height: 180px;
+          border-right: 0;
+          border-left: 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .admin-roadmap-card .card-title,
+        .admin-roadmap-card .card-description {
+          max-width: none;
+        }
+      }
+
+      @media (max-width: 980px) {
+        .hero-grid,
+        .admin-layout {
+          grid-template-columns: 1fr;
+        }
+
+        .card-form {
+          position: static;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .page-shell,
+        .admin-panel {
+          padding: 18px;
+        }
+
+        .topbar,
+        .section-header,
+        .admin-header,
+        .form-header,
+        .admin-preview-header,
+        .bullet-header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .signal-panel {
+          grid-template-columns: 1fr;
+        }
+
+        .admin-card-list {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .bullet-row {
+          grid-template-columns: 1fr;
+        }
+
+        .bullet-row .mini-button {
+          width: fit-content;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="content">
+        <header class="topbar">
+          <div class="brand-lockup">
+            <p class="brand">Carbon Frontier</p>
+            <p class="brand-subline">Roadmap website prototype</p>
+          </div>
+          <div class="topbar-actions">
+            <div class="account-pill" id="account-pill">Checking admin access...</div>
+            <button class="admin-button" id="admin-panel-button" type="button" hidden>
+              Open Admin Panel
+            </button>
+          </div>
+        </header>
+
+        <main>
+          <section class="hero-grid">
+            <div class="hero-copy">
+              <p class="eyebrow">Website Roadmap</p>
+              <h1>Plan updates, edit them once, and publish them everywhere.</h1>
+              <p class="intro">
+                This prototype turns the roadmap into a live system. Add cards in the admin panel,
+                and the same updates instantly appear on the public website view below.
+              </p>
+              <div class="status-ribbon" id="account-status">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span>No account is connected yet.</span>
+              </div>
+            </div>
+
+            <div class="signal-panel" aria-label="Roadmap summary">
+              <div class="signal-card">
+                <p class="signal-label">Total Cards</p>
+                <p class="signal-value" id="card-count">0</p>
+                <p class="signal-detail">Each roadmap update added in admin appears on the live site.</p>
+              </div>
+              <div class="signal-card">
+                <p class="signal-label">Next Milestone</p>
+                <p class="signal-value" id="next-milestone">None</p>
+                <p class="signal-detail">Cards are automatically ordered by the date you assign them.</p>
+              </div>
+              <div class="signal-card">
+                <p class="signal-label">Bullet Lists</p>
+                <p class="signal-value" id="bullet-mode">Off</p>
+                <p class="signal-detail">Enable bullet points per card when a milestone needs more structure.</p>
+              </div>
+              <div class="signal-card">
+                <p class="signal-label">Storage</p>
+                <p class="signal-value">Local</p>
+                <p class="signal-detail">This first version saves your roadmap in this browser with local storage.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="roadmap-section" aria-labelledby="roadmap-heading">
+            <div class="section-header">
+              <div class="section-copy">
+                <p class="section-tag">Public Website</p>
+                <h2 id="roadmap-heading">Upcoming roadmap cards</h2>
+                <p>
+                  The cards below are the exact updates the public site will display. Add or edit
+                  them in the admin panel and this area refreshes immediately.
+                </p>
+              </div>
+              <div class="storage-pill">Prototype storage: <code>localStorage</code></div>
+            </div>
+
+            <div class="roadmap-grid" id="roadmap-grid"></div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="panel-backdrop" id="panel-backdrop"></div>
+
+    <aside class="admin-panel" id="admin-panel" aria-hidden="true">
+      <div class="admin-panel-shell">
+        <div class="admin-header">
+          <div>
+            <p class="panel-tag">Admin Panel</p>
+            <h2 class="panel-title">Roadmap card manager</h2>
+            <p class="panel-description">
+              Add update cards with a title, description, image path, target date, and optional
+              bullet points. The same card data powers both the admin view and the public roadmap.
+            </p>
+          </div>
+          <button class="icon-button" id="close-admin-panel" type="button" aria-label="Close admin panel">
+            ×
+          </button>
+        </div>
+
+        <div class="admin-layout">
+          <form class="card-form" id="card-form">
+            <div class="form-header">
+              <div class="form-copy">
+                <p class="meta-tag">Card Editor</p>
+                <h3 id="form-heading">Add a roadmap card</h3>
+                <p id="form-subheading">Create a new update card for the website.</p>
+              </div>
+              <button class="ghost-button" id="reset-form-button" type="button">Reset</button>
+            </div>
+
+            <div class="form-grid">
+              <label class="form-field">
+                <span>Title</span>
+                <input id="title-input" name="title" type="text" placeholder="Phase 1 launch" required />
+              </label>
+
+              <label class="form-field">
+                <span>Description</span>
+                <textarea
+                  id="description-input"
+                  name="description"
+                  placeholder="Describe what this update includes and why it matters."
+                  required
+                ></textarea>
+              </label>
+
+              <label class="form-field">
+                <span>Image Path</span>
+                <input
+                  id="image-input"
+                  name="image"
+                  type="text"
+                  placeholder="images/picture1.png"
+                />
+              </label>
+
+              <p class="field-note">
+                To use an image, place the file in the <code>images/</code> folder, then type the
+                relative path here, like <code>images/picture1.png</code>. Including the file
+                extension is best, but common image extensions are now auto-tried too.
+              </p>
+
+              <label class="form-field">
+                <span>Date</span>
+                <input id="date-input" name="date" type="date" required />
+              </label>
+
+              <div class="status-field">
+                <span>Status</span>
+                <div class="status-control" id="status-control">
+                  <input
+                    class="status-option-input"
+                    id="status-planned"
+                    name="status"
+                    type="radio"
+                    value="PLANNED"
+                    checked
+                  />
+                  <label class="status-option" for="status-planned">PLANNED</label>
+
+                  <input
+                    class="status-option-input"
+                    id="status-progress"
+                    name="status"
+                    type="radio"
+                    value="IN PROGRESS"
+                  />
+                  <label class="status-option" for="status-progress">IN PROGRESS</label>
+
+                  <input
+                    class="status-option-input"
+                    id="status-finished"
+                    name="status"
+                    type="radio"
+                    value="FINISHED"
+                  />
+                  <label class="status-option" for="status-finished">FINISHED</label>
+
+                </div>
+              </div>
+
+              <div class="checkbox-row">
+                <input id="bullets-toggle" name="hasBullets" type="checkbox" />
+                <label for="bullets-toggle">Add a bullet-point dropdown for this card</label>
+              </div>
+
+              <div class="bullet-editor" id="bullet-editor" hidden>
+                <div class="bullet-header">
+                  <div>
+                    <p class="meta-tag">Bullet Points</p>
+                    <h3>Dropdown content</h3>
+                  </div>
+                  <button class="mini-button" id="add-bullet-button" type="button">+ Add Bullet</button>
+                </div>
+                <div class="bullet-list" id="bullet-list"></div>
+                <p class="panel-note">
+                  Start with one bullet point, then add more with the plus button. Empty bullet rows
+                  are ignored when the card is saved, and each bullet has its own status slider.
+                </p>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button class="save-button" id="submit-button" type="submit">Create Card</button>
+              <button class="subtle-button" id="clear-storage-button" type="button">Clear All Cards</button>
+            </div>
+
+            <p class="feedback" id="form-feedback"></p>
+          </form>
+
+          <section class="admin-preview-panel" aria-labelledby="admin-preview-heading">
+            <div class="admin-preview-header">
+              <div>
+                <p class="meta-tag">Admin Preview</p>
+                <h3 id="admin-preview-heading">Current cards</h3>
+                <p>
+                  These use the same layout as the public cards at a smaller scale. They start
+                  sorted by date, and the drag handle lets you override that order manually.
+                </p>
+              </div>
+            </div>
+            <div class="admin-card-list" id="admin-card-list"></div>
+          </section>
+        </div>
+      </div>
+    </aside>
+
+    <script>
+      const ADMIN_ACCOUNTS = ["jb141598@gmail.com", "jb14296@gmail.com"];
+      const CARD_STATUSES = ["PLANNED", "IN PROGRESS", "FINISHED"];
+      const BULLET_STATUSES = ["PLANNED", "IN PROGRESS", "FINISHED", "NONE"];
+      const LEGACY_CARD_STATUSES = [...CARD_STATUSES, "NONE"];
+      const STORAGE_KEY = "carbon-frontier-roadmap-cards-v1";
+      const ORDER_MODE_KEY = "carbon-frontier-roadmap-order-mode-v1";
+      const roadmapState = {
+        cards: [],
+        currentEditId: null,
+        pendingDeleteId: null,
+        orderMode: "date",
+        draggingCardId: null,
+        dropTargetId: null,
+        dropPosition: null,
+        hasAdminAccess: false,
+      };
+
+      const elements = {
+        accountPill: document.getElementById("account-pill"),
+        accountStatus: document.getElementById("account-status"),
+        adminPanelButton: document.getElementById("admin-panel-button"),
+        adminPanel: document.getElementById("admin-panel"),
+        closeAdminPanel: document.getElementById("close-admin-panel"),
+        panelBackdrop: document.getElementById("panel-backdrop"),
+        roadmapGrid: document.getElementById("roadmap-grid"),
+        adminCardList: document.getElementById("admin-card-list"),
+        cardForm: document.getElementById("card-form"),
+        titleInput: document.getElementById("title-input"),
+        descriptionInput: document.getElementById("description-input"),
+        imageInput: document.getElementById("image-input"),
+        dateInput: document.getElementById("date-input"),
+        statusControl: document.getElementById("status-control"),
+        statusInputs: Array.from(document.querySelectorAll('input[name="status"]')),
+        bulletsToggle: document.getElementById("bullets-toggle"),
+        bulletEditor: document.getElementById("bullet-editor"),
+        bulletList: document.getElementById("bullet-list"),
+        addBulletButton: document.getElementById("add-bullet-button"),
+        submitButton: document.getElementById("submit-button"),
+        resetFormButton: document.getElementById("reset-form-button"),
+        clearStorageButton: document.getElementById("clear-storage-button"),
+        formHeading: document.getElementById("form-heading"),
+        formSubheading: document.getElementById("form-subheading"),
+        formFeedback: document.getElementById("form-feedback"),
+        cardCount: document.getElementById("card-count"),
+        nextMilestone: document.getElementById("next-milestone"),
+        bulletMode: document.getElementById("bullet-mode"),
+      };
+
+      function isCursorTestingEnvironment() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        const referrer = document.referrer.toLowerCase();
+        const isLocalPreview =
+          window.location.protocol === "file:" ||
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1";
+
+        return (
+          isLocalPreview ||
+          userAgent.includes("cursor") ||
+          userAgent.includes("electron") ||
+          referrer.includes("cursor")
+        );
+      }
+
+      function getCurrentAccount() {
+        const globalAccount = window.CarbonFrontierAuth?.currentAccount;
+        const queryAccount = new URLSearchParams(window.location.search).get("account");
+
+        if (typeof globalAccount === "string" && globalAccount.trim()) {
+          return globalAccount.trim().toLowerCase();
+        }
+
+        if (typeof queryAccount === "string" && queryAccount.trim()) {
+          return queryAccount.trim().toLowerCase();
+        }
+
+        return null;
+      }
+
+      function normalizeBullet(bullet) {
+        if (typeof bullet === "string") {
+          const text = bullet.trim();
+          return text ? { text, status: "NONE" } : null;
+        }
+
+        const text = String(bullet?.text || "").trim();
+        if (!text) {
+          return null;
+        }
+
+        const rawStatus = String(bullet?.status || "").trim();
+        return {
+          text,
+          status: BULLET_STATUSES.includes(rawStatus) ? rawStatus : "NONE",
+        };
+      }
+
+      function normalizeCard(card) {
+        const bullets = Array.isArray(card?.bullets)
+          ? card.bullets.map(normalizeBullet).filter(Boolean)
+          : [];
+        const status = LEGACY_CARD_STATUSES.includes(String(card?.status || "").trim())
+          ? String(card.status).trim()
+          : "PLANNED";
+        const manualOrder = Number.isFinite(Number(card?.manualOrder))
+          ? Number(card.manualOrder)
+          : null;
+
+        return {
+          id: String(card?.id || createId()),
+          title: String(card?.title || "").trim(),
+          description: String(card?.description || "").trim(),
+          imagePath: String(card?.imagePath || "").trim(),
+          date: String(card?.date || "").trim(),
+          status,
+          manualOrder,
+          bullets,
+        };
+      }
+
+      function loadCards() {
+        try {
+          const rawCards = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+          if (!Array.isArray(rawCards)) {
+            return [];
+          }
+
+          return rawCards.map(normalizeCard).filter((card) => card.title && card.description);
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function loadOrderMode() {
+        return localStorage.getItem(ORDER_MODE_KEY) === "manual" ? "manual" : "date";
+      }
+
+      function saveCards() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(roadmapState.cards));
+      }
+
+      function saveOrderMode() {
+        localStorage.setItem(ORDER_MODE_KEY, roadmapState.orderMode);
+      }
+
+      function createId() {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") {
+          return window.crypto.randomUUID();
+        }
+
+        return `card-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+
+      function compareCardsByDate(first, second) {
+        if (first.date && second.date) {
+          return first.date.localeCompare(second.date);
+        }
+
+        if (first.date) {
+          return -1;
+        }
+
+        if (second.date) {
+          return 1;
+        }
+
+        return first.title.localeCompare(second.title);
+      }
+
+      function sortCardsByDate(cards) {
+        return [...cards].sort(compareCardsByDate);
+      }
+
+      function sortCards(cards) {
+        if (roadmapState.orderMode === "manual") {
+          return [...cards].sort((first, second) => {
+            const firstOrder = Number.isFinite(first.manualOrder) ? first.manualOrder : Number.MAX_SAFE_INTEGER;
+            const secondOrder = Number.isFinite(second.manualOrder)
+              ? second.manualOrder
+              : Number.MAX_SAFE_INTEGER;
+
+            if (firstOrder !== secondOrder) {
+              return firstOrder - secondOrder;
+            }
+
+            return compareCardsByDate(first, second);
+          });
+        }
+
+        return sortCardsByDate(cards);
+      }
+
+      function assignManualOrder(cards) {
+        return cards.map((card, index) => ({
+          ...card,
+          manualOrder: index,
+        }));
+      }
+
+      function clearDropIndicators() {
+        elements.adminCardList
+          .querySelectorAll(".admin-roadmap-card")
+          .forEach((card) => card.classList.remove("drop-before", "drop-after"));
+      }
+
+      function releaseDraggableCards() {
+        elements.adminCardList.querySelectorAll(".admin-roadmap-card").forEach((card) => {
+          card.draggable = false;
+        });
+      }
+
+      function resetDragState() {
+        roadmapState.draggingCardId = null;
+        roadmapState.dropTargetId = null;
+        roadmapState.dropPosition = null;
+        clearDropIndicators();
+        elements.adminCardList
+          .querySelectorAll(".admin-roadmap-card")
+          .forEach((card) => card.classList.remove("is-dragging"));
+        releaseDraggableCards();
+      }
+
+      function setDropIndicator(cardId, position) {
+        if (roadmapState.dropTargetId === cardId && roadmapState.dropPosition === position) {
+          return;
+        }
+
+        roadmapState.dropTargetId = cardId;
+        roadmapState.dropPosition = position;
+        clearDropIndicators();
+
+        const targetCard = elements.adminCardList.querySelector(`[data-card-id="${cardId}"]`);
+        if (targetCard) {
+          targetCard.classList.add(position === "before" ? "drop-before" : "drop-after");
+        }
+      }
+
+      function reorderCards(draggedId, targetId, position) {
+        const orderedCards = sortCards(roadmapState.cards);
+        const draggedIndex = orderedCards.findIndex((card) => card.id === draggedId);
+        const targetIndex = orderedCards.findIndex((card) => card.id === targetId);
+
+        if (draggedIndex === -1 || targetIndex === -1) {
+          resetDragState();
+          return;
+        }
+
+        const reorderedCards = [...orderedCards];
+        const [draggedCard] = reorderedCards.splice(draggedIndex, 1);
+        let insertIndex = targetIndex;
+
+        if (draggedIndex < targetIndex) {
+          insertIndex -= 1;
+        }
+
+        if (position === "after") {
+          insertIndex += 1;
+        }
+
+        reorderedCards.splice(insertIndex, 0, draggedCard);
+        roadmapState.orderMode = "manual";
+        roadmapState.cards = assignManualOrder(reorderedCards);
+        roadmapState.draggingCardId = null;
+        roadmapState.dropTargetId = null;
+        roadmapState.dropPosition = null;
+        saveOrderMode();
+        saveCards();
+        renderAll();
+        setFeedback("Cards reordered.");
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function formatDisplayDate(dateString) {
+        if (!dateString) {
+          return "No date set";
+        }
+
+        const date = new Date(`${dateString}T12:00:00`);
+        if (Number.isNaN(date.getTime())) {
+          return dateString;
+        }
+
+        return new Intl.DateTimeFormat("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }).format(date);
+      }
+
+      function setFeedback(message, isError = false) {
+        elements.formFeedback.textContent = message;
+        elements.formFeedback.style.color = isError ? "#ffb7bd" : "rgba(255, 255, 255, 0.72)";
+      }
+
+      function syncStatusControl(statusValue) {
+        const index = Math.max(CARD_STATUSES.indexOf(statusValue), 0);
+        elements.statusControl.style.setProperty("--status-index", String(index));
+      }
+
+      function setSelectedStatus(statusValue) {
+        const safeStatus = CARD_STATUSES.includes(statusValue) ? statusValue : "PLANNED";
+        elements.statusInputs.forEach((input) => {
+          input.checked = input.value === safeStatus;
+        });
+        syncStatusControl(safeStatus);
+      }
+
+      function getSelectedStatus() {
+        return elements.statusInputs.find((input) => input.checked)?.value || "PLANNED";
+      }
+
+      function syncBulletStatusControl(control, statusValue) {
+        const safeStatus = BULLET_STATUSES.includes(statusValue) ? statusValue : "NONE";
+        const index = BULLET_STATUSES.indexOf(safeStatus);
+        control.style.setProperty("--bullet-status-index", String(index));
+      }
+
+      function createBulletStatusControl(selectedStatus = "NONE") {
+        const safeStatus = BULLET_STATUSES.includes(selectedStatus) ? selectedStatus : "NONE";
+        const control = document.createElement("div");
+        const rowId = createId();
+
+        control.className = "bullet-status-control";
+
+        BULLET_STATUSES.forEach((status, index) => {
+          const input = document.createElement("input");
+          input.type = "radio";
+          input.value = status;
+          input.name = `bullet-status-${rowId}`;
+          input.id = `bullet-status-${rowId}-${index}`;
+          input.className = "bullet-status-option-input";
+          input.checked = status === safeStatus;
+          input.addEventListener("change", () => {
+            if (input.checked) {
+              syncBulletStatusControl(control, input.value);
+            }
+          });
+
+          const label = document.createElement("label");
+          label.className = "bullet-status-option";
+          label.htmlFor = input.id;
+          label.textContent = status;
+
+          control.append(input, label);
+        });
+
+        syncBulletStatusControl(control, safeStatus);
+        return control;
+      }
+
+      function ensureBulletInputCount() {
+        if (elements.bulletList.children.length === 0) {
+          addBulletInput();
+        }
+      }
+
+      function addBulletInput(value = "", status = "NONE") {
+        const row = document.createElement("div");
+        row.className = "bullet-row";
+
+        const mainColumn = document.createElement("div");
+        mainColumn.className = "bullet-row-main";
+
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Bullet point";
+        input.value = value;
+
+        const statusShell = document.createElement("div");
+        statusShell.className = "bullet-status-shell";
+
+        const statusLabel = document.createElement("div");
+        statusLabel.className = "bullet-status-label";
+        statusLabel.textContent = "Bullet Status";
+
+        const statusControl = createBulletStatusControl(status);
+        statusShell.append(statusLabel, statusControl);
+        mainColumn.append(input, statusShell);
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "mini-button";
+        removeButton.textContent = "Remove";
+        removeButton.addEventListener("click", () => {
+          if (elements.bulletList.children.length === 1) {
+            input.value = "";
+            return;
+          }
+
+          row.remove();
+        });
+
+        row.append(mainColumn, removeButton);
+        elements.bulletList.append(row);
+      }
+
+      function setBulletEditorVisible(isVisible) {
+        elements.bulletEditor.hidden = !isVisible;
+        if (isVisible) {
+          ensureBulletInputCount();
+        }
+      }
+
+      function getBulletValues() {
+        return Array.from(elements.bulletList.querySelectorAll(".bullet-row"))
+          .map((row) => {
+            const text = row.querySelector('input[type="text"]')?.value.trim() || "";
+            const status =
+              row.querySelector(".bullet-status-option-input:checked")?.value || "NONE";
+
+            return {
+              text,
+              status: BULLET_STATUSES.includes(status) ? status : "NONE",
+            };
+          })
+          .filter((bullet) => bullet.text);
+      }
+
+      function resetForm(message = "Ready for a new card.") {
+        roadmapState.currentEditId = null;
+        roadmapState.pendingDeleteId = null;
+        elements.cardForm.reset();
+        setSelectedStatus("PLANNED");
+        elements.bulletList.innerHTML = "";
+        addBulletInput();
+        setBulletEditorVisible(false);
+        elements.formHeading.textContent = "Add a roadmap card";
+        elements.formSubheading.textContent = "Create a new update card for the website.";
+        elements.submitButton.textContent = "Create Card";
+        setFeedback(message);
+      }
+
+      function populateForm(cardId) {
+        const card = roadmapState.cards.find((entry) => entry.id === cardId);
+        if (!card) {
+          return;
+        }
+
+        roadmapState.pendingDeleteId = null;
+        roadmapState.currentEditId = card.id;
+        elements.titleInput.value = card.title;
+        elements.descriptionInput.value = card.description;
+        elements.imageInput.value = card.imagePath;
+        elements.dateInput.value = card.date;
+        setSelectedStatus(card.status);
+        elements.bulletsToggle.checked = card.bullets.length > 0;
+        elements.bulletList.innerHTML = "";
+
+        if (card.bullets.length > 0) {
+          card.bullets.forEach((bullet) => addBulletInput(bullet.text, bullet.status));
+          setBulletEditorVisible(true);
+        } else {
+          addBulletInput();
+          setBulletEditorVisible(false);
+        }
+
+        elements.formHeading.textContent = "Edit roadmap card";
+        elements.formSubheading.textContent = `Updating: ${card.title}`;
+        elements.submitButton.textContent = "Save Changes";
+        setFeedback("Editing selected card.");
+        elements.titleInput.focus();
+      }
+
+      function removeCard(cardId) {
+        roadmapState.cards = roadmapState.cards.filter((card) => card.id !== cardId);
+        roadmapState.pendingDeleteId = null;
+
+        if (roadmapState.orderMode === "manual") {
+          roadmapState.cards = assignManualOrder(sortCards(roadmapState.cards));
+        }
+
+        if (roadmapState.cards.length === 0) {
+          roadmapState.orderMode = "date";
+          saveOrderMode();
+        }
+
+        saveCards();
+        renderAll();
+
+        if (roadmapState.currentEditId === cardId) {
+          resetForm();
+        }
+
+        setFeedback("Card removed.");
+      }
+
+      function createBulletStatusBadgeMarkup(status) {
+        if (status === "NONE") {
+          return "";
+        }
+
+        return `<span class="status-badge bullet-status-badge" data-status="${escapeHtml(status)}">${escapeHtml(
+          status
+        )}</span>`;
+      }
+
+      function createBulletsMarkup(card) {
+        return card.bullets.length
+          ? `<details class="card-dropdown">
+              <summary><span class="visually-hidden">Toggle bullet points</span></summary>
+              <ul class="card-bullets">${card.bullets
+                .map(
+                  (bullet) =>
+                    `<li><span class="bullet-line"><span class="bullet-text">${escapeHtml(
+                      bullet.text
+                    )}</span>${createBulletStatusBadgeMarkup(bullet.status)}</span></li>`
+                )
+                .join("")}</ul>
+            </details>`
+          : "";
+      }
+
+      function createStatusBadgeMarkup(status) {
+        if (status === "NONE") {
+          return "";
+        }
+
+        return `<div class="status-badge" data-status="${escapeHtml(status)}">${escapeHtml(status)}</div>`;
+      }
+
+      function normalizeImagePath(imagePath) {
+        const trimmedPath = String(imagePath || "").trim().replaceAll("\\", "/");
+        if (!trimmedPath) {
+          return "";
+        }
+
+        const imagesIndex = trimmedPath.toLowerCase().lastIndexOf("images/");
+        if (imagesIndex !== -1) {
+          return trimmedPath.slice(imagesIndex);
+        }
+
+        return trimmedPath.replace(/^\.?\//, "").replace(/^carbon-frontier-website\//, "");
+      }
+
+      function buildImageCandidates(imagePath) {
+        const normalizedPath = normalizeImagePath(imagePath);
+        if (!normalizedPath) {
+          return [];
+        }
+
+        const hasExtension = /\.[a-z0-9]+$/i.test(normalizedPath);
+        if (hasExtension) {
+          return [normalizedPath];
+        }
+
+        const extensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"];
+        return [normalizedPath, ...extensions.map((extension) => `${normalizedPath}${extension}`)];
+      }
+
+      function createImageMarkup(card) {
+        const normalizedImagePath = normalizeImagePath(card.imagePath);
+        return card.imagePath
+          ? `<div class="card-visual"><img data-image-path="${escapeHtml(
+              normalizedImagePath
+            )}" alt="${escapeHtml(card.title)}" loading="lazy" /></div>`
+          : `<div class="card-visual"></div>`;
+      }
+
+      function createPublicCardMarkup(card, index) {
+        const layoutClass = index % 2 === 0 ? "card-media-right" : "card-media-left";
+        const bulletsMarkup = createBulletsMarkup(card);
+        const imageMarkup = createImageMarkup(card);
+        const statusMarkup = createStatusBadgeMarkup(card.status);
+
+        return `
+          <article class="roadmap-card public-roadmap-card ${layoutClass}">
+            <div class="card-body">
+              <div class="public-card-top">
+                <div class="card-date">${escapeHtml(formatDisplayDate(card.date))}</div>
+                ${statusMarkup}
+              </div>
+              <h3 class="card-title">${escapeHtml(card.title)}</h3>
+              <p class="card-description">${escapeHtml(card.description)}</p>
+              ${bulletsMarkup}
+            </div>
+            ${imageMarkup}
+          </article>
+        `;
+      }
+
+      function createAdminCardMarkup(card, index) {
+        const layoutClass = index % 2 === 0 ? "card-media-right" : "card-media-left";
+        const bulletsMarkup = createBulletsMarkup(card);
+        const imageMarkup = createImageMarkup(card);
+        const statusMarkup = createStatusBadgeMarkup(card.status);
+        const isDeleteArmed = roadmapState.pendingDeleteId === card.id;
+        const actionMarkup = `<div class="admin-card-toolbar">
+            <button class="drag-handle" type="button" data-drag-handle="${escapeHtml(card.id)}">Drag</button>
+            <div class="admin-card-buttons">
+              <button class="subtle-button" type="button" data-edit-card="${escapeHtml(card.id)}">Edit</button>
+              <button class="danger-button ${isDeleteArmed ? "is-armed" : ""}" type="button" data-delete-card="${escapeHtml(card.id)}">${isDeleteArmed ? "Confirm Delete" : "Delete"}</button>
+            </div>
+          </div>`;
+
+        return `
+          <article class="roadmap-card admin-roadmap-card ${layoutClass}" data-card-id="${escapeHtml(card.id)}">
+            <div class="card-body">
+              <div class="admin-card-top">
+                <div class="card-date">${escapeHtml(formatDisplayDate(card.date))}</div>
+                ${statusMarkup}
+              </div>
+              <h3 class="card-title">${escapeHtml(card.title)}</h3>
+              <p class="card-description">${escapeHtml(card.description)}</p>
+              ${bulletsMarkup}
+              ${actionMarkup}
+            </div>
+            ${imageMarkup}
+          </article>
+        `;
+      }
+
+      function renderPublicCards() {
+        if (roadmapState.cards.length === 0) {
+          elements.roadmapGrid.innerHTML = `
+            <article class="empty-state">
+              <p class="section-tag">No roadmap cards yet</p>
+              <h3>Your roadmap is ready for the first update.</h3>
+              <p>
+                Open the admin panel, add a card, and it will appear here immediately. This makes it
+                easy to shape the public experience while we are still in prototype mode.
+              </p>
+            </article>
+          `;
+          return;
+        }
+
+        elements.roadmapGrid.innerHTML = roadmapState.cards
+          .map((card, index) => createPublicCardMarkup(card, index))
+          .join("");
+      }
+
+      function renderAdminCards() {
+        if (roadmapState.cards.length === 0) {
+          roadmapState.pendingDeleteId = null;
+          elements.adminCardList.innerHTML = `
+            <div class="admin-panel-empty">
+              <h4>No cards yet</h4>
+              <p>
+                Once you add a roadmap card, it will appear here with edit controls and on the
+                public website section at the same time.
+              </p>
+            </div>
+          `;
+          return;
+        }
+
+        roadmapState.dropTargetId = null;
+        roadmapState.dropPosition = null;
+        elements.adminCardList.innerHTML = roadmapState.cards
+          .map((card, index) => createAdminCardMarkup(card, index))
+          .join("");
+      }
+
+      function hydrateCardImages() {
+        document.querySelectorAll(".card-visual img[data-image-path]").forEach((image) => {
+          const candidates = buildImageCandidates(image.dataset.imagePath);
+          if (candidates.length === 0) {
+            image.remove();
+            return;
+          }
+
+          let candidateIndex = 0;
+          const tryNextCandidate = () => {
+            const nextCandidate = candidates[candidateIndex];
+            if (!nextCandidate) {
+              image.remove();
+              return;
+            }
+
+            image.src = nextCandidate;
+            candidateIndex += 1;
+          };
+
+          image.onerror = tryNextCandidate;
+          tryNextCandidate();
+        });
+      }
+
+      function renderSignals() {
+        elements.cardCount.textContent = String(roadmapState.cards.length);
+        elements.bulletMode.textContent = roadmapState.cards.some((card) => card.bullets.length > 0)
+          ? "On"
+          : "Off";
+
+        const nextCard = sortCardsByDate(roadmapState.cards).find((card) => card.date);
+        elements.nextMilestone.textContent = nextCard ? formatDisplayDate(nextCard.date) : "None";
+      }
+
+      function renderAll() {
+        roadmapState.cards = sortCards(roadmapState.cards);
+        renderPublicCards();
+        renderAdminCards();
+        renderSignals();
+        hydrateCardImages();
+      }
+
+      function openAdminPanel() {
+        if (!roadmapState.hasAdminAccess) {
+          return;
+        }
+
+        document.body.classList.add("admin-open");
+        elements.adminPanel.classList.add("is-open");
+        elements.panelBackdrop.classList.add("is-open");
+        elements.adminPanel.setAttribute("aria-hidden", "false");
+      }
+
+      function closeAdminPanel() {
+        document.body.classList.remove("admin-open");
+        elements.adminPanel.classList.remove("is-open");
+        elements.panelBackdrop.classList.remove("is-open");
+        elements.adminPanel.setAttribute("aria-hidden", "true");
+      }
+
+      function updateAdminUI() {
+        const currentAccount = getCurrentAccount();
+        const hasAuthorizedAccount =
+          typeof currentAccount === "string" && ADMIN_ACCOUNTS.includes(currentAccount);
+        const hasDevOverride = isCursorTestingEnvironment();
+
+        roadmapState.hasAdminAccess = hasAuthorizedAccount || hasDevOverride;
+        elements.adminPanelButton.hidden = !roadmapState.hasAdminAccess;
+
+        if (hasAuthorizedAccount) {
+          elements.accountPill.textContent = `Admin account: ${currentAccount}`;
+          elements.accountStatus.innerHTML =
+            '<span class="status-dot" aria-hidden="true"></span><span>Approved admin account detected. You can open the admin panel.</span>';
+          return;
+        }
+
+        if (hasDevOverride) {
+          elements.accountPill.textContent = "Cursor/local testing override";
+          elements.accountStatus.innerHTML =
+            '<span class="status-dot" aria-hidden="true"></span><span>Development override active. This local or Cursor-style preview is being treated as admin while we prototype.</span>';
+          return;
+        }
+
+        elements.accountPill.textContent = currentAccount ? `Signed in: ${currentAccount}` : "No account connected";
+        elements.accountStatus.innerHTML = currentAccount
+          ? '<span class="status-dot" aria-hidden="true"></span><span>A signed-in account was found, but it is not on the admin allowlist.</span>'
+          : '<span class="status-dot" aria-hidden="true"></span><span>No account is connected yet. Real account detection will plug into Google or another auth provider later.</span>';
+        closeAdminPanel();
+      }
+
+      function handleFormSubmit(event) {
+        event.preventDefault();
+
+        const title = elements.titleInput.value.trim();
+        const description = elements.descriptionInput.value.trim();
+        const imagePath = elements.imageInput.value.trim();
+        const date = elements.dateInput.value;
+        const status = getSelectedStatus();
+        const bullets = elements.bulletsToggle.checked ? getBulletValues() : [];
+        const existingCard = roadmapState.cards.find((card) => card.id === roadmapState.currentEditId);
+
+        if (!title || !description || !date) {
+          setFeedback("Title, description, and date are required.", true);
+          return;
+        }
+
+        const card = normalizeCard({
+          ...existingCard,
+          id: roadmapState.currentEditId || createId(),
+          title,
+          description,
+          imagePath,
+          date,
+          status,
+          bullets,
+        });
+
+        if (roadmapState.currentEditId) {
+          roadmapState.cards = roadmapState.cards.map((entry) =>
+            entry.id === roadmapState.currentEditId ? card : entry
+          );
+          resetForm("Card updated.");
+        } else {
+          if (roadmapState.orderMode === "manual") {
+            roadmapState.cards = assignManualOrder([...sortCards(roadmapState.cards), card]);
+          } else {
+            roadmapState.cards = [...roadmapState.cards, card];
+          }
+          resetForm("Card created.");
+        }
+
+        saveOrderMode();
+        saveCards();
+        renderAll();
+      }
+
+      elements.adminPanelButton.addEventListener("click", openAdminPanel);
+      elements.closeAdminPanel.addEventListener("click", closeAdminPanel);
+      elements.panelBackdrop.addEventListener("click", closeAdminPanel);
+      elements.cardForm.addEventListener("submit", handleFormSubmit);
+      elements.resetFormButton.addEventListener("click", resetForm);
+      elements.addBulletButton.addEventListener("click", () => addBulletInput());
+      elements.statusInputs.forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) {
+            syncStatusControl(input.value);
+          }
+        });
+      });
+      elements.bulletsToggle.addEventListener("change", () => {
+        setBulletEditorVisible(elements.bulletsToggle.checked);
+      });
+
+      elements.clearStorageButton.addEventListener("click", () => {
+        if (roadmapState.cards.length === 0) {
+          setFeedback("There are no cards to clear.");
+          return;
+        }
+
+        const isConfirmed = window.confirm("Clear every roadmap card from this browser?");
+        if (!isConfirmed) {
+          return;
+        }
+
+        roadmapState.cards = [];
+        roadmapState.orderMode = "date";
+        saveOrderMode();
+        saveCards();
+        renderAll();
+        resetForm("All cards cleared.");
+      });
+
+      elements.adminCardList.addEventListener("pointerdown", (event) => {
+        const dragHandle = event.target.closest("[data-drag-handle]");
+        if (!dragHandle) {
+          return;
+        }
+
+        const card = dragHandle.closest(".admin-roadmap-card");
+        if (!card) {
+          return;
+        }
+
+        card.draggable = true;
+        dragHandle.classList.add("is-armed");
+      });
+
+      elements.adminCardList.addEventListener("dragstart", (event) => {
+        const card = event.target.closest(".admin-roadmap-card");
+        if (!card) {
+          return;
+        }
+
+        roadmapState.draggingCardId = card.dataset.cardId;
+        card.classList.add("is-dragging");
+
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", card.dataset.cardId);
+        }
+      });
+
+      elements.adminCardList.addEventListener("dragover", (event) => {
+        if (!roadmapState.draggingCardId) {
+          return;
+        }
+
+        event.preventDefault();
+        const targetCard = event.target.closest(".admin-roadmap-card");
+
+        if (!targetCard || targetCard.dataset.cardId === roadmapState.draggingCardId) {
+          clearDropIndicators();
+          roadmapState.dropTargetId = null;
+          roadmapState.dropPosition = null;
+          return;
+        }
+
+        const bounds = targetCard.getBoundingClientRect();
+        const position = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+        setDropIndicator(targetCard.dataset.cardId, position);
+
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "move";
+        }
+      });
+
+      elements.adminCardList.addEventListener("drop", (event) => {
+        if (!roadmapState.draggingCardId) {
+          return;
+        }
+
+        event.preventDefault();
+        const targetCard = event.target.closest(".admin-roadmap-card");
+
+        if (
+          !targetCard ||
+          targetCard.dataset.cardId === roadmapState.draggingCardId ||
+          !roadmapState.dropPosition
+        ) {
+          resetDragState();
+          renderAdminCards();
+          return;
+        }
+
+        reorderCards(
+          roadmapState.draggingCardId,
+          targetCard.dataset.cardId,
+          roadmapState.dropPosition
+        );
+      });
+
+      elements.adminCardList.addEventListener("dragend", () => {
+        if (!roadmapState.draggingCardId) {
+          releaseDraggableCards();
+          elements.adminCardList
+            .querySelectorAll(".drag-handle")
+            .forEach((handle) => handle.classList.remove("is-armed"));
+          return;
+        }
+
+        resetDragState();
+        renderAdminCards();
+      });
+
+      elements.adminCardList.addEventListener("click", (event) => {
+        const editButton = event.target.closest("[data-edit-card]");
+        if (editButton) {
+          populateForm(editButton.dataset.editCard);
+          renderAdminCards();
+          return;
+        }
+
+        const deleteButton = event.target.closest("[data-delete-card]");
+        if (deleteButton) {
+          const cardId = deleteButton.dataset.deleteCard;
+
+          if (roadmapState.pendingDeleteId === cardId) {
+            removeCard(cardId);
+            return;
+          }
+
+          roadmapState.pendingDeleteId = cardId;
+          renderAdminCards();
+          setFeedback("Click delete again to confirm removal.");
+        }
+      });
+
+      window.addEventListener("pointerup", () => {
+        if (roadmapState.draggingCardId) {
+          return;
+        }
+
+        releaseDraggableCards();
+        elements.adminCardList
+          .querySelectorAll(".drag-handle")
+          .forEach((handle) => handle.classList.remove("is-armed"));
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          closeAdminPanel();
+        }
+      });
+
+      roadmapState.orderMode = loadOrderMode();
+      roadmapState.cards = loadCards();
+      if (
+        roadmapState.orderMode === "manual" &&
+        roadmapState.cards.some((card) => !Number.isFinite(card.manualOrder))
+      ) {
+        roadmapState.orderMode = "date";
+        saveOrderMode();
+      }
+      updateAdminUI();
+      resetForm();
+      renderAll();
+    </script>
+  </body>
+</html>
