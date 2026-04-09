@@ -700,8 +700,9 @@
 
       .card-dropdown summary {
         list-style: none;
-        display: grid;
-        place-items: center;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         width: 40px;
         height: 40px;
         padding: 0;
@@ -709,12 +710,6 @@
         border: 1px solid rgba(255, 255, 255, 0.1);
         background: rgba(255, 255, 255, 0.04);
         cursor: pointer;
-        transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
-      }
-
-      .card-dropdown summary:hover {
-        border-color: rgba(223, 37, 49, 0.48);
-        background: rgba(223, 37, 49, 0.12);
       }
 
       .card-dropdown summary::-webkit-details-marker {
@@ -722,13 +717,10 @@
       }
 
       .card-dropdown summary::after {
-        content: "";
-        display: block;
-        width: 80%;
-        height: 80%;
-        background:
-          center / 100% 100% no-repeat
-          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23df2531' stroke-width='2.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 8.5l7 7 7-7'/%3E%3C/svg%3E");
+        content: "⌄";
+        color: var(--cf-red);
+        font-size: 1.25rem;
+        line-height: 1;
         transition: transform 180ms ease;
       }
 
@@ -987,12 +979,11 @@
         align-items: center;
         justify-content: center;
         min-height: 48px;
-        padding: 10px 8px;
+        padding: 10px 12px;
         color: var(--cf-text-muted);
-        font-size: 0.74rem;
+        font-size: 0.79rem;
         font-weight: 700;
         letter-spacing: 0.06em;
-        line-height: 1.08;
         text-align: center;
         cursor: pointer;
         user-select: none;
@@ -1024,25 +1015,6 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 10px;
-        align-items: start;
-      }
-
-      .bullet-row-main {
-        display: grid;
-        gap: 10px;
-      }
-
-      .bullet-status-shell {
-        display: grid;
-        gap: 6px;
-      }
-
-      .bullet-status-label {
-        color: var(--cf-text-soft);
-        font-size: 0.74rem;
-        font-weight: 700;
-        letter-spacing: 0.1em;
-        text-transform: uppercase;
       }
 
       .bullet-row input {
@@ -1052,66 +1024,6 @@
         border-radius: 16px;
         color: var(--cf-white);
         background: rgba(255, 255, 255, 0.03);
-      }
-
-      .bullet-status-control {
-        --bullet-status-index: 3;
-        position: relative;
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 0;
-        min-width: 0;
-        padding: 3px;
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.03);
-        overflow: hidden;
-      }
-
-      .bullet-status-control::before {
-        content: "";
-        position: absolute;
-        top: 3px;
-        bottom: 3px;
-        left: 3px;
-        width: calc((100% - 6px) / 4);
-        border-radius: 12px;
-        background: linear-gradient(180deg, rgba(223, 37, 49, 0.8), rgba(223, 37, 49, 0.45));
-        box-shadow: 0 8px 18px rgba(223, 37, 49, 0.18);
-        transform: translateX(calc(var(--bullet-status-index) * 100%));
-        transition: transform 180ms ease;
-      }
-
-      .bullet-status-option-input {
-        position: absolute;
-        opacity: 0;
-        pointer-events: none;
-      }
-
-      .bullet-status-option {
-        position: relative;
-        z-index: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 40px;
-        padding: 8px 6px;
-        color: var(--cf-text-muted);
-        font-size: 0.62rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        line-height: 1.05;
-        text-align: center;
-        cursor: pointer;
-        user-select: none;
-      }
-
-      .bullet-status-option-input:checked + .bullet-status-option {
-        color: var(--cf-white);
-      }
-
-      .bullet-row .mini-button {
-        min-height: 48px;
       }
 
       .field-note code,
@@ -1148,25 +1060,6 @@
         margin: 0 0 12px;
         font-size: 1.35rem;
         color: var(--cf-white);
-      }
-
-      .bullet-line {
-        display: inline-flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-
-      .bullet-text {
-        line-height: 1.5;
-      }
-
-      .bullet-status-badge {
-        display: inline-flex;
-        align-items: center;
-        padding: 4px 9px;
-        font-size: 0.66rem;
-        letter-spacing: 0.06em;
       }
 
       .visually-hidden {
@@ -1261,16 +1154,6 @@
 
         .admin-card-list {
           grid-template-columns: 1fr;
-        }
-      }
-
-      @media (max-width: 640px) {
-        .bullet-row {
-          grid-template-columns: 1fr;
-        }
-
-        .bullet-row .mini-button {
-          width: fit-content;
         }
       }
     </style>
@@ -1445,7 +1328,6 @@
                     value="FINISHED"
                   />
                   <label class="status-option" for="status-finished">FINISHED</label>
-
                 </div>
               </div>
 
@@ -1465,7 +1347,7 @@
                 <div class="bullet-list" id="bullet-list"></div>
                 <p class="panel-note">
                   Start with one bullet point, then add more with the plus button. Empty bullet rows
-                  are ignored when the card is saved, and each bullet has its own status slider.
+                  are ignored when the card is saved.
                 </p>
               </div>
             </div>
@@ -1498,8 +1380,6 @@
     <script>
       const ADMIN_ACCOUNTS = ["jb141598@gmail.com", "jb14296@gmail.com"];
       const CARD_STATUSES = ["PLANNED", "IN PROGRESS", "FINISHED"];
-      const BULLET_STATUSES = ["PLANNED", "IN PROGRESS", "FINISHED", "NONE"];
-      const LEGACY_CARD_STATUSES = [...CARD_STATUSES, "NONE"];
       const STORAGE_KEY = "carbon-frontier-roadmap-cards-v1";
       const ORDER_MODE_KEY = "carbon-frontier-roadmap-order-mode-v1";
       const roadmapState = {
@@ -1575,29 +1455,11 @@
         return null;
       }
 
-      function normalizeBullet(bullet) {
-        if (typeof bullet === "string") {
-          const text = bullet.trim();
-          return text ? { text, status: "NONE" } : null;
-        }
-
-        const text = String(bullet?.text || "").trim();
-        if (!text) {
-          return null;
-        }
-
-        const rawStatus = String(bullet?.status || "").trim();
-        return {
-          text,
-          status: BULLET_STATUSES.includes(rawStatus) ? rawStatus : "NONE",
-        };
-      }
-
       function normalizeCard(card) {
         const bullets = Array.isArray(card?.bullets)
-          ? card.bullets.map(normalizeBullet).filter(Boolean)
+          ? card.bullets.map((bullet) => String(bullet).trim()).filter(Boolean)
           : [];
-        const status = LEGACY_CARD_STATUSES.includes(String(card?.status || "").trim())
+        const status = CARD_STATUSES.includes(String(card?.status || "").trim())
           ? String(card.status).trim()
           : "PLANNED";
         const manualOrder = Number.isFinite(Number(card?.manualOrder))
@@ -1815,73 +1677,20 @@
         return elements.statusInputs.find((input) => input.checked)?.value || "PLANNED";
       }
 
-      function syncBulletStatusControl(control, statusValue) {
-        const safeStatus = BULLET_STATUSES.includes(statusValue) ? statusValue : "NONE";
-        const index = BULLET_STATUSES.indexOf(safeStatus);
-        control.style.setProperty("--bullet-status-index", String(index));
-      }
-
-      function createBulletStatusControl(selectedStatus = "NONE") {
-        const safeStatus = BULLET_STATUSES.includes(selectedStatus) ? selectedStatus : "NONE";
-        const control = document.createElement("div");
-        const rowId = createId();
-
-        control.className = "bullet-status-control";
-
-        BULLET_STATUSES.forEach((status, index) => {
-          const input = document.createElement("input");
-          input.type = "radio";
-          input.value = status;
-          input.name = `bullet-status-${rowId}`;
-          input.id = `bullet-status-${rowId}-${index}`;
-          input.className = "bullet-status-option-input";
-          input.checked = status === safeStatus;
-          input.addEventListener("change", () => {
-            if (input.checked) {
-              syncBulletStatusControl(control, input.value);
-            }
-          });
-
-          const label = document.createElement("label");
-          label.className = "bullet-status-option";
-          label.htmlFor = input.id;
-          label.textContent = status;
-
-          control.append(input, label);
-        });
-
-        syncBulletStatusControl(control, safeStatus);
-        return control;
-      }
-
       function ensureBulletInputCount() {
         if (elements.bulletList.children.length === 0) {
           addBulletInput();
         }
       }
 
-      function addBulletInput(value = "", status = "NONE") {
+      function addBulletInput(value = "") {
         const row = document.createElement("div");
         row.className = "bullet-row";
-
-        const mainColumn = document.createElement("div");
-        mainColumn.className = "bullet-row-main";
 
         const input = document.createElement("input");
         input.type = "text";
         input.placeholder = "Bullet point";
         input.value = value;
-
-        const statusShell = document.createElement("div");
-        statusShell.className = "bullet-status-shell";
-
-        const statusLabel = document.createElement("div");
-        statusLabel.className = "bullet-status-label";
-        statusLabel.textContent = "Bullet Status";
-
-        const statusControl = createBulletStatusControl(status);
-        statusShell.append(statusLabel, statusControl);
-        mainColumn.append(input, statusShell);
 
         const removeButton = document.createElement("button");
         removeButton.type = "button";
@@ -1896,7 +1705,7 @@
           row.remove();
         });
 
-        row.append(mainColumn, removeButton);
+        row.append(input, removeButton);
         elements.bulletList.append(row);
       }
 
@@ -1908,18 +1717,9 @@
       }
 
       function getBulletValues() {
-        return Array.from(elements.bulletList.querySelectorAll(".bullet-row"))
-          .map((row) => {
-            const text = row.querySelector('input[type="text"]')?.value.trim() || "";
-            const status =
-              row.querySelector(".bullet-status-option-input:checked")?.value || "NONE";
-
-            return {
-              text,
-              status: BULLET_STATUSES.includes(status) ? status : "NONE",
-            };
-          })
-          .filter((bullet) => bullet.text);
+        return Array.from(elements.bulletList.querySelectorAll("input"))
+          .map((input) => input.value.trim())
+          .filter(Boolean);
       }
 
       function resetForm(message = "Ready for a new card.") {
@@ -1953,7 +1753,7 @@
         elements.bulletList.innerHTML = "";
 
         if (card.bullets.length > 0) {
-          card.bullets.forEach((bullet) => addBulletInput(bullet.text, bullet.status));
+          card.bullets.forEach((bullet) => addBulletInput(bullet));
           setBulletEditorVisible(true);
         } else {
           addBulletInput();
@@ -1990,38 +1790,15 @@
         setFeedback("Card removed.");
       }
 
-      function createBulletStatusBadgeMarkup(status) {
-        if (status === "NONE") {
-          return "";
-        }
-
-        return `<span class="status-badge bullet-status-badge" data-status="${escapeHtml(status)}">${escapeHtml(
-          status
-        )}</span>`;
-      }
-
       function createBulletsMarkup(card) {
         return card.bullets.length
           ? `<details class="card-dropdown">
               <summary><span class="visually-hidden">Toggle bullet points</span></summary>
               <ul class="card-bullets">${card.bullets
-                .map(
-                  (bullet) =>
-                    `<li><span class="bullet-line"><span class="bullet-text">${escapeHtml(
-                      bullet.text
-                    )}</span>${createBulletStatusBadgeMarkup(bullet.status)}</span></li>`
-                )
+                .map((bullet) => `<li>${escapeHtml(bullet)}</li>`)
                 .join("")}</ul>
             </details>`
           : "";
-      }
-
-      function createStatusBadgeMarkup(status) {
-        if (status === "NONE") {
-          return "";
-        }
-
-        return `<div class="status-badge" data-status="${escapeHtml(status)}">${escapeHtml(status)}</div>`;
       }
 
       function normalizeImagePath(imagePath) {
@@ -2066,14 +1843,13 @@
         const layoutClass = index % 2 === 0 ? "card-media-right" : "card-media-left";
         const bulletsMarkup = createBulletsMarkup(card);
         const imageMarkup = createImageMarkup(card);
-        const statusMarkup = createStatusBadgeMarkup(card.status);
 
         return `
           <article class="roadmap-card public-roadmap-card ${layoutClass}">
             <div class="card-body">
               <div class="public-card-top">
                 <div class="card-date">${escapeHtml(formatDisplayDate(card.date))}</div>
-                ${statusMarkup}
+                <div class="status-badge" data-status="${escapeHtml(card.status)}">${escapeHtml(card.status)}</div>
               </div>
               <h3 class="card-title">${escapeHtml(card.title)}</h3>
               <p class="card-description">${escapeHtml(card.description)}</p>
@@ -2088,7 +1864,6 @@
         const layoutClass = index % 2 === 0 ? "card-media-right" : "card-media-left";
         const bulletsMarkup = createBulletsMarkup(card);
         const imageMarkup = createImageMarkup(card);
-        const statusMarkup = createStatusBadgeMarkup(card.status);
         const isDeleteArmed = roadmapState.pendingDeleteId === card.id;
         const actionMarkup = `<div class="admin-card-toolbar">
             <button class="drag-handle" type="button" data-drag-handle="${escapeHtml(card.id)}">Drag</button>
@@ -2103,7 +1878,7 @@
             <div class="card-body">
               <div class="admin-card-top">
                 <div class="card-date">${escapeHtml(formatDisplayDate(card.date))}</div>
-                ${statusMarkup}
+                <div class="status-badge" data-status="${escapeHtml(card.status)}">${escapeHtml(card.status)}</div>
               </div>
               <h3 class="card-title">${escapeHtml(card.title)}</h3>
               <p class="card-description">${escapeHtml(card.description)}</p>
