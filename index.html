@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Carbon Frontier Roadmap</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap" rel="stylesheet" />
     <style>
       :root {
         --cf-red-45: rgba(223, 37, 49, 0.45);
@@ -36,19 +39,12 @@
       body {
         min-height: 100vh;
         color: var(--cf-white);
-        font-family: "Trebuchet MS", "Gill Sans", sans-serif;
+        font-family: "Play", sans-serif;
+        font-weight: 400;
         background:
-          radial-gradient(
-            126% 88% at 50% 0%,
-            rgba(223, 37, 49, 0.34) 0%,
-            rgba(160, 18, 27, 0.28) 18%,
-            rgba(102, 8, 14, 0.2) 36%,
-            rgba(46, 3, 6, 0.1) 58%,
-            rgba(0, 0, 0, 0) 82%
-          ),
-          radial-gradient(42% 34% at 18% 10%, rgba(223, 37, 49, 0.12), rgba(223, 37, 49, 0) 72%),
-          radial-gradient(42% 34% at 82% 10%, rgba(223, 37, 49, 0.1), rgba(223, 37, 49, 0) 72%),
-          linear-gradient(180deg, #120203 0%, #050505 42%, #000000 100%);
+          radial-gradient(circle at top left, rgba(223, 37, 49, 0.26), transparent 30%),
+          radial-gradient(circle at 85% 12%, rgba(223, 37, 49, 0.18), transparent 24%),
+          linear-gradient(180deg, #080808 0%, #000000 42%, #050505 100%);
       }
 
       body.admin-open {
@@ -89,20 +85,16 @@
         z-index: 1;
       }
 
-      main {
-        position: relative;
-      }
-
       .topbar {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-end;
         gap: 18px;
-        margin-bottom: 56px;
+        margin-bottom: 10px;
       }
 
       .brand-lockup {
-        display: flex;
+        display: none;
         flex-direction: column;
         gap: 8px;
       }
@@ -251,11 +243,83 @@
       }
 
       .hero-grid {
+        display: none;
+      }
+
+      .branding-hero {
+        position: relative;
         display: grid;
-        grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.9fr);
-        gap: 24px;
-        align-items: stretch;
-        margin-bottom: 44px;
+        place-items: center;
+        min-height: clamp(360px, 34vw, 500px);
+        margin: 0 0 18px;
+        padding: 32px 24px 44px;
+        overflow: visible;
+        isolation: isolate;
+      }
+
+      .branding-hero::before {
+        content: "";
+        position: absolute;
+        inset: -48px -48px -180px;
+        background: radial-gradient(
+          ellipse at center top,
+          rgba(142, 0, 0, 0.96) 0%,
+          rgba(142, 0, 0, 0.9) 28%,
+          rgba(142, 0, 0, 0.62) 52%,
+          rgba(142, 0, 0, 0.28) 72%,
+          rgba(0, 0, 0, 0) 100%
+        );
+        filter: blur(28px);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .branding-hero-inner {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        justify-items: center;
+        align-content: center;
+        gap: 14px;
+        width: 100%;
+      }
+
+      .brand-logo {
+        display: block;
+        width: min(100%, clamp(360px, 34vw, 560px));
+        max-width: 560px;
+        height: auto;
+        object-fit: contain;
+        filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.35));
+      }
+
+      .brand-tagline {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: clamp(0.92rem, 1.25vw, 1.12rem);
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-align: center;
+      }
+
+      .roadmap-display {
+        margin: 8px 0 0;
+        color: var(--cf-white);
+        font-size: clamp(2.75rem, 4vw, 4.35rem);
+        font-weight: 700;
+        line-height: 0.96;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        text-align: center;
+      }
+
+      .roadmap-section-title {
+        margin: 0 0 22px;
+        max-width: none;
+        font-size: clamp(2.1rem, 3.1vw, 3rem);
+        line-height: 1;
+        letter-spacing: 0.04em;
+        text-align: center;
       }
 
       .hero-copy,
@@ -305,7 +369,7 @@
       h3,
       .card-title {
         margin: 0;
-        font-family: Georgia, "Times New Roman", serif;
+        font-family: "Play", sans-serif;
         font-weight: 700;
       }
 
@@ -379,94 +443,8 @@
       }
 
       .roadmap-section {
-        position: relative;
-        overflow: hidden;
+        padding-top: 30px;
         padding-bottom: 32px;
-        border-top-color: rgba(223, 37, 49, 0.08);
-        background:
-          radial-gradient(
-            132% 92% at 50% -10%,
-            rgba(223, 37, 49, 0.18) 0%,
-            rgba(223, 37, 49, 0.12) 22%,
-            rgba(223, 37, 49, 0.06) 44%,
-            rgba(223, 37, 49, 0.02) 62%,
-            rgba(223, 37, 49, 0) 82%
-          ),
-          linear-gradient(
-            180deg,
-            rgba(22, 16, 16, 0.9) 0%,
-            rgba(18, 15, 15, 0.82) 34%,
-            rgba(13, 12, 12, 0.76) 68%,
-            rgba(255, 255, 255, 0.03) 100%
-          );
-        background-color: rgba(11, 10, 10, 0.88);
-      }
-
-      .roadmap-section::before {
-        content: none;
-      }
-
-      .branding-hero {
-        position: relative;
-        overflow: hidden;
-        isolation: isolate;
-      }
-
-      .branding-hero::before {
-        content: "";
-        position: absolute;
-        inset: -40px -34px -34px;
-        pointer-events: none;
-        z-index: 0;
-        background:
-          radial-gradient(
-            76% 58% at 50% 8%,
-            rgba(223, 37, 49, 0.4) 0%,
-            rgba(223, 37, 49, 0.28) 24%,
-            rgba(223, 37, 49, 0.14) 48%,
-            rgba(223, 37, 49, 0.04) 72%,
-            rgba(223, 37, 49, 0) 100%
-          ),
-          linear-gradient(
-            180deg,
-            rgba(92, 0, 0, 0.42) 0%,
-            rgba(72, 0, 0, 0.26) 24%,
-            rgba(36, 0, 0, 0.1) 56%,
-            rgba(0, 0, 0, 0) 100%
-          );
-        filter: blur(22px);
-        mask-image: linear-gradient(
-          180deg,
-          rgba(0, 0, 0, 0.98) 0%,
-          rgba(0, 0, 0, 0.9) 24%,
-          rgba(0, 0, 0, 0.58) 62%,
-          rgba(0, 0, 0, 0) 100%
-        );
-      }
-
-      .branding-hero::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        z-index: 0;
-        background: linear-gradient(
-          180deg,
-          rgba(0, 0, 0, 0) 0%,
-          rgba(0, 0, 0, 0) 58%,
-          rgba(0, 0, 0, 0.12) 78%,
-          rgba(0, 0, 0, 0.22) 100%
-        );
-      }
-
-      .branding-hero > * {
-        position: relative;
-        z-index: 1;
-      }
-
-      .roadmap-section > * {
-        position: relative;
-        z-index: 1;
       }
 
       .section-header {
@@ -503,6 +481,12 @@
         align-items: stretch;
       }
 
+      @media (max-width: 1280px) {
+        .roadmap-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
       .admin-card-list {
         display: grid;
         gap: 14px;
@@ -524,35 +508,58 @@
       }
 
       .public-roadmap-card {
+        --public-visual-size: clamp(240px, 23vw, 390px);
         width: 100%;
-        min-height: 290px;
+        min-height: var(--public-visual-size);
+        height: var(--public-visual-size);
         display: grid;
-        grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr);
+        grid-template-columns: minmax(0, 1fr) var(--public-visual-size);
+        align-items: stretch;
         background:
           radial-gradient(circle at top right, rgba(223, 37, 49, 0.18), transparent 42%),
           linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
       }
 
       .public-roadmap-card.card-media-right {
+        grid-template-columns: minmax(0, 1fr) var(--public-visual-size);
         grid-template-areas: "body visual";
       }
 
       .public-roadmap-card.card-media-left {
+        grid-template-columns: var(--public-visual-size) minmax(0, 1fr);
         grid-template-areas: "visual body";
       }
 
       .public-roadmap-card .card-body {
         grid-area: body;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 14px;
+        min-height: 0;
         padding: 24px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
       }
 
       .public-roadmap-card .card-visual {
         grid-area: visual;
-        min-height: 100%;
-        aspect-ratio: auto;
+        width: min(100%, var(--public-visual-size));
+        height: var(--public-visual-size);
+        min-height: 0;
+        aspect-ratio: 1 / 1;
+        justify-self: center;
+        align-self: center;
         border-left: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .public-roadmap-card.card-media-right .card-visual {
+        border-top-right-radius: 24px;
+        border-bottom-right-radius: 24px;
+      }
+
+      .public-roadmap-card.card-media-left .card-visual {
+        border-top-left-radius: 24px;
+        border-bottom-left-radius: 24px;
       }
 
       .public-roadmap-card.card-media-left .card-visual {
@@ -580,39 +587,62 @@
       }
 
       .public-roadmap-card .card-dropdown {
-        margin-top: 2px;
+        margin-top: auto;
       }
 
       .admin-roadmap-card {
+        --admin-visual-size: clamp(170px, 15vw, 240px);
         width: 100%;
-        min-height: 218px;
+        min-height: var(--admin-visual-size);
+        height: var(--admin-visual-size);
         display: grid;
-        grid-template-columns: minmax(0, 1.15fr) minmax(160px, 0.85fr);
+        grid-template-columns: minmax(0, 1fr) var(--admin-visual-size);
+        align-items: stretch;
         background:
           radial-gradient(circle at top right, rgba(223, 37, 49, 0.14), transparent 40%),
           linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
       }
 
       .admin-roadmap-card.card-media-right {
+        grid-template-columns: minmax(0, 1fr) var(--admin-visual-size);
         grid-template-areas: "body visual";
       }
 
       .admin-roadmap-card.card-media-left {
+        grid-template-columns: var(--admin-visual-size) minmax(0, 1fr);
         grid-template-areas: "visual body";
       }
 
       .admin-roadmap-card .card-body {
         grid-area: body;
-        justify-content: center;
+        justify-content: flex-start;
         gap: 10px;
+        min-height: 0;
         padding: 18px;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
       }
 
       .admin-roadmap-card .card-visual {
         grid-area: visual;
-        min-height: 100%;
-        aspect-ratio: auto;
+        width: min(100%, var(--admin-visual-size));
+        height: var(--admin-visual-size);
+        min-height: 0;
+        aspect-ratio: 1 / 1;
+        justify-self: center;
+        align-self: center;
         border-left: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .admin-roadmap-card.card-media-right .card-visual {
+        border-top-right-radius: 24px;
+        border-bottom-right-radius: 24px;
+      }
+
+      .admin-roadmap-card.card-media-left .card-visual {
+        border-top-left-radius: 24px;
+        border-bottom-left-radius: 24px;
       }
 
       .admin-roadmap-card.card-media-left .card-visual {
@@ -873,6 +903,10 @@
         background: rgba(255, 255, 255, 0.03);
       }
 
+      .admin-roadmap-card .card-dropdown {
+        margin-top: auto;
+      }
+
       .admin-roadmap-card .card-dropdown summary {
         min-height: 42px;
         padding: 9px 14px;
@@ -898,6 +932,31 @@
         gap: 10px;
         margin-top: auto;
         padding-top: 4px;
+      }
+
+      .public-roadmap-card .card-body,
+      .admin-roadmap-card .card-body {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(223, 37, 49, 0.55) rgba(255, 255, 255, 0.06);
+      }
+
+      .public-roadmap-card .card-body::-webkit-scrollbar,
+      .admin-roadmap-card .card-body::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      .public-roadmap-card .card-body::-webkit-scrollbar-track,
+      .admin-roadmap-card .card-body::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 999px;
+      }
+
+      .public-roadmap-card .card-body::-webkit-scrollbar-thumb,
+      .admin-roadmap-card .card-body::-webkit-scrollbar-thumb {
+        background: rgba(223, 37, 49, 0.55);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
       }
 
       .empty-state {
@@ -1152,6 +1211,7 @@
       }
 
       .bullet-list {
+        position: relative;
         display: grid;
         gap: 10px;
       }
@@ -1240,6 +1300,7 @@
         padding: 8px 12px;
         justify-content: center;
         font-size: 0.78rem;
+        touch-action: none;
       }
 
       .bullet-drag-handle::before {
@@ -1250,14 +1311,21 @@
         opacity: 0.56;
       }
 
-      .bullet-row.drop-before {
-        box-shadow: inset 0 3px 0 0 rgba(223, 37, 49, 0.95);
+      .bullet-row.drop-before,
+      .bullet-row.drop-after {
         background: rgba(223, 37, 49, 0.06);
       }
 
-      .bullet-row.drop-after {
-        box-shadow: inset 0 -3px 0 0 rgba(223, 37, 49, 0.95);
-        background: rgba(223, 37, 49, 0.06);
+      .bullet-drop-line {
+        position: absolute;
+        left: 8px;
+        right: 8px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(223, 37, 49, 0.95);
+        box-shadow: 0 0 0 3px rgba(223, 37, 49, 0.12);
+        pointer-events: none;
+        z-index: 3;
       }
 
       .field-note code,
@@ -1332,6 +1400,8 @@
         }
 
         .public-roadmap-card {
+          height: auto;
+          min-height: 0;
           grid-template-columns: 1fr;
           grid-template-areas:
             "visual"
@@ -1340,20 +1410,36 @@
 
         .public-roadmap-card .card-visual,
         .public-roadmap-card.card-media-left .card-visual {
-          min-height: 220px;
+          width: min(100%, var(--public-visual-size));
+          height: auto;
+          min-height: 0;
+          aspect-ratio: 1 / 1;
+          justify-self: center;
+          align-self: start;
           border-right: 0;
           border-left: 0;
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          border-top-left-radius: 24px;
+          border-top-right-radius: 24px;
+          border-bottom-left-radius: 0;
+          border-bottom-right-radius: 0;
         }
 
         .public-roadmap-card .card-title,
         .public-roadmap-card .card-description {
           max-width: none;
         }
+
+        .public-roadmap-card .card-body {
+          min-height: 0;
+          overflow: visible;
+        }
       }
 
       @media (max-width: 820px) {
         .admin-roadmap-card {
+          height: auto;
+          min-height: 0;
           grid-template-columns: 1fr;
           grid-template-areas:
             "visual"
@@ -1362,15 +1448,29 @@
 
         .admin-roadmap-card .card-visual,
         .admin-roadmap-card.card-media-left .card-visual {
-          min-height: 180px;
+          width: min(100%, var(--admin-visual-size));
+          height: auto;
+          min-height: 0;
+          aspect-ratio: 1 / 1;
+          justify-self: center;
+          align-self: start;
           border-right: 0;
           border-left: 0;
           border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          border-top-left-radius: 24px;
+          border-top-right-radius: 24px;
+          border-bottom-left-radius: 0;
+          border-bottom-right-radius: 0;
         }
 
         .admin-roadmap-card .card-title,
         .admin-roadmap-card .card-description {
           max-width: none;
+        }
+
+        .admin-roadmap-card .card-body {
+          min-height: 0;
+          overflow: visible;
         }
       }
 
@@ -1378,6 +1478,15 @@
         .hero-grid,
         .admin-layout {
           grid-template-columns: 1fr;
+        }
+
+        .branding-hero {
+          min-height: clamp(300px, 48vw, 420px);
+          padding: 24px 18px 36px;
+        }
+
+        .brand-logo {
+          width: min(100%, clamp(300px, 50vw, 480px));
         }
 
         .card-form {
@@ -1391,11 +1500,10 @@
           padding: 18px;
         }
 
-        .roadmap-section::before {
-          content: none;
+        .topbar {
+          justify-content: flex-end;
         }
 
-        .topbar,
         .section-header,
         .admin-header,
         .form-header,
@@ -1403,6 +1511,28 @@
         .bullet-header {
           flex-direction: column;
           align-items: flex-start;
+        }
+
+        .branding-hero {
+          min-height: 260px;
+          padding: 18px 12px 28px;
+        }
+
+        .brand-tagline {
+          font-size: 0.82rem;
+          letter-spacing: 0.06em;
+          padding-inline: 12px;
+        }
+
+        .roadmap-display {
+          font-size: clamp(2.3rem, 10vw, 3rem);
+          letter-spacing: 0.08em;
+        }
+
+        .roadmap-section-title {
+          margin-bottom: 18px;
+          font-size: clamp(1.8rem, 8vw, 2.35rem);
+          letter-spacing: 0.03em;
         }
 
         .signal-panel {
@@ -1449,7 +1579,14 @@
         </header>
 
         <main>
-          <section class="hero-grid">
+          <section class="branding-hero" aria-label="Carbon Frontier branding">
+            <div class="branding-hero-inner">
+              <img class="brand-logo" src="images/logo.png" alt="Carbon Frontier logo" loading="eager" />
+              <p class="brand-tagline">Build, Manage, Unlock, Expand.</p>
+            </div>
+          </section>
+
+          <section class="hero-grid" aria-hidden="true">
             <div class="hero-copy">
               <p class="eyebrow">Website Roadmap</p>
               <h1>Plan updates, edit them once, and publish them everywhere.</h1>
@@ -1472,7 +1609,7 @@
               <div class="signal-card">
                 <p class="signal-label">Next Milestone</p>
                 <p class="signal-value" id="next-milestone">None</p>
-                <p class="signal-detail">Cards are automatically ordered by the date you assign them.</p>
+                <p class="signal-detail">Cards are automatically ordered by the month you assign them.</p>
               </div>
               <div class="signal-card">
                 <p class="signal-label">Bullet Lists</p>
@@ -1488,18 +1625,7 @@
           </section>
 
           <section class="roadmap-section" aria-labelledby="roadmap-heading">
-            <div class="section-header">
-              <div class="section-copy">
-                <p class="section-tag">Public Website</p>
-                <h2 id="roadmap-heading">Upcoming roadmap cards</h2>
-                <p>
-                  The cards below are the exact updates the public site will display. Add or edit
-                  them in the admin panel and this area refreshes immediately.
-                </p>
-              </div>
-              <div class="storage-pill">Prototype storage: <code>localStorage</code></div>
-            </div>
-
+            <h1 class="roadmap-display roadmap-section-title" id="roadmap-heading">ROADMAP</h1>
             <div class="roadmap-grid" id="roadmap-grid"></div>
           </section>
         </main>
@@ -1515,7 +1641,7 @@
             <p class="panel-tag">Admin Panel</p>
             <h2 class="panel-title">Roadmap card manager</h2>
             <p class="panel-description">
-              Add update cards with a title, description, image path, target date, and optional
+              Add update cards with a title, description, image path, target month, and optional
               bullet points. The same card data powers both the admin view and the public roadmap.
             </p>
           </div>
@@ -1568,8 +1694,8 @@
               </p>
 
               <label class="form-field">
-                <span>Date</span>
-                <input id="date-input" name="date" type="date" required />
+                <span>Target Month</span>
+                <input id="date-input" name="date" type="month" required />
               </label>
 
               <div class="status-field">
@@ -1668,6 +1794,10 @@
         draggingBulletId: null,
         bulletDropTargetId: null,
         bulletDropPosition: null,
+        bulletDragPointerId: null,
+        bulletDragStartX: 0,
+        bulletDragStartY: 0,
+        bulletDragStarted: false,
         hasAdminAccess: false,
       };
 
@@ -1863,6 +1993,8 @@
         elements.bulletList
           .querySelectorAll(".bullet-row")
           .forEach((row) => row.classList.remove("drop-before", "drop-after"));
+
+        elements.bulletList.querySelector(".bullet-drop-line")?.remove();
       }
 
       function releaseDraggableCards() {
@@ -1892,6 +2024,10 @@
         roadmapState.draggingBulletId = null;
         roadmapState.bulletDropTargetId = null;
         roadmapState.bulletDropPosition = null;
+        roadmapState.bulletDragPointerId = null;
+        roadmapState.bulletDragStartX = 0;
+        roadmapState.bulletDragStartY = 0;
+        roadmapState.bulletDragStarted = false;
         clearBulletDropIndicators();
         elements.bulletList
           .querySelectorAll(".bullet-row")
@@ -1927,9 +2063,83 @@
         clearBulletDropIndicators();
 
         const targetRow = elements.bulletList.querySelector(`[data-bullet-id="${bulletId}"]`);
-        if (targetRow) {
-          targetRow.classList.add(position === "before" ? "drop-before" : "drop-after");
+        if (!targetRow) {
+          return;
         }
+
+        targetRow.classList.add(position === "before" ? "drop-before" : "drop-after");
+
+        const line = document.createElement("div");
+        line.className = "bullet-drop-line";
+
+        const listBounds = elements.bulletList.getBoundingClientRect();
+        const rowBounds = targetRow.getBoundingClientRect();
+        const offsetTop =
+          position === "before"
+            ? rowBounds.top - listBounds.top - 1.5
+            : rowBounds.bottom - listBounds.top - 1.5;
+
+        line.style.top = `${offsetTop}px`;
+        elements.bulletList.append(line);
+      }
+
+      function getBulletDropPlacement(clientY) {
+        const rows = Array.from(elements.bulletList.querySelectorAll(".bullet-row")).filter(
+          (row) => row.dataset.bulletId !== roadmapState.draggingBulletId
+        );
+
+        if (rows.length === 0) {
+          return null;
+        }
+
+        for (const row of rows) {
+          const bounds = row.getBoundingClientRect();
+          const midpoint = bounds.top + bounds.height / 2;
+
+          if (clientY < midpoint) {
+            return {
+              bulletId: row.dataset.bulletId,
+              position: "before",
+            };
+          }
+
+          if (clientY <= bounds.bottom) {
+            return {
+              bulletId: row.dataset.bulletId,
+              position: "after",
+            };
+          }
+        }
+
+        const lastRow = rows[rows.length - 1];
+        return {
+          bulletId: lastRow.dataset.bulletId,
+          position: "after",
+        };
+      }
+
+      function finalizeBulletPointerDrag() {
+        const draggedId = roadmapState.draggingBulletId;
+        const targetId = roadmapState.bulletDropTargetId;
+        const position = roadmapState.bulletDropPosition;
+        const didStartDragging = roadmapState.bulletDragStarted;
+
+        elements.bulletList
+          .querySelectorAll(".bullet-drag-handle")
+          .forEach((handle) => handle.classList.remove("is-armed"));
+
+        if (
+          didStartDragging &&
+          draggedId &&
+          targetId &&
+          targetId !== draggedId &&
+          position
+        ) {
+          reorderBulletRows(draggedId, targetId, position);
+          return;
+        }
+
+        resetBulletDragState();
       }
 
       function reorderCards(draggedId, targetId, position) {
@@ -1994,6 +2204,18 @@
       function formatDisplayDate(dateString) {
         if (!dateString) {
           return "No date set";
+        }
+
+        if (/^\d{4}-\d{2}$/.test(dateString)) {
+          const monthDate = new Date(`${dateString}-01T12:00:00`);
+          if (Number.isNaN(monthDate.getTime())) {
+            return dateString;
+          }
+
+          return new Intl.DateTimeFormat("en-US", {
+            month: "short",
+            year: "numeric",
+          }).format(monthDate);
         }
 
         const date = new Date(`${dateString}T12:00:00`);
@@ -2467,7 +2689,7 @@
         const existingCard = roadmapState.cards.find((card) => card.id === roadmapState.currentEditId);
 
         if (!title || !description || !date) {
-          setFeedback("Title, description, and date are required.", true);
+          setFeedback("Title, description, and month are required.", true);
           return;
         }
 
@@ -2548,86 +2770,98 @@
           return;
         }
 
-        row.draggable = true;
-        dragHandle.classList.add("is-armed");
-      });
-
-      elements.bulletList.addEventListener("dragstart", (event) => {
-        const row = event.target.closest(".bullet-row");
-        if (!row) {
-          return;
-        }
-
         roadmapState.draggingBulletId = row.dataset.bulletId;
-        row.classList.add("is-dragging");
+        roadmapState.bulletDropTargetId = null;
+        roadmapState.bulletDropPosition = null;
+        roadmapState.bulletDragPointerId = event.pointerId;
+        roadmapState.bulletDragStartX = event.clientX;
+        roadmapState.bulletDragStartY = event.clientY;
+        roadmapState.bulletDragStarted = false;
 
-        if (event.dataTransfer) {
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", row.dataset.bulletId);
-        }
+        dragHandle.classList.add("is-armed");
+        dragHandle.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
       });
 
-      elements.bulletList.addEventListener("dragover", (event) => {
-        if (!roadmapState.draggingBulletId) {
+      window.addEventListener("pointermove", (event) => {
+        if (
+          !roadmapState.draggingBulletId ||
+          roadmapState.bulletDragPointerId !== event.pointerId
+        ) {
           return;
         }
 
-        event.preventDefault();
-        const targetRow = event.target.closest(".bullet-row");
+        const draggedRow = elements.bulletList.querySelector(
+          `[data-bullet-id="${roadmapState.draggingBulletId}"]`
+        );
+        if (!draggedRow) {
+          resetBulletDragState();
+          return;
+        }
 
-        if (!targetRow || targetRow.dataset.bulletId === roadmapState.draggingBulletId) {
+        if (!roadmapState.bulletDragStarted) {
+          const distance = Math.hypot(
+            event.clientX - roadmapState.bulletDragStartX,
+            event.clientY - roadmapState.bulletDragStartY
+          );
+
+          if (distance < 6) {
+            return;
+          }
+
+          roadmapState.bulletDragStarted = true;
+          draggedRow.classList.add("is-dragging");
+        }
+
+        const placement = getBulletDropPlacement(event.clientY);
+
+        if (!placement) {
           clearBulletDropIndicators();
           roadmapState.bulletDropTargetId = null;
           roadmapState.bulletDropPosition = null;
           return;
         }
 
-        const bounds = targetRow.getBoundingClientRect();
-        const position = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
-        setBulletDropIndicator(targetRow.dataset.bulletId, position);
-
-        if (event.dataTransfer) {
-          event.dataTransfer.dropEffect = "move";
-        }
+        setBulletDropIndicator(placement.bulletId, placement.position);
       });
 
-      elements.bulletList.addEventListener("drop", (event) => {
-        if (!roadmapState.draggingBulletId) {
+      window.addEventListener("pointerup", (event) => {
+        const isActiveBulletPointer =
+          roadmapState.draggingBulletId &&
+          roadmapState.bulletDragPointerId === event.pointerId;
+
+        if (isActiveBulletPointer) {
+          finalizeBulletPointerDrag();
           return;
         }
 
-        event.preventDefault();
-        const targetRow = event.target.closest(".bullet-row");
-
-        if (
-          !targetRow ||
-          targetRow.dataset.bulletId === roadmapState.draggingBulletId ||
-          !roadmapState.bulletDropPosition
-        ) {
-          resetBulletDragState();
+        if (roadmapState.draggingCardId) {
           return;
         }
 
-        reorderBulletRows(
-          roadmapState.draggingBulletId,
-          targetRow.dataset.bulletId,
-          roadmapState.bulletDropPosition
-        );
-      });
+        releaseDraggableCards();
+        elements.adminCardList
+          .querySelectorAll(".drag-handle")
+          .forEach((handle) => handle.classList.remove("is-armed"));
 
-      elements.bulletList.addEventListener("dragend", () => {
-        if (!roadmapState.draggingBulletId) {
-          releaseDraggableBulletRows();
-          elements.bulletList
-            .querySelectorAll(".bullet-drag-handle")
-            .forEach((handle) => handle.classList.remove("is-armed"));
+        if (roadmapState.draggingBulletId) {
           return;
         }
 
-        resetBulletDragState();
+        releaseDraggableBulletRows();
         elements.bulletList
           .querySelectorAll(".bullet-drag-handle")
           .forEach((handle) => handle.classList.remove("is-armed"));
+      });
+
+      window.addEventListener("pointercancel", (event) => {
+        const isActiveBulletPointer =
+          roadmapState.draggingBulletId &&
+          roadmapState.bulletDragPointerId === event.pointerId;
+
+        if (isActiveBulletPointer) {
+          finalizeBulletPointerDrag();
+        }
       });
 
       elements.adminCardList.addEventListener("pointerdown", (event) => {
@@ -2745,26 +2979,6 @@
         }
       });
 
-      window.addEventListener("pointerup", () => {
-        if (roadmapState.draggingCardId) {
-          return;
-        }
-
-        releaseDraggableCards();
-        elements.adminCardList
-          .querySelectorAll(".drag-handle")
-          .forEach((handle) => handle.classList.remove("is-armed"));
-
-        if (roadmapState.draggingBulletId) {
-          return;
-        }
-
-        releaseDraggableBulletRows();
-        elements.bulletList
-          .querySelectorAll(".bullet-drag-handle")
-          .forEach((handle) => handle.classList.remove("is-armed"));
-      });
-
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           closeAdminPanel();
@@ -2786,3 +3000,4 @@
     </script>
   </body>
 </html>
+
