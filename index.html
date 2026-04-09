@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Carbon Frontier Roadmap</title>
-    <meta name="google-signin-client_id" content=609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com"" />
+    <meta
+      name="google-signin-client_id"
+      content="609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com"
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap" rel="stylesheet" />
@@ -2050,7 +2053,7 @@
         const metaClientId = String(
           document.querySelector('meta[name="google-signin-client_id"]')?.content || ""
         ).trim();
-        const configuredClientId = globalClientId || metaClientId;
+        const configuredClientId = (globalClientId || metaClientId).replace(/^['"]+|['"]+$/g, "");
 
         if (!configuredClientId || configuredClientId.startsWith("YOUR_")) {
           return "";
