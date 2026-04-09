@@ -4,9 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Carbon Frontier Roadmap</title>
+    <meta name="google-signin-client_id" content="" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap" rel="stylesheet" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
       :root {
         --cf-red-45: rgba(223, 37, 49, 0.45);
@@ -117,9 +119,19 @@
         display: flex;
         align-items: center;
         gap: 12px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .account-entry {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 12px;
       }
 
       .account-pill,
+      .account-menu-button,
       .admin-button,
       .subtle-button,
       .icon-button,
@@ -133,11 +145,144 @@
       }
 
       .account-pill {
+        max-width: min(38vw, 320px);
         padding: 10px 14px;
         background: rgba(255, 255, 255, 0.05);
         border-color: rgba(255, 255, 255, 0.1);
         color: var(--cf-text-muted);
         font-size: 0.86rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .account-menu-button {
+        width: 46px;
+        height: 46px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.12);
+        color: var(--cf-white);
+      }
+
+      .account-menu-button:hover,
+      .account-entry.is-open .account-menu-button {
+        border-color: rgba(223, 37, 49, 0.58);
+        background: rgba(223, 37, 49, 0.16);
+      }
+
+      .account-avatar,
+      .account-menu-avatar {
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background:
+          linear-gradient(135deg, rgba(223, 37, 49, 0.92), rgba(223, 37, 49, 0.46)),
+          rgba(255, 255, 255, 0.08);
+        background-position: center;
+        background-size: cover;
+        color: var(--cf-white);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        overflow: hidden;
+      }
+
+      .account-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 0.74rem;
+      }
+
+      .account-menu-panel {
+        position: absolute;
+        top: calc(100% + 12px);
+        right: 0;
+        width: min(320px, calc(100vw - 36px));
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 24px;
+        background:
+          linear-gradient(180deg, rgba(24, 24, 24, 0.96), rgba(8, 8, 8, 0.98)),
+          rgba(0, 0, 0, 0.96);
+        box-shadow: var(--cf-shadow);
+        backdrop-filter: blur(18px);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px) scale(0.985);
+        transition: opacity 180ms ease, transform 180ms ease;
+        z-index: 16;
+      }
+
+      .account-entry.is-open .account-menu-panel {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+      }
+
+      .account-menu-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .account-menu-avatar {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 auto;
+        font-size: 0.9rem;
+      }
+
+      .account-menu-identity {
+        min-width: 0;
+      }
+
+      .account-menu-title,
+      .account-menu-email,
+      .account-menu-copy,
+      .auth-note {
+        margin: 0;
+      }
+
+      .account-menu-title {
+        font-size: 0.98rem;
+        font-weight: 700;
+      }
+
+      .account-menu-email {
+        margin-top: 4px;
+        color: var(--cf-text-muted);
+        font-size: 0.84rem;
+        line-height: 1.4;
+        word-break: break-word;
+      }
+
+      .account-menu-copy,
+      .auth-note {
+        color: var(--cf-text-muted);
+        font-size: 0.84rem;
+        line-height: 1.55;
+      }
+
+      .google-signin-slot {
+        min-height: 42px;
+        display: grid;
+        justify-content: start;
+      }
+
+      .google-signin-slot[hidden] {
+        display: none;
+      }
+
+      .account-menu-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
       }
 
       .admin-button,
@@ -1504,6 +1649,10 @@
           justify-content: flex-end;
         }
 
+        .account-pill {
+          display: none;
+        }
+
         .section-header,
         .admin-header,
         .form-header,
@@ -1571,7 +1720,36 @@
             <p class="brand-subline">Roadmap website prototype</p>
           </div>
           <div class="topbar-actions">
-            <div class="account-pill" id="account-pill">Checking admin access...</div>
+            <div class="account-entry" id="account-entry">
+              <button
+                class="account-menu-button"
+                id="account-menu-button"
+                type="button"
+                aria-label="Open account menu"
+                aria-expanded="false"
+                aria-controls="account-menu"
+              >
+                <span class="account-avatar" id="account-avatar">CF</span>
+              </button>
+              <div class="account-pill" id="account-pill">Checking admin access...</div>
+              <div class="account-menu-panel" id="account-menu" aria-hidden="true">
+                <div class="account-menu-header">
+                  <div class="account-menu-avatar" id="account-menu-avatar">CF</div>
+                  <div class="account-menu-identity">
+                    <p class="account-menu-title" id="account-menu-title">Account</p>
+                    <p class="account-menu-email" id="account-menu-email">Not signed in</p>
+                  </div>
+                </div>
+                <p class="account-menu-copy" id="account-menu-copy">
+                  Sign in with Google to unlock the admin panel for approved admin accounts.
+                </p>
+                <div class="google-signin-slot" id="google-signin-slot"></div>
+                <div class="account-menu-actions">
+                  <button class="subtle-button" id="signout-button" type="button" hidden>Sign Out</button>
+                </div>
+                <p class="auth-note" id="auth-note"></p>
+              </div>
+            </div>
             <button class="admin-button" id="admin-panel-button" type="button" hidden>
               Open Admin Panel
             </button>
@@ -1783,6 +1961,7 @@
       const BULLET_STATUSES = ["PLANNED", "IN PROGRESS", "FINISHED", "NONE"];
       const STORAGE_KEY = "carbon-frontier-roadmap-cards-v1";
       const ORDER_MODE_KEY = "carbon-frontier-roadmap-order-mode-v1";
+      const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
       const roadmapState = {
         cards: [],
         currentEditId: null,
@@ -1799,11 +1978,25 @@
         bulletDragStartY: 0,
         bulletDragStarted: false,
         hasAdminAccess: false,
+        authAccount: null,
+        authMenuOpen: false,
+        googleAuthInitialized: false,
       };
 
       const elements = {
+        accountEntry: document.getElementById("account-entry"),
+        accountMenuButton: document.getElementById("account-menu-button"),
+        accountAvatar: document.getElementById("account-avatar"),
+        accountMenu: document.getElementById("account-menu"),
+        accountMenuAvatar: document.getElementById("account-menu-avatar"),
+        accountMenuTitle: document.getElementById("account-menu-title"),
+        accountMenuEmail: document.getElementById("account-menu-email"),
+        accountMenuCopy: document.getElementById("account-menu-copy"),
         accountPill: document.getElementById("account-pill"),
         accountStatus: document.getElementById("account-status"),
+        googleSigninSlot: document.getElementById("google-signin-slot"),
+        authNote: document.getElementById("auth-note"),
+        signoutButton: document.getElementById("signout-button"),
         adminPanelButton: document.getElementById("admin-panel-button"),
         adminPanel: document.getElementById("admin-panel"),
         closeAdminPanel: document.getElementById("close-admin-panel"),
@@ -1848,16 +2041,305 @@
         );
       }
 
+      function normalizeEmail(value) {
+        return String(value || "").trim().toLowerCase();
+      }
+
+      function getConfiguredGoogleClientId() {
+        const globalClientId = String(window.CARBON_FRONTIER_GOOGLE_CLIENT_ID || "").trim();
+        const metaClientId = String(
+          document.querySelector('meta[name="google-signin-client_id"]')?.content || ""
+        ).trim();
+        const configuredClientId = globalClientId || metaClientId;
+
+        if (!configuredClientId || configuredClientId.startsWith("YOUR_")) {
+          return "";
+        }
+
+        return configuredClientId;
+      }
+
+      function loadAuthSession() {
+        try {
+          const rawSession = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null");
+          const email = normalizeEmail(rawSession?.email);
+          if (!email) {
+            return null;
+          }
+
+          return {
+            email,
+            name: String(rawSession?.name || "").trim(),
+            picture: String(rawSession?.picture || "").trim(),
+          };
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function saveAuthSession(account) {
+        if (!account?.email) {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+          return;
+        }
+
+        localStorage.setItem(
+          AUTH_STORAGE_KEY,
+          JSON.stringify({
+            email: normalizeEmail(account.email),
+            name: String(account.name || "").trim(),
+            picture: String(account.picture || "").trim(),
+          })
+        );
+      }
+
+      function decodeJwtPayload(token) {
+        const tokenParts = String(token || "").split(".");
+        if (tokenParts.length < 2) {
+          return null;
+        }
+
+        try {
+          const base64 = tokenParts[1].replace(/-/g, "+").replace(/_/g, "/");
+          const paddedBase64 = `${base64}${"=".repeat((4 - (base64.length % 4)) % 4)}`;
+          const json = atob(paddedBase64);
+          const utf8 = decodeURIComponent(
+            Array.from(json)
+              .map((character) => `%${character.charCodeAt(0).toString(16).padStart(2, "0")}`)
+              .join("")
+          );
+
+          return JSON.parse(utf8);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function getAccountInitials(account) {
+        const nameParts = String(account?.name || "")
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+
+        if (nameParts.length >= 2) {
+          return `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase();
+        }
+
+        if (nameParts.length === 1) {
+          return nameParts[0].slice(0, 2).toUpperCase();
+        }
+
+        const email = normalizeEmail(account?.email);
+        return email ? email.slice(0, 2).toUpperCase() : "CF";
+      }
+
+      function setAvatarVisual(target, account) {
+        if (!target) {
+          return;
+        }
+
+        const initials = getAccountInitials(account);
+        target.textContent = initials;
+        target.style.backgroundImage = "";
+
+        if (account?.picture) {
+          target.style.backgroundImage = `url("${account.picture.replace(/"/g, "%22")}")`;
+        }
+      }
+
+      function openAccountMenu() {
+        roadmapState.authMenuOpen = true;
+        elements.accountEntry.classList.add("is-open");
+        elements.accountMenuButton.setAttribute("aria-expanded", "true");
+        elements.accountMenu.setAttribute("aria-hidden", "false");
+        maybeRenderGoogleButton();
+      }
+
+      function closeAccountMenu() {
+        roadmapState.authMenuOpen = false;
+        elements.accountEntry.classList.remove("is-open");
+        elements.accountMenuButton.setAttribute("aria-expanded", "false");
+        elements.accountMenu.setAttribute("aria-hidden", "true");
+      }
+
+      function toggleAccountMenu() {
+        if (roadmapState.authMenuOpen) {
+          closeAccountMenu();
+          return;
+        }
+
+        openAccountMenu();
+      }
+
+      function syncAccountMenu() {
+        const currentAccount = getCurrentAccount();
+        const signedInAccount = roadmapState.authAccount;
+        const hasAuthorizedAccount =
+          typeof currentAccount === "string" && ADMIN_ACCOUNTS.includes(currentAccount);
+        const hasDevOverride = isCursorTestingEnvironment();
+
+        setAvatarVisual(elements.accountAvatar, signedInAccount);
+        setAvatarVisual(elements.accountMenuAvatar, signedInAccount);
+
+        if (signedInAccount) {
+          elements.accountMenuTitle.textContent = signedInAccount.name || "Signed in with Google";
+          elements.accountMenuEmail.textContent = signedInAccount.email;
+          elements.signoutButton.hidden = false;
+        } else if (hasDevOverride) {
+          elements.accountMenuTitle.textContent = "Local testing";
+          elements.accountMenuEmail.textContent = "Cursor/local override active";
+          elements.signoutButton.hidden = true;
+        } else {
+          elements.accountMenuTitle.textContent = "Account";
+          elements.accountMenuEmail.textContent = currentAccount || "Not signed in";
+          elements.signoutButton.hidden = true;
+        }
+
+        if (hasAuthorizedAccount) {
+          elements.accountMenuCopy.textContent =
+            "This Google account is approved for Carbon Frontier admin access.";
+          elements.authNote.textContent = "Approved emails can open the admin panel immediately.";
+          elements.googleSigninSlot.hidden = true;
+          return;
+        }
+
+        if (signedInAccount) {
+          elements.accountMenuCopy.textContent =
+            "You are signed in, but this email is not on the admin allowlist.";
+          elements.authNote.textContent =
+            "Only jb141598@gmail.com and jb14296@gmail.com can open the admin panel.";
+          elements.googleSigninSlot.hidden = true;
+          return;
+        }
+
+        if (hasDevOverride) {
+          elements.accountMenuCopy.textContent =
+            "This local preview is still treated as admin while we prototype the live login flow.";
+          elements.authNote.textContent =
+            "When deployed online, approved Google accounts will control admin access.";
+          elements.googleSigninSlot.hidden = true;
+          return;
+        }
+
+        elements.accountMenuCopy.textContent =
+          "Sign in with Google to check whether your email is approved for admin access.";
+        elements.authNote.textContent = getConfiguredGoogleClientId()
+          ? "Only approved emails can open the admin panel."
+          : "Add your Google client ID in the meta tag to enable the Google login button.";
+        elements.googleSigninSlot.hidden = false;
+      }
+
+      function parseGoogleCredentialResponse(credential) {
+        const payload = decodeJwtPayload(credential);
+        if (!payload?.email || payload.email_verified === false) {
+          return null;
+        }
+
+        const configuredClientId = getConfiguredGoogleClientId();
+        if (configuredClientId && payload.aud && payload.aud !== configuredClientId) {
+          return null;
+        }
+
+        return {
+          email: normalizeEmail(payload.email),
+          name: String(payload.name || "").trim(),
+          picture: String(payload.picture || "").trim(),
+        };
+      }
+
+      function handleGoogleCredentialResponse(response) {
+        const account = parseGoogleCredentialResponse(response?.credential);
+        if (!account) {
+          elements.authNote.textContent =
+            "Google sign-in completed, but the profile could not be verified in the browser.";
+          return;
+        }
+
+        roadmapState.authAccount = account;
+        saveAuthSession(account);
+        syncAccountMenu();
+        updateAdminUI();
+        closeAccountMenu();
+      }
+
+      function maybeRenderGoogleButton() {
+        if (elements.googleSigninSlot.hidden) {
+          elements.googleSigninSlot.innerHTML = "";
+          return;
+        }
+
+        const configuredClientId = getConfiguredGoogleClientId();
+        if (!configuredClientId) {
+          elements.googleSigninSlot.innerHTML = "";
+          return;
+        }
+
+        if (!window.google?.accounts?.id) {
+          elements.authNote.textContent = "Google sign-in is still loading.";
+          return;
+        }
+
+        if (!roadmapState.googleAuthInitialized) {
+          window.google.accounts.id.initialize({
+            client_id: configuredClientId,
+            callback: handleGoogleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+            use_fedcm_for_prompt: true,
+          });
+          roadmapState.googleAuthInitialized = true;
+        }
+
+        elements.googleSigninSlot.innerHTML = "";
+        window.google.accounts.id.renderButton(elements.googleSigninSlot, {
+          theme: "outline",
+          size: "large",
+          shape: "pill",
+          text: "signin_with",
+          logo_alignment: "left",
+          width: 260,
+        });
+      }
+
+      function signOutGoogleAccount() {
+        roadmapState.authAccount = null;
+        saveAuthSession(null);
+        window.google?.accounts?.id?.disableAutoSelect?.();
+        syncAccountMenu();
+        updateAdminUI();
+        closeAccountMenu();
+      }
+
+      function waitForGoogleIdentityClient(attempt = 0) {
+        if (window.google?.accounts?.id) {
+          maybeRenderGoogleButton();
+          return;
+        }
+
+        if (attempt >= 40) {
+          syncAccountMenu();
+          return;
+        }
+
+        window.setTimeout(() => {
+          waitForGoogleIdentityClient(attempt + 1);
+        }, 250);
+      }
+
       function getCurrentAccount() {
         const globalAccount = window.CarbonFrontierAuth?.currentAccount;
         const queryAccount = new URLSearchParams(window.location.search).get("account");
 
         if (typeof globalAccount === "string" && globalAccount.trim()) {
-          return globalAccount.trim().toLowerCase();
+          return normalizeEmail(globalAccount);
         }
 
         if (typeof queryAccount === "string" && queryAccount.trim()) {
-          return queryAccount.trim().toLowerCase();
+          return normalizeEmail(queryAccount);
+        }
+
+        if (roadmapState.authAccount?.email) {
+          return normalizeEmail(roadmapState.authAccount.email);
         }
 
         return null;
@@ -2655,6 +3137,7 @@
 
         roadmapState.hasAdminAccess = hasAuthorizedAccount || hasDevOverride;
         elements.adminPanelButton.hidden = !roadmapState.hasAdminAccess;
+        syncAccountMenu();
 
         if (hasAuthorizedAccount) {
           elements.accountPill.textContent = `Admin account: ${currentAccount}`;
@@ -2673,7 +3156,7 @@
         elements.accountPill.textContent = currentAccount ? `Signed in: ${currentAccount}` : "No account connected";
         elements.accountStatus.innerHTML = currentAccount
           ? '<span class="status-dot" aria-hidden="true"></span><span>A signed-in account was found, but it is not on the admin allowlist.</span>'
-          : '<span class="status-dot" aria-hidden="true"></span><span>No account is connected yet. Real account detection will plug into Google or another auth provider later.</span>';
+          : '<span class="status-dot" aria-hidden="true"></span><span>No account is connected yet. Sign in with Google from the top-right account menu to unlock approved admin access.</span>';
         closeAdminPanel();
       }
 
@@ -2726,6 +3209,11 @@
       elements.adminPanelButton.addEventListener("click", openAdminPanel);
       elements.closeAdminPanel.addEventListener("click", closeAdminPanel);
       elements.panelBackdrop.addEventListener("click", closeAdminPanel);
+      elements.accountMenuButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleAccountMenu();
+      });
+      elements.signoutButton.addEventListener("click", signOutGoogleAccount);
       elements.cardForm.addEventListener("submit", handleFormSubmit);
       elements.resetFormButton.addEventListener("click", resetForm);
       elements.addBulletButton.addEventListener("click", () => addBulletInput());
@@ -2757,6 +3245,16 @@
         saveCards();
         renderAll();
         resetForm("All cards cleared.");
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!roadmapState.authMenuOpen) {
+          return;
+        }
+
+        if (!elements.accountEntry.contains(event.target)) {
+          closeAccountMenu();
+        }
       });
 
       elements.bulletList.addEventListener("pointerdown", (event) => {
@@ -2981,10 +3479,12 @@
 
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
+          closeAccountMenu();
           closeAdminPanel();
         }
       });
 
+      roadmapState.authAccount = loadAuthSession();
       roadmapState.orderMode = loadOrderMode();
       roadmapState.cards = loadCards();
       if (
@@ -2995,9 +3495,9 @@
         saveOrderMode();
       }
       updateAdminUI();
+      waitForGoogleIdentityClient();
       resetForm();
       renderAll();
     </script>
   </body>
 </html>
-
