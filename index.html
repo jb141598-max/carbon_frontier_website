@@ -1799,8 +1799,10 @@
               </div>
               <div class="signal-card">
                 <p class="signal-label">Storage</p>
-                <p class="signal-value">Local</p>
-                <p class="signal-detail">This first version saves your roadmap in this browser with local storage.</p>
+                <p class="signal-value" id="storage-mode">Local</p>
+                <p class="signal-detail" id="storage-detail">
+                  This first version saves your roadmap in this browser with local storage.
+                </p>
               </div>
             </div>
           </section>
@@ -1965,6 +1967,7 @@
       const STORAGE_KEY = "carbon-frontier-roadmap-cards-v1";
       const ORDER_MODE_KEY = "carbon-frontier-roadmap-order-mode-v1";
       const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
+      const REMOTE_ROADMAP_ENDPOINT = "/api/roadmap";
       const roadmapState = {
         cards: [],
         currentEditId: null,
@@ -1982,8 +1985,10 @@
         bulletDragStarted: false,
         hasAdminAccess: false,
         authAccount: null,
+        authIdToken: "",
         authMenuOpen: false,
         googleAuthInitialized: false,
+        storageMode: "localStorage",
       };
 
       const elements = {
@@ -2026,6 +2031,8 @@
         cardCount: document.getElementById("card-count"),
         nextMilestone: document.getElementById("next-milestone"),
         bulletMode: document.getElementById("bullet-mode"),
+        storageMode: document.getElementById("storage-mode"),
+        storageDetail: document.getElementById("storage-detail"),
       };
 
       function isCursorTestingEnvironment() {
@@ -2074,6 +2081,7 @@
             email,
             name: String(rawSession?.name || "").trim(),
             picture: String(rawSession?.picture || "").trim(),
+            idToken: String(rawSession?.idToken || "").trim(),
           };
         } catch (error) {
           return null;
@@ -2092,6 +2100,7 @@
             email: normalizeEmail(account.email),
             name: String(account.name || "").trim(),
             picture: String(account.picture || "").trim(),
+            idToken: String(account.idToken || "").trim(),
           })
         );
       }
@@ -2247,10 +2256,11 @@
           email: normalizeEmail(payload.email),
           name: String(payload.name || "").trim(),
           picture: String(payload.picture || "").trim(),
+          idToken: String(credential || "").trim(),
         };
       }
 
-      function handleGoogleCredentialResponse(response) {
+      async function handleGoogleCredentialResponse(response) {
         const account = parseGoogleCredentialResponse(response?.credential);
         if (!account) {
           elements.authNote.textContent =
@@ -2259,10 +2269,12 @@
         }
 
         roadmapState.authAccount = account;
+        roadmapState.authIdToken = account.idToken;
         saveAuthSession(account);
         syncAccountMenu();
         updateAdminUI();
         closeAccountMenu();
+        await maybeSeedSharedRoadmapFromLocal();
       }
 
       function maybeRenderGoogleButton() {
@@ -2306,6 +2318,7 @@
 
       function signOutGoogleAccount() {
         roadmapState.authAccount = null;
+        roadmapState.authIdToken = "";
         saveAuthSession(null);
         window.google?.accounts?.id?.disableAutoSelect?.();
         syncAccountMenu();
@@ -2412,6 +2425,217 @@
 
       function saveOrderMode() {
         localStorage.setItem(ORDER_MODE_KEY, roadmapState.orderMode);
+      }
+
+      function updateStorageUI() {
+        if (roadmapState.storageMode === "netlify-blobs") {
+          elements.storageMode.textContent = "Shared";
+          elements.storageDetail.textContent =
+            "Roadmap cards are loaded from Netlify shared storage so every visitor sees the same updates.";
+          return;
+        }
+
+        if (roadmapState.storageMode === "localStorage-fallback") {
+          elements.storageMode.textContent = "Local";
+          elements.storageDetail.textContent =
+            "Shared storage is unavailable right now, so this browser is temporarily using local storage only.";
+          return;
+        }
+
+        elements.storageMode.textContent = "Local";
+        elements.storageDetail.textContent =
+          "This preview is using browser local storage. Deploy on Netlify to share roadmap updates with everyone.";
+      }
+
+      async function loadSharedRoadmapState() {
+        try {
+          const response = await fetch(REMOTE_ROADMAP_ENDPOINT, {
+            cache: "no-store",
+            headers: {
+              accept: "application/json",
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`Shared roadmap load failed with ${response.status}`);
+          }
+
+          const payload = await response.json();
+          return {
+            ok: true,
+            exists: Boolean(payload?.exists),
+            cards: Array.isArray(payload?.cards)
+              ? payload.cards.map(normalizeCard).filter((card) => card.title && card.description)
+              : [],
+            orderMode: payload?.orderMode === "manual" ? "manual" : "date",
+          };
+        } catch (error) {
+          return {
+            ok: false,
+            exists: false,
+            cards: [],
+            orderMode: "date",
+          };
+        }
+      }
+
+      async function saveSharedRoadmapState() {
+        if (!roadmapState.authIdToken) {
+          return {
+            ok: false,
+            message: "Sign in again with Google before publishing shared roadmap changes.",
+          };
+        }
+
+        try {
+          const response = await fetch(REMOTE_ROADMAP_ENDPOINT, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: `Bearer ${roadmapState.authIdToken}`,
+            },
+            body: JSON.stringify({
+              cards: roadmapState.cards,
+              orderMode: roadmapState.orderMode,
+            }),
+          });
+
+          const payload = await response.json().catch(() => null);
+          if (!response.ok) {
+            return {
+              ok: false,
+              message:
+                payload?.error ||
+                "Shared roadmap save failed. Sign in again or check the Netlify function deploy.",
+            };
+          }
+
+          roadmapState.storageMode = "netlify-blobs";
+          updateStorageUI();
+
+          return {
+            ok: true,
+            cards: Array.isArray(payload?.cards)
+              ? payload.cards.map(normalizeCard).filter((card) => card.title && card.description)
+              : roadmapState.cards,
+            orderMode: payload?.orderMode === "manual" ? "manual" : roadmapState.orderMode,
+          };
+        } catch (error) {
+          return {
+            ok: false,
+            message: "Shared roadmap save failed. This browser kept a local copy only.",
+          };
+        }
+      }
+
+      async function persistRoadmapState(successMessage, fallbackMessage) {
+        saveOrderMode();
+        saveCards();
+
+        const isSharedCapable = window.location.protocol.startsWith("http");
+        if (!isSharedCapable) {
+          roadmapState.storageMode = "localStorage";
+          updateStorageUI();
+          if (successMessage) {
+            setFeedback(successMessage);
+          }
+          return true;
+        }
+
+        const remoteSave = await saveSharedRoadmapState();
+        if (remoteSave.ok) {
+          roadmapState.cards = sortCards(remoteSave.cards);
+          roadmapState.orderMode = remoteSave.orderMode;
+          saveOrderMode();
+          saveCards();
+          renderAll();
+          if (successMessage) {
+            setFeedback(successMessage);
+          }
+          return true;
+        }
+
+        roadmapState.storageMode = "localStorage-fallback";
+        updateStorageUI();
+        setFeedback(fallbackMessage || remoteSave.message || "Saved locally only.", true);
+        return false;
+      }
+
+      async function maybeSeedSharedRoadmapFromLocal() {
+        const canSeedRemote =
+          roadmapState.cards.length > 0 &&
+          ADMIN_ACCOUNTS.includes(getCurrentAccount()) &&
+          Boolean(roadmapState.authIdToken);
+
+        if (!canSeedRemote || !window.location.protocol.startsWith("http")) {
+          return false;
+        }
+
+        const sharedState = await loadSharedRoadmapState();
+        if (!sharedState.ok || sharedState.exists) {
+          return false;
+        }
+
+        const seeded = await saveSharedRoadmapState();
+        if (!seeded.ok) {
+          return false;
+        }
+
+        roadmapState.cards = sortCards(seeded.cards);
+        roadmapState.orderMode = seeded.orderMode;
+        saveCards();
+        saveOrderMode();
+        renderAll();
+        setFeedback("Shared roadmap initialized from your local admin data.");
+        return true;
+      }
+
+      async function initializeRoadmapState() {
+        roadmapState.authAccount = loadAuthSession();
+        roadmapState.authIdToken = roadmapState.authAccount?.idToken || "";
+
+        const localCards = loadCards();
+        const localOrderMode = loadOrderMode();
+        const sharedState = await loadSharedRoadmapState();
+
+        if (sharedState.ok) {
+          const canSeedRemote =
+            !sharedState.exists &&
+            localCards.length > 0 &&
+            ADMIN_ACCOUNTS.includes(getCurrentAccount()) &&
+            Boolean(roadmapState.authIdToken);
+
+          if (canSeedRemote) {
+            roadmapState.cards = sortCards(localCards);
+            roadmapState.orderMode = localOrderMode;
+            const seeded = await saveSharedRoadmapState();
+            if (seeded.ok) {
+              roadmapState.cards = sortCards(seeded.cards);
+              roadmapState.orderMode = seeded.orderMode;
+              roadmapState.storageMode = "netlify-blobs";
+              saveCards();
+              saveOrderMode();
+            } else {
+              roadmapState.storageMode = "localStorage-fallback";
+            }
+          } else if (!sharedState.exists && localCards.length > 0) {
+            roadmapState.cards = sortCards(localCards);
+            roadmapState.orderMode = localOrderMode;
+            roadmapState.storageMode = "localStorage-fallback";
+          } else {
+            roadmapState.cards = sortCards(sharedState.cards);
+            roadmapState.orderMode = sharedState.orderMode;
+            roadmapState.storageMode = "netlify-blobs";
+            saveCards();
+            saveOrderMode();
+          }
+        } else {
+          roadmapState.cards = sortCards(localCards);
+          roadmapState.orderMode = localOrderMode;
+          roadmapState.storageMode = "localStorage";
+        }
+
+        updateStorageUI();
       }
 
       function createId() {
@@ -2627,7 +2851,7 @@
         resetBulletDragState();
       }
 
-      function reorderCards(draggedId, targetId, position) {
+      async function reorderCards(draggedId, targetId, position) {
         const orderedCards = sortCards(roadmapState.cards);
         const draggedIndex = orderedCards.findIndex((card) => card.id === draggedId);
         const targetIndex = orderedCards.findIndex((card) => card.id === targetId);
@@ -2655,10 +2879,11 @@
         roadmapState.draggingCardId = null;
         roadmapState.dropTargetId = null;
         roadmapState.dropPosition = null;
-        saveOrderMode();
-        saveCards();
         renderAll();
-        setFeedback("Cards reordered.");
+        await persistRoadmapState(
+          "Cards reordered.",
+          "Cards were reordered locally, but the shared roadmap could not be updated."
+        );
       }
 
       function reorderBulletRows(draggedId, targetId, position) {
@@ -2884,7 +3109,7 @@
         elements.titleInput.focus();
       }
 
-      function removeCard(cardId) {
+      async function removeCard(cardId) {
         roadmapState.cards = roadmapState.cards.filter((card) => card.id !== cardId);
         roadmapState.pendingDeleteId = null;
 
@@ -2894,17 +3119,17 @@
 
         if (roadmapState.cards.length === 0) {
           roadmapState.orderMode = "date";
-          saveOrderMode();
         }
-
-        saveCards();
         renderAll();
 
         if (roadmapState.currentEditId === cardId) {
           resetForm();
         }
 
-        setFeedback("Card removed.");
+        await persistRoadmapState(
+          "Card removed.",
+          "Card was removed locally, but the shared roadmap could not be updated."
+        );
       }
 
       function createBulletStatusBadgeMarkup(status) {
@@ -3163,7 +3388,7 @@
         closeAdminPanel();
       }
 
-      function handleFormSubmit(event) {
+      async function handleFormSubmit(event) {
         event.preventDefault();
 
         const title = elements.titleInput.value.trim();
@@ -3173,6 +3398,7 @@
         const status = getSelectedStatus();
         const bullets = elements.bulletsToggle.checked ? getBulletValues() : [];
         const existingCard = roadmapState.cards.find((card) => card.id === roadmapState.currentEditId);
+        const isEditing = Boolean(roadmapState.currentEditId);
 
         if (!title || !description || !date) {
           setFeedback("Title, description, and month are required.", true);
@@ -3204,9 +3430,11 @@
           resetForm("Card created.");
         }
 
-        saveOrderMode();
-        saveCards();
         renderAll();
+        await persistRoadmapState(
+          isEditing ? "Card updated." : "Card created.",
+          "The card changed locally, but the shared roadmap could not be updated."
+        );
       }
 
       elements.adminPanelButton.addEventListener("click", openAdminPanel);
@@ -3231,23 +3459,25 @@
         setBulletEditorVisible(elements.bulletsToggle.checked);
       });
 
-      elements.clearStorageButton.addEventListener("click", () => {
+      elements.clearStorageButton.addEventListener("click", async () => {
         if (roadmapState.cards.length === 0) {
           setFeedback("There are no cards to clear.");
           return;
         }
 
-        const isConfirmed = window.confirm("Clear every roadmap card from this browser?");
+        const isConfirmed = window.confirm("Clear every roadmap card from the shared roadmap?");
         if (!isConfirmed) {
           return;
         }
 
         roadmapState.cards = [];
         roadmapState.orderMode = "date";
-        saveOrderMode();
-        saveCards();
         renderAll();
         resetForm("All cards cleared.");
+        await persistRoadmapState(
+          "All cards cleared.",
+          "Cards were cleared locally, but the shared roadmap could not be updated."
+        );
       });
 
       document.addEventListener("click", (event) => {
@@ -3419,7 +3649,7 @@
         }
       });
 
-      elements.adminCardList.addEventListener("drop", (event) => {
+      elements.adminCardList.addEventListener("drop", async (event) => {
         if (!roadmapState.draggingCardId) {
           return;
         }
@@ -3437,7 +3667,7 @@
           return;
         }
 
-        reorderCards(
+        await reorderCards(
           roadmapState.draggingCardId,
           targetCard.dataset.cardId,
           roadmapState.dropPosition
@@ -3457,7 +3687,7 @@
         renderAdminCards();
       });
 
-      elements.adminCardList.addEventListener("click", (event) => {
+      elements.adminCardList.addEventListener("click", async (event) => {
         const editButton = event.target.closest("[data-edit-card]");
         if (editButton) {
           populateForm(editButton.dataset.editCard);
@@ -3470,7 +3700,7 @@
           const cardId = deleteButton.dataset.deleteCard;
 
           if (roadmapState.pendingDeleteId === cardId) {
-            removeCard(cardId);
+            await removeCard(cardId);
             return;
           }
 
@@ -3487,20 +3717,22 @@
         }
       });
 
-      roadmapState.authAccount = loadAuthSession();
-      roadmapState.orderMode = loadOrderMode();
-      roadmapState.cards = loadCards();
-      if (
-        roadmapState.orderMode === "manual" &&
-        roadmapState.cards.some((card) => !Number.isFinite(card.manualOrder))
-      ) {
-        roadmapState.orderMode = "date";
-        saveOrderMode();
-      }
-      updateAdminUI();
-      waitForGoogleIdentityClient();
-      resetForm();
-      renderAll();
+      (async () => {
+        await initializeRoadmapState();
+
+        if (
+          roadmapState.orderMode === "manual" &&
+          roadmapState.cards.some((card) => !Number.isFinite(card.manualOrder))
+        ) {
+          roadmapState.orderMode = "date";
+          saveOrderMode();
+        }
+
+        updateAdminUI();
+        waitForGoogleIdentityClient();
+        resetForm();
+        renderAll();
+      })();
     </script>
   </body>
 </html>
