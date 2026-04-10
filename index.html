@@ -1967,7 +1967,7 @@
       const STORAGE_KEY = "carbon-frontier-roadmap-cards-v1";
       const ORDER_MODE_KEY = "carbon-frontier-roadmap-order-mode-v1";
       const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
-      const REMOTE_ROADMAP_ENDPOINT = "/api/roadmap";
+      const REMOTE_ROADMAP_ENDPOINTS = ["/api/roadmap", "/.netlify/functions/roadmap"];
       const roadmapState = {
         cards: [],
         currentEditId: null,
@@ -1989,6 +1989,7 @@
         authMenuOpen: false,
         googleAuthInitialized: false,
         storageMode: "localStorage",
+        remoteEndpoint: "",
       };
 
       const elements = {
@@ -2448,35 +2449,42 @@
       }
 
       async function loadSharedRoadmapState() {
-        try {
-          const response = await fetch(REMOTE_ROADMAP_ENDPOINT, {
-            cache: "no-store",
-            headers: {
-              accept: "application/json",
-            },
-          });
+        for (const endpoint of REMOTE_ROADMAP_ENDPOINTS) {
+          try {
+            const response = await fetch(endpoint, {
+              cache: "no-store",
+              headers: {
+                accept: "application/json",
+              },
+            });
 
-          if (!response.ok) {
-            throw new Error(`Shared roadmap load failed with ${response.status}`);
+            if (!response.ok) {
+              continue;
+            }
+
+            const payload = await response.json();
+            roadmapState.remoteEndpoint = endpoint;
+
+            return {
+              ok: true,
+              exists: Boolean(payload?.exists),
+              cards: Array.isArray(payload?.cards)
+                ? payload.cards.map(normalizeCard).filter((card) => card.title && card.description)
+                : [],
+              orderMode: payload?.orderMode === "manual" ? "manual" : "date",
+            };
+          } catch (error) {
+            continue;
           }
-
-          const payload = await response.json();
-          return {
-            ok: true,
-            exists: Boolean(payload?.exists),
-            cards: Array.isArray(payload?.cards)
-              ? payload.cards.map(normalizeCard).filter((card) => card.title && card.description)
-              : [],
-            orderMode: payload?.orderMode === "manual" ? "manual" : "date",
-          };
-        } catch (error) {
-          return {
-            ok: false,
-            exists: false,
-            cards: [],
-            orderMode: "date",
-          };
         }
+
+        roadmapState.remoteEndpoint = "";
+        return {
+          ok: false,
+          exists: false,
+          cards: [],
+          orderMode: "date",
+        };
       }
 
       async function saveSharedRoadmapState() {
@@ -2487,45 +2495,54 @@
           };
         }
 
-        try {
-          const response = await fetch(REMOTE_ROADMAP_ENDPOINT, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              authorization: `Bearer ${roadmapState.authIdToken}`,
-            },
-            body: JSON.stringify({
-              cards: roadmapState.cards,
-              orderMode: roadmapState.orderMode,
-            }),
-          });
+        const endpointsToTry = roadmapState.remoteEndpoint
+          ? [roadmapState.remoteEndpoint, ...REMOTE_ROADMAP_ENDPOINTS.filter((endpoint) => endpoint !== roadmapState.remoteEndpoint)]
+          : REMOTE_ROADMAP_ENDPOINTS;
 
-          const payload = await response.json().catch(() => null);
-          if (!response.ok) {
-            return {
-              ok: false,
-              message:
+        let lastFailureMessage = "Shared roadmap save failed. This browser kept a local copy only.";
+
+        for (const endpoint of endpointsToTry) {
+          try {
+            const response = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                authorization: `Bearer ${roadmapState.authIdToken}`,
+              },
+              body: JSON.stringify({
+                cards: roadmapState.cards,
+                orderMode: roadmapState.orderMode,
+              }),
+            });
+
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) {
+              lastFailureMessage =
                 payload?.error ||
-                "Shared roadmap save failed. Sign in again or check the Netlify function deploy.",
+                "Shared roadmap save failed. Sign in again or check the Netlify function deploy.";
+              continue;
+            }
+
+            roadmapState.remoteEndpoint = endpoint;
+            roadmapState.storageMode = "netlify-blobs";
+            updateStorageUI();
+
+            return {
+              ok: true,
+              cards: Array.isArray(payload?.cards)
+                ? payload.cards.map(normalizeCard).filter((card) => card.title && card.description)
+                : roadmapState.cards,
+              orderMode: payload?.orderMode === "manual" ? "manual" : roadmapState.orderMode,
             };
+          } catch (error) {
+            continue;
           }
-
-          roadmapState.storageMode = "netlify-blobs";
-          updateStorageUI();
-
-          return {
-            ok: true,
-            cards: Array.isArray(payload?.cards)
-              ? payload.cards.map(normalizeCard).filter((card) => card.title && card.description)
-              : roadmapState.cards,
-            orderMode: payload?.orderMode === "manual" ? "manual" : roadmapState.orderMode,
-          };
-        } catch (error) {
-          return {
-            ok: false,
-            message: "Shared roadmap save failed. This browser kept a local copy only.",
-          };
         }
+
+        return {
+          ok: false,
+          message: lastFailureMessage,
+        };
       }
 
       async function persistRoadmapState(successMessage, fallbackMessage) {
