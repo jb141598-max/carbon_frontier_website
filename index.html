@@ -2074,7 +2074,13 @@
         try {
           const rawSession = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null");
           const email = normalizeEmail(rawSession?.email);
+          const idToken = String(rawSession?.idToken || "").trim();
           if (!email) {
+            return null;
+          }
+
+          if (!isGoogleIdTokenUsable(idToken)) {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
             return null;
           }
 
@@ -2082,7 +2088,7 @@
             email,
             name: String(rawSession?.name || "").trim(),
             picture: String(rawSession?.picture || "").trim(),
-            idToken: String(rawSession?.idToken || "").trim(),
+            idToken,
           };
         } catch (error) {
           return null;
@@ -2126,6 +2132,30 @@
         } catch (error) {
           return null;
         }
+      }
+
+      function isGoogleIdTokenUsable(idToken) {
+        if (!idToken) {
+          return false;
+        }
+
+        const payload = decodeJwtPayload(idToken);
+        if (!payload?.email || payload.email_verified === false) {
+          return false;
+        }
+
+        const configuredClientId = getConfiguredGoogleClientId();
+        if (configuredClientId && payload.aud && payload.aud !== configuredClientId) {
+          return false;
+        }
+
+        if (!payload.exp) {
+          return false;
+        }
+
+        const expiresAtMs = Number(payload.exp) * 1000;
+        const nowMs = Date.now();
+        return Number.isFinite(expiresAtMs) && nowMs < expiresAtMs - 30000;
       }
 
       function getAccountInitials(account) {
@@ -2488,10 +2518,15 @@
       }
 
       async function saveSharedRoadmapState() {
-        if (!roadmapState.authIdToken) {
+        if (!isGoogleIdTokenUsable(roadmapState.authIdToken)) {
+          roadmapState.authAccount = null;
+          roadmapState.authIdToken = "";
+          saveAuthSession(null);
+          syncAccountMenu();
+          updateAdminUI();
           return {
             ok: false,
-            message: "Sign in again with Google before publishing shared roadmap changes.",
+            message: "Your Google admin session expired. Sign in again, then save the card one more time.",
           };
         }
 
@@ -2519,7 +2554,7 @@
             if (!response.ok) {
               lastFailureMessage =
                 payload?.error ||
-                "Shared roadmap save failed. Sign in again or check the Netlify function deploy.";
+                `Shared roadmap save failed at ${endpoint} (${response.status}).`;
               continue;
             }
 
@@ -2574,7 +2609,7 @@
 
         roadmapState.storageMode = "localStorage-fallback";
         updateStorageUI();
-        setFeedback(fallbackMessage || remoteSave.message || "Saved locally only.", true);
+        setFeedback(remoteSave.message || fallbackMessage || "Saved locally only.", true);
         return false;
       }
 
@@ -3375,16 +3410,23 @@
       }
 
       function updateAdminUI() {
+        if (roadmapState.authIdToken && !isGoogleIdTokenUsable(roadmapState.authIdToken)) {
+          roadmapState.authAccount = null;
+          roadmapState.authIdToken = "";
+          saveAuthSession(null);
+        }
+
         const currentAccount = getCurrentAccount();
         const hasAuthorizedAccount =
           typeof currentAccount === "string" && ADMIN_ACCOUNTS.includes(currentAccount);
         const hasDevOverride = isCursorTestingEnvironment();
+        const hasUsableAdminSession = hasAuthorizedAccount && isGoogleIdTokenUsable(roadmapState.authIdToken);
 
-        roadmapState.hasAdminAccess = hasAuthorizedAccount || hasDevOverride;
+        roadmapState.hasAdminAccess = hasUsableAdminSession || hasDevOverride;
         elements.adminPanelButton.hidden = !roadmapState.hasAdminAccess;
         syncAccountMenu();
 
-        if (hasAuthorizedAccount) {
+        if (hasUsableAdminSession) {
           elements.accountPill.textContent = `Admin account: ${currentAccount}`;
           elements.accountStatus.innerHTML =
             '<span class="status-dot" aria-hidden="true"></span><span>Approved admin account detected. You can open the admin panel.</span>';
