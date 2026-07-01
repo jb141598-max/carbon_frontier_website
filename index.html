@@ -93,9 +93,15 @@
       .topbar {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: space-between;
         gap: 18px;
         margin-bottom: 10px;
+      }
+
+      .topbar-nav {
+        display: flex;
+        align-items: center;
+        gap: 12px;
       }
 
       .brand-lockup {
@@ -135,6 +141,7 @@
 
       .account-pill,
       .account-menu-button,
+      .nav-button,
       .admin-button,
       .subtle-button,
       .icon-button,
@@ -145,6 +152,30 @@
         border: 1px solid transparent;
         border-radius: 999px;
         transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+      }
+
+      .nav-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 11px 16px;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.12);
+        font-size: 0.86rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-decoration: none;
+        text-transform: uppercase;
+      }
+
+      .nav-button:hover,
+      .nav-button:focus-visible {
+        border-color: rgba(223, 37, 49, 0.68);
+        background: rgba(223, 37, 49, 0.18);
+        outline: none;
+        transform: translateY(-1px);
       }
 
       .account-pill {
@@ -1649,7 +1680,15 @@
         }
 
         .topbar {
-          justify-content: flex-end;
+          align-items: flex-start;
+          gap: 12px;
+        }
+
+        .nav-button {
+          min-height: 42px;
+          padding: 10px 13px;
+          font-size: 0.78rem;
+          letter-spacing: 0.1em;
         }
 
         .account-pill {
@@ -1718,6 +1757,9 @@
     <div class="page-shell">
       <div class="content">
         <header class="topbar">
+          <nav class="topbar-nav" aria-label="Primary navigation">
+            <a class="nav-button" href="updates.html">Updates</a>
+          </nav>
           <div class="brand-lockup">
             <p class="brand">Carbon Frontier</p>
             <p class="brand-subline">Roadmap website prototype</p>

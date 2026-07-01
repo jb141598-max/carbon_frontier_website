@@ -1,0 +1,3149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Carbon Frontier Updates</title>
+    <meta
+      name="google-signin-client_id"
+      content="609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap" rel="stylesheet" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+      :root {
+        --cf-red: #df2531;
+        --cf-red-45: rgba(223, 37, 49, 0.45);
+        --cf-red-65: rgba(223, 37, 49, 0.65);
+        --cf-white: #ffffff;
+        --cf-border: rgba(255, 255, 255, 0.12);
+        --cf-text-muted: rgba(255, 255, 255, 0.72);
+        --cf-text-soft: rgba(255, 255, 255, 0.52);
+        --cf-update-frame: #2a2525;
+        --cf-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        min-height: 100vh;
+        color: var(--cf-white);
+        font-family: "Play", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(223, 37, 49, 0.26), transparent 30%),
+          radial-gradient(circle at 85% 12%, rgba(223, 37, 49, 0.18), transparent 24%),
+          linear-gradient(180deg, #080808 0%, #000000 42%, #050505 100%);
+      }
+
+      body.admin-open {
+        overflow: hidden;
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .page-shell {
+        position: relative;
+        min-height: 100vh;
+        padding: 28px;
+        overflow: hidden;
+      }
+
+      .page-shell::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+        background-size: 96px 96px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.8), transparent 80%);
+        pointer-events: none;
+      }
+
+      .content {
+        position: relative;
+        z-index: 1;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 10px;
+      }
+
+      .topbar-nav,
+      .topbar-actions,
+      .account-entry,
+      .account-menu-actions,
+      .form-actions,
+      .admin-header-actions,
+      .admin-row-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .topbar-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .account-entry {
+        position: relative;
+      }
+
+      .nav-button,
+      .account-pill,
+      .account-menu-button,
+      .admin-button,
+      .subtle-button,
+      .icon-button,
+      .save-button,
+      .danger-button {
+        border: 1px solid transparent;
+        border-radius: 999px;
+        transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+      }
+
+      .nav-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 11px 16px;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.12);
+        font-size: 0.86rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-decoration: none;
+        text-transform: uppercase;
+      }
+
+      .nav-button:hover,
+      .nav-button:focus-visible,
+      .subtle-button:hover,
+      .danger-button:hover,
+      .icon-button:hover {
+        border-color: rgba(223, 37, 49, 0.68);
+        background: rgba(223, 37, 49, 0.18);
+        outline: none;
+        transform: translateY(-1px);
+      }
+
+      .account-pill {
+        max-width: min(38vw, 320px);
+        padding: 10px 14px;
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+        color: var(--cf-text-muted);
+        font-size: 0.86rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .account-menu-button {
+        width: 46px;
+        height: 46px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.12);
+        color: var(--cf-white);
+      }
+
+      .account-menu-button:hover,
+      .account-entry.is-open .account-menu-button {
+        border-color: rgba(223, 37, 49, 0.58);
+        background: rgba(223, 37, 49, 0.16);
+      }
+
+      .account-avatar,
+      .account-menu-avatar {
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background:
+          linear-gradient(135deg, rgba(223, 37, 49, 0.92), rgba(223, 37, 49, 0.46)),
+          rgba(255, 255, 255, 0.08);
+        background-position: center;
+        background-size: cover;
+        color: var(--cf-white);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        overflow: hidden;
+      }
+
+      .account-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 0.74rem;
+      }
+
+      .account-menu-panel {
+        position: absolute;
+        top: calc(100% + 12px);
+        right: 0;
+        width: min(320px, calc(100vw - 36px));
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 24px;
+        background:
+          linear-gradient(180deg, rgba(24, 24, 24, 0.96), rgba(8, 8, 8, 0.98)),
+          rgba(0, 0, 0, 0.96);
+        box-shadow: var(--cf-shadow);
+        backdrop-filter: blur(18px);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px) scale(0.985);
+        transform-origin: top right;
+        transition: opacity 180ms ease, transform 180ms ease;
+        z-index: 10;
+      }
+
+      .account-entry.is-open .account-menu-panel {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+      }
+
+      .account-menu-header {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+      }
+
+      .account-menu-avatar {
+        width: 46px;
+        height: 46px;
+        font-size: 0.88rem;
+      }
+
+      .account-menu-title,
+      .account-menu-email,
+      .account-menu-copy,
+      .auth-note,
+      .panel-note,
+      .feedback {
+        margin: 0;
+      }
+
+      .account-menu-title {
+        font-weight: 700;
+      }
+
+      .account-menu-email,
+      .account-menu-copy,
+      .auth-note,
+      .panel-note {
+        color: var(--cf-text-muted);
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+
+      .account-menu-email {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .google-signin-slot {
+        min-height: 42px;
+      }
+
+      .admin-button,
+      .save-button {
+        padding: 12px 18px;
+        background: var(--cf-red-45);
+        border-color: rgba(223, 37, 49, 0.9);
+        color: var(--cf-white);
+        font-size: 0.92rem;
+        font-weight: 700;
+      }
+
+      .admin-button:hover,
+      .save-button:hover {
+        background: var(--cf-red-65);
+        transform: translateY(-1px);
+      }
+
+      .subtle-button,
+      .danger-button,
+      .icon-button {
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--cf-border);
+      }
+
+      .subtle-button:disabled,
+      .danger-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.42;
+        transform: none;
+      }
+
+      .subtle-button,
+      .danger-button {
+        padding: 10px 14px;
+      }
+
+      .danger-button.is-armed {
+        border-color: rgba(223, 37, 49, 0.82);
+        background: rgba(223, 37, 49, 0.26);
+      }
+
+      .icon-button {
+        width: 42px;
+        height: 42px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+      }
+
+      .branding-hero {
+        position: relative;
+        display: grid;
+        place-items: center;
+        min-height: clamp(360px, 34vw, 500px);
+        margin: 0 0 18px;
+        padding: 32px 24px 44px;
+        overflow: visible;
+        isolation: isolate;
+      }
+
+      .branding-hero::before {
+        content: "";
+        position: absolute;
+        inset: -48px -48px -180px;
+        background: radial-gradient(
+          ellipse at center top,
+          rgba(142, 0, 0, 0.96) 0%,
+          rgba(142, 0, 0, 0.9) 28%,
+          rgba(142, 0, 0, 0.62) 52%,
+          rgba(142, 0, 0, 0.28) 72%,
+          rgba(0, 0, 0, 0) 100%
+        );
+        filter: blur(28px);
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .branding-hero-inner {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        justify-items: center;
+        align-content: center;
+        gap: 14px;
+        width: 100%;
+      }
+
+      .brand-logo {
+        display: block;
+        width: min(100%, clamp(360px, 34vw, 560px));
+        max-width: 560px;
+        height: auto;
+        object-fit: contain;
+        filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.35));
+      }
+
+      .brand-tagline {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 1rem;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-align: center;
+      }
+
+      .updates-section,
+      .admin-panel,
+      .update-form,
+      .admin-preview-panel,
+      .empty-state,
+      .admin-update-row {
+        border: 1px solid var(--cf-border);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+        box-shadow: var(--cf-shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .updates-section {
+        display: grid;
+        gap: 28px;
+        min-height: clamp(300px, 35vw, 520px);
+        padding: 42px 30px;
+        border-radius: 28px;
+        background:
+          radial-gradient(ellipse at center top, rgba(142, 0, 0, 0.55), rgba(142, 0, 0, 0.16) 42%, transparent 70%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+      }
+
+      .updates-display {
+        margin: 0;
+        color: var(--cf-white);
+        font-size: 3rem;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: 0.04em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .updates-list {
+        display: grid;
+        gap: 28px;
+      }
+
+      .updates-archive-footer {
+        display: grid;
+        justify-items: center;
+        gap: 18px;
+      }
+
+      .archive-toggle-button {
+        min-width: 160px;
+      }
+
+      .archive-panel {
+        width: 100%;
+        display: grid;
+        gap: 18px;
+      }
+
+      .archive-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        align-items: start;
+        justify-content: start;
+        gap: 16px;
+      }
+
+      .archive-card {
+        display: grid;
+        align-content: space-between;
+        min-height: 150px;
+        aspect-ratio: 16 / 9;
+        padding: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 22px;
+        background:
+          radial-gradient(circle at top right, rgba(223, 37, 49, 0.18), transparent 44%),
+          var(--cf-update-frame);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+      }
+
+      .archive-card-version,
+      .archive-card-title {
+        margin: 0;
+        font-weight: 700;
+      }
+
+      .archive-card-version {
+        color: var(--cf-red);
+        font-size: 0.9rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .archive-card-title {
+        font-size: 1.35rem;
+        line-height: 1.05;
+      }
+
+      .public-update {
+        display: grid;
+        gap: 0;
+      }
+
+      .public-update-heading {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+        padding: 28px 34px 24px;
+        background: var(--cf-update-frame);
+        background-image: none;
+      }
+
+      .public-update-heading::after {
+        content: "";
+        position: absolute;
+        left: 5%;
+        right: 5%;
+        bottom: 0;
+        height: 2px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .update-version {
+        margin: 0;
+        font-size: clamp(2rem, 3.2vw, 3rem);
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .update-version-label {
+        display: inline-flex;
+        align-items: center;
+        min-height: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        color: var(--cf-white);
+        background: transparent;
+        font-size: clamp(1.8rem, 3vw, 2.7rem);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .update-row-list {
+        display: grid;
+        gap: 0;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 24px;
+        background: var(--cf-update-frame);
+        background-image: none;
+        box-shadow: 0 20px 54px rgba(0, 0, 0, 0.34);
+      }
+
+      .admin-row-list {
+        display: grid;
+        gap: 0;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        background:
+          radial-gradient(circle at top right, rgba(223, 37, 49, 0.12), transparent 38%),
+          rgba(255, 255, 255, 0.025);
+      }
+
+      .admin-update-card {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 22px;
+        background:
+          radial-gradient(circle at top right, rgba(223, 37, 49, 0.1), transparent 36%),
+          rgba(255, 255, 255, 0.025);
+      }
+
+      .admin-update-card.is-active {
+        border-color: rgba(223, 37, 49, 0.54);
+        box-shadow: 0 0 0 3px rgba(223, 37, 49, 0.1);
+      }
+
+      .admin-update-card.is-dragging {
+        opacity: 0.52;
+        transform: scale(0.985);
+      }
+
+      .admin-update-card.drop-before {
+        box-shadow:
+          inset 0 3px 0 0 rgba(223, 37, 49, 0.95),
+          0 0 0 3px rgba(223, 37, 49, 0.1);
+      }
+
+      .admin-update-card.drop-after {
+        box-shadow:
+          inset 0 -3px 0 0 rgba(223, 37, 49, 0.95),
+          0 0 0 3px rgba(223, 37, 49, 0.1);
+      }
+
+      .admin-list-footer,
+      .archive-form-actions {
+        display: flex;
+        justify-content: center;
+      }
+
+      .archive-form-actions {
+        justify-content: stretch;
+      }
+
+      .archive-form-actions .danger-button,
+      .archive-form-actions .subtle-button {
+        width: 100%;
+      }
+
+      .admin-update-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .admin-update-title {
+        margin: 0;
+        font-size: 1.2rem;
+        font-weight: 700;
+        line-height: 1.15;
+      }
+
+      .admin-update-meta {
+        margin: 6px 0 0;
+        color: var(--cf-text-muted);
+        font-size: 0.86rem;
+      }
+
+      .update-row {
+        position: relative;
+        display: grid;
+        gap: 18px;
+        min-height: 0;
+        padding: 28px;
+        align-items: stretch;
+        border: 0;
+        background: var(--cf-update-frame);
+        background-image: none;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      .update-row.has-image.has-text {
+        grid-template-columns: minmax(320px, 1.14fr) minmax(240px, 0.86fr);
+      }
+
+      .update-row.has-image.has-text.image-right {
+        grid-template-columns: minmax(240px, 0.86fr) minmax(320px, 1.14fr);
+      }
+
+      .update-row.has-image.no-text {
+        grid-template-columns: 1fr;
+        justify-items: center;
+      }
+
+      .update-row.has-image.no-text .update-row-content {
+        justify-items: center;
+        text-align: center;
+      }
+
+      .update-row.has-image.no-text .update-row-title {
+        text-align: center;
+      }
+
+      .update-row + .update-row {
+        border-top: 0;
+      }
+
+      .update-row + .update-row::before {
+        content: "";
+        position: absolute;
+        left: 5%;
+        right: 5%;
+        top: 0;
+        height: 2px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .update-row-content {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+        justify-items: start;
+        width: 100%;
+      }
+
+      .update-row.has-image.has-text .update-row-content {
+        min-height: 100%;
+        padding: 0;
+      }
+
+      .update-row-title {
+        margin: 0;
+        font-size: 1.8rem;
+        font-weight: 700;
+        line-height: 1.08;
+      }
+
+      .update-row-description {
+        margin: 0;
+        color: var(--cf-text-muted);
+        font-size: 1rem;
+        line-height: 1.65;
+      }
+
+      .update-row-image {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        min-height: clamp(220px, 28vw, 520px);
+        overflow: hidden;
+        border-radius: 18px;
+        background:
+          linear-gradient(135deg, rgba(223, 37, 49, 0.62), rgba(223, 37, 49, 0.18)),
+          #090909;
+      }
+
+      .update-row.has-image.has-text .update-row-image {
+        min-height: 0;
+        height: 100%;
+      }
+
+      .update-row.has-image.no-text .update-row-image {
+        width: min(100%, 720px);
+        min-height: clamp(220px, 24vw, 430px);
+      }
+
+      .update-row img,
+      .admin-row-image img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .empty-state {
+        padding: 34px;
+        border-radius: 24px;
+        color: var(--cf-text-muted);
+        line-height: 1.7;
+      }
+
+      .empty-state h2 {
+        margin: 0 0 12px;
+        color: var(--cf-white);
+        font-size: 1.9rem;
+        line-height: 1.08;
+      }
+
+      .empty-state p {
+        margin: 0;
+      }
+
+      .panel-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.58);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 180ms ease;
+        z-index: 20;
+      }
+
+      .panel-backdrop.is-open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .admin-panel {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100vh;
+        padding: 28px;
+        border-left: 0;
+        background:
+          linear-gradient(180deg, rgba(15, 15, 15, 0.98), rgba(0, 0, 0, 0.98)),
+          rgba(0, 0, 0, 0.96);
+        transform: translateX(100%);
+        transition: transform 220ms ease;
+        overflow: auto;
+        z-index: 30;
+      }
+
+      .admin-panel.is-open {
+        transform: translateX(0);
+      }
+
+      .admin-panel-shell,
+      .admin-layout,
+      .update-form,
+      .admin-preview-panel,
+      .form-grid {
+        display: grid;
+        gap: 18px;
+      }
+
+      .admin-header,
+      .form-header,
+      .admin-preview-header {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .admin-header-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .panel-tag,
+      .meta-tag {
+        margin: 0 0 10px;
+        color: var(--cf-red);
+        font-size: 0.86rem;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .panel-title,
+      .form-header h3,
+      .admin-preview-header h3 {
+        margin: 0;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .panel-title {
+        font-size: 2.6rem;
+      }
+
+      .panel-description,
+      .form-header p,
+      .admin-preview-header p,
+      .feedback {
+        margin: 10px 0 0;
+        color: var(--cf-text-muted);
+        line-height: 1.6;
+      }
+
+      .admin-layout {
+        grid-template-columns: minmax(320px, 460px) minmax(0, 1fr);
+        align-items: start;
+      }
+
+      .update-form,
+      .admin-preview-panel {
+        padding: 24px;
+        border-radius: 28px;
+      }
+
+      .update-form {
+        position: sticky;
+        top: 0;
+      }
+
+      .form-field {
+        display: grid;
+        gap: 8px;
+      }
+
+      .row-builder-heading {
+        padding-top: 4px;
+      }
+
+      .row-builder-heading h3 {
+        margin: 0;
+        font-size: 1.18rem;
+        line-height: 1.1;
+      }
+
+      .field-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+        font-weight: 700;
+      }
+
+      .field-option input {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--cf-red);
+      }
+
+      .side-control {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+        padding: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .side-control input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .side-control label {
+        display: grid;
+        place-items: center;
+        min-height: 42px;
+        padding: 8px 10px;
+        border-radius: 14px;
+        color: var(--cf-text-muted);
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: background-color 180ms ease, color 180ms ease;
+      }
+
+      .side-control input:checked + label {
+        color: var(--cf-white);
+        background: rgba(223, 37, 49, 0.78);
+      }
+
+      .side-control.is-disabled {
+        opacity: 0.48;
+      }
+
+      .drag-button {
+        cursor: grab;
+        user-select: none;
+      }
+
+      .drag-button.is-armed,
+      .admin-update-card.is-dragging .drag-button {
+        cursor: grabbing;
+      }
+
+      .form-field span {
+        font-size: 0.92rem;
+        font-weight: 700;
+      }
+
+      .form-field input {
+        width: 100%;
+        padding: 14px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .form-field textarea {
+        width: 100%;
+        padding: 14px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.03);
+        min-height: 104px;
+        resize: vertical;
+      }
+
+      .form-field input:focus,
+      .form-field textarea:focus {
+        outline: none;
+        border-color: rgba(223, 37, 49, 0.8);
+        box-shadow: 0 0 0 4px rgba(223, 37, 49, 0.14);
+      }
+
+      .form-field.is-disabled input,
+      .form-field.is-disabled textarea {
+        opacity: 0.48;
+      }
+
+      .panel-note code {
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        font-family: "Courier New", monospace;
+        font-size: 0.86em;
+      }
+
+      .admin-update-row {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1fr);
+        gap: 14px;
+        align-items: center;
+        padding: 12px;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      .admin-update-row + .admin-update-row {
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .admin-update-row.is-editing {
+        background: rgba(223, 37, 49, 0.12);
+      }
+
+      .admin-row-image {
+        height: 92px;
+        border-radius: 14px;
+        overflow: hidden;
+        background:
+          linear-gradient(135deg, rgba(223, 37, 49, 0.62), rgba(223, 37, 49, 0.18)),
+          #090909;
+      }
+
+      .admin-row-image.is-empty {
+        display: grid;
+        place-items: center;
+        color: var(--cf-text-soft);
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .admin-row-info {
+        min-width: 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      .admin-row-path {
+        margin: 0;
+        color: var(--cf-text-muted);
+        font-size: 0.9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .admin-row-title {
+        margin: 0;
+        font-size: 1.05rem;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+
+      .admin-row-description {
+        margin: 0;
+        color: var(--cf-text-muted);
+        font-size: 0.88rem;
+        line-height: 1.45;
+      }
+
+      .admin-row-actions {
+        flex-wrap: wrap;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      @media (max-width: 980px) {
+        .branding-hero {
+          min-height: clamp(300px, 48vw, 420px);
+          padding: 24px 18px 36px;
+        }
+
+        .brand-logo {
+          width: min(100%, clamp(300px, 50vw, 480px));
+        }
+
+        .admin-layout {
+          grid-template-columns: 1fr;
+        }
+
+        .update-form {
+          position: static;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .page-shell,
+        .admin-panel {
+          padding: 18px;
+        }
+
+        .topbar {
+          align-items: flex-start;
+          gap: 12px;
+        }
+
+        .topbar-actions {
+          gap: 8px;
+        }
+
+        .nav-button {
+          min-height: 42px;
+          padding: 10px 13px;
+          font-size: 0.78rem;
+          letter-spacing: 0.1em;
+        }
+
+        .account-pill {
+          display: none;
+        }
+
+        .admin-button {
+          padding: 10px 13px;
+          font-size: 0.82rem;
+        }
+
+        .branding-hero {
+          min-height: 260px;
+          padding: 18px 12px 28px;
+        }
+
+        .brand-tagline {
+          font-size: 0.82rem;
+          letter-spacing: 0.06em;
+          padding-inline: 12px;
+        }
+
+        .updates-section {
+          min-height: 300px;
+          padding: 34px 22px;
+        }
+
+        .updates-display {
+          font-size: 2.35rem;
+          letter-spacing: 0.03em;
+        }
+
+        .update-row {
+          grid-template-columns: 1fr;
+          padding: 22px;
+        }
+
+        .update-row.has-image.has-text {
+          grid-template-columns: 1fr;
+        }
+
+        .update-row.has-image.has-text .update-row-content {
+          min-height: 0;
+          padding: 0;
+        }
+
+        .update-row.has-image.no-text .update-row-image {
+          width: 100%;
+          min-height: 260px;
+        }
+
+        .update-row-image {
+          min-height: 260px;
+        }
+
+        .admin-header,
+        .form-header,
+        .admin-preview-header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .admin-update-row {
+          grid-template-columns: 1fr;
+        }
+
+        .admin-row-image {
+          height: 180px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="content">
+        <header class="topbar">
+          <nav class="topbar-nav" aria-label="Primary navigation">
+            <a class="nav-button" href="index.html">Roadmap</a>
+          </nav>
+          <div class="topbar-actions">
+            <div class="account-entry" id="account-entry">
+              <button
+                class="account-menu-button"
+                id="account-menu-button"
+                type="button"
+                aria-label="Open account menu"
+                aria-expanded="false"
+                aria-controls="account-menu"
+              >
+                <span class="account-avatar" id="account-avatar">CF</span>
+              </button>
+              <div class="account-pill" id="account-pill">Checking admin access...</div>
+              <div class="account-menu-panel" id="account-menu" aria-hidden="true">
+                <div class="account-menu-header">
+                  <div class="account-menu-avatar" id="account-menu-avatar">CF</div>
+                  <div>
+                    <p class="account-menu-title" id="account-menu-title">Account</p>
+                    <p class="account-menu-email" id="account-menu-email">Not signed in</p>
+                  </div>
+                </div>
+                <p class="account-menu-copy" id="account-menu-copy">
+                  Sign in with Google to unlock the updates admin panel.
+                </p>
+                <div class="google-signin-slot" id="google-signin-slot"></div>
+                <div class="account-menu-actions">
+                  <button class="subtle-button" id="signout-button" type="button" hidden>Sign Out</button>
+                </div>
+                <p class="auth-note" id="auth-note"></p>
+              </div>
+            </div>
+            <button class="admin-button" id="admin-panel-button" type="button" hidden>
+              Open Admin Panel
+            </button>
+          </div>
+        </header>
+
+        <main>
+          <section class="branding-hero" aria-label="Carbon Frontier branding">
+            <div class="branding-hero-inner">
+              <img class="brand-logo" src="images/logo.png" alt="Carbon Frontier logo" loading="eager" />
+              <p class="brand-tagline">Build, Manage, Unlock, Expand.</p>
+            </div>
+          </section>
+
+          <section class="updates-section" aria-labelledby="updates-heading">
+            <h1 class="updates-display" id="updates-heading">UPDATES</h1>
+            <div class="updates-list" id="updates-row-list"></div>
+            <div class="updates-archive-footer">
+              <button
+                class="subtle-button archive-toggle-button"
+                id="public-archive-button"
+                type="button"
+                aria-expanded="false"
+                aria-controls="public-archive-panel"
+              >
+                Archive
+              </button>
+              <div class="archive-panel" id="public-archive-panel" hidden></div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="panel-backdrop" id="panel-backdrop"></div>
+
+    <aside class="admin-panel" id="admin-panel" aria-hidden="true">
+      <div class="admin-panel-shell">
+        <div class="admin-header">
+          <div>
+            <p class="panel-tag">Admin Panel</p>
+            <h2 class="panel-title">Updates admin</h2>
+            <p class="panel-description">
+              Create multiple updates, set their version numbers, and arrange the rows inside each one.
+            </p>
+          </div>
+          <div class="admin-header-actions">
+            <button class="save-button" id="add-update-button" type="button">Add Update</button>
+            <button class="icon-button" id="close-admin-panel" type="button" aria-label="Close admin panel">
+              &times;
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-layout">
+          <form class="update-form" id="update-form">
+            <div class="form-header">
+              <div>
+                <p class="meta-tag" id="form-tag">Edit Update</p>
+                <h3 id="form-heading">No update selected</h3>
+                <p id="form-subheading">Click Add Update or edit an existing update to start adding rows.</p>
+              </div>
+            </div>
+
+            <div class="form-grid" id="update-editor-fields">
+              <label class="form-field">
+                <span>Version Number</span>
+                <input id="version-input" name="version" type="text" placeholder="v1.0.0" />
+              </label>
+
+              <label class="field-option" for="update-header-toggle">
+                <input id="update-header-toggle" name="hasUpdateHeader" type="checkbox" />
+                <span>Update Header</span>
+              </label>
+              <label class="form-field is-disabled" id="update-header-field">
+                <span>Update Header Text</span>
+                <input id="update-header-input" name="updateHeader" type="text" placeholder="Launch Notes" disabled />
+              </label>
+            </div>
+
+            <div class="form-grid" id="row-editor-fields" hidden>
+              <div class="row-builder-heading">
+                <p class="meta-tag">Add Rows</p>
+                <h3 id="row-form-heading">Add row</h3>
+              </div>
+
+              <label class="field-option" for="header-toggle">
+                <input id="header-toggle" name="hasHeader" type="checkbox" />
+                <span>Header</span>
+              </label>
+              <label class="form-field is-disabled" id="header-field">
+                <span>Header Text</span>
+                <input id="header-input" name="header" type="text" placeholder="Major Update" disabled />
+              </label>
+
+              <label class="field-option" for="description-toggle">
+                <input id="description-toggle" name="hasDescription" type="checkbox" />
+                <span>Description</span>
+              </label>
+              <label class="form-field is-disabled" id="description-field">
+                <span>Description Text</span>
+                <textarea
+                  id="description-input"
+                  name="description"
+                  placeholder="Describe what changed in this update."
+                  disabled
+                ></textarea>
+              </label>
+
+              <label class="field-option" for="image-toggle">
+                <input id="image-toggle" name="hasImage" type="checkbox" checked />
+                <span>Image</span>
+              </label>
+              <label class="form-field" id="image-field">
+                <span>Image Path</span>
+                <input id="image-input" name="image" type="text" placeholder="images/picture2.png" />
+              </label>
+              <div class="form-field" id="image-side-field">
+                <span>Picture Side</span>
+                <div class="side-control" id="image-side-control">
+                  <input id="image-side-left" name="imageSide" type="radio" value="left" checked />
+                  <label for="image-side-left">Left</label>
+                  <input id="image-side-right" name="imageSide" type="radio" value="right" />
+                  <label for="image-side-right">Right</label>
+                </div>
+              </div>
+              <p class="panel-note">
+                Place the file in the <code>images/</code> folder, then type the relative path here.
+                Common image extensions are auto-tried if you leave the extension off.
+              </p>
+            </div>
+
+            <div class="form-actions" id="update-form-actions">
+              <button class="save-button" id="save-update-button" type="button">Save Update</button>
+              <button class="save-button" id="open-row-builder-button" type="button">Add Row</button>
+              <button class="subtle-button" id="clear-rows-button" type="button">Clear Rows</button>
+            </div>
+
+            <div class="form-actions" id="row-form-actions" hidden>
+              <button class="save-button" id="submit-button" type="submit">Add Row</button>
+              <button class="subtle-button" id="cancel-row-edit-button" type="button">Cancel</button>
+            </div>
+
+            <div class="archive-form-actions" id="archive-form-actions">
+              <button class="danger-button" id="archive-update-button" type="button" hidden>
+                Archive Update
+              </button>
+            </div>
+
+            <p class="feedback" id="form-feedback"></p>
+          </form>
+
+          <section class="admin-preview-panel" aria-labelledby="admin-preview-heading">
+            <div class="admin-preview-header">
+              <div>
+                <p class="meta-tag">Admin Preview</p>
+                <h3 id="admin-preview-heading">Current updates</h3>
+                <p id="admin-preview-copy">Choose an update to edit, then edit or rearrange its rows.</p>
+              </div>
+              <button class="subtle-button" id="show-updates-list-button" type="button" hidden>
+                Back to All Updates
+              </button>
+            </div>
+            <div class="admin-row-list" id="admin-row-list"></div>
+            <div class="admin-list-footer" id="admin-list-footer">
+              <button class="subtle-button" id="admin-archive-list-button" type="button">Archive</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </aside>
+
+    <script>
+      const ADMIN_ACCOUNTS = ["jb141598@gmail.com", "jb14296@gmail.com"];
+      const UPDATE_STORAGE_KEY = "carbon-frontier-update-rows-v1";
+      const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
+      const REMOTE_UPDATES_ENDPOINTS = ["/api/updates", "/.netlify/functions/updates"];
+
+      const updatesState = {
+        updates: [],
+        currentUpdateId: null,
+        editingRowId: null,
+        pendingDeleteId: null,
+        pendingDeleteUpdateId: null,
+        draggingUpdateId: null,
+        dropUpdateId: null,
+        dropUpdatePosition: null,
+        adminArchiveView: false,
+        publicArchiveOpen: false,
+        sidebarMode: "update",
+        hasAdminAccess: false,
+        authAccount: null,
+        authIdToken: "",
+        authMenuOpen: false,
+        googleAuthInitialized: false,
+        storageMode: "localStorage",
+        remoteEndpoint: "",
+      };
+
+      const elements = {
+        accountEntry: document.getElementById("account-entry"),
+        accountMenuButton: document.getElementById("account-menu-button"),
+        accountAvatar: document.getElementById("account-avatar"),
+        accountMenu: document.getElementById("account-menu"),
+        accountMenuAvatar: document.getElementById("account-menu-avatar"),
+        accountMenuTitle: document.getElementById("account-menu-title"),
+        accountMenuEmail: document.getElementById("account-menu-email"),
+        accountMenuCopy: document.getElementById("account-menu-copy"),
+        accountPill: document.getElementById("account-pill"),
+        googleSigninSlot: document.getElementById("google-signin-slot"),
+        authNote: document.getElementById("auth-note"),
+        signoutButton: document.getElementById("signout-button"),
+        adminPanelButton: document.getElementById("admin-panel-button"),
+        addUpdateButton: document.getElementById("add-update-button"),
+        adminPanel: document.getElementById("admin-panel"),
+        closeAdminPanel: document.getElementById("close-admin-panel"),
+        panelBackdrop: document.getElementById("panel-backdrop"),
+        updateForm: document.getElementById("update-form"),
+        formTag: document.getElementById("form-tag"),
+        formHeading: document.getElementById("form-heading"),
+        formSubheading: document.getElementById("form-subheading"),
+        updateEditorFields: document.getElementById("update-editor-fields"),
+        rowEditorFields: document.getElementById("row-editor-fields"),
+        rowFormHeading: document.getElementById("row-form-heading"),
+        versionInput: document.getElementById("version-input"),
+        updateHeaderToggle: document.getElementById("update-header-toggle"),
+        updateHeaderField: document.getElementById("update-header-field"),
+        updateHeaderInput: document.getElementById("update-header-input"),
+        saveUpdateButton: document.getElementById("save-update-button"),
+        headerToggle: document.getElementById("header-toggle"),
+        headerField: document.getElementById("header-field"),
+        headerInput: document.getElementById("header-input"),
+        descriptionToggle: document.getElementById("description-toggle"),
+        descriptionField: document.getElementById("description-field"),
+        descriptionInput: document.getElementById("description-input"),
+        imageToggle: document.getElementById("image-toggle"),
+        imageField: document.getElementById("image-field"),
+        imageInput: document.getElementById("image-input"),
+        imageSideField: document.getElementById("image-side-field"),
+        imageSideControl: document.getElementById("image-side-control"),
+        imageSideInputs: Array.from(document.querySelectorAll('input[name="imageSide"]')),
+        updateFormActions: document.getElementById("update-form-actions"),
+        openRowBuilderButton: document.getElementById("open-row-builder-button"),
+        rowFormActions: document.getElementById("row-form-actions"),
+        submitButton: document.getElementById("submit-button"),
+        cancelRowEditButton: document.getElementById("cancel-row-edit-button"),
+        clearRowsButton: document.getElementById("clear-rows-button"),
+        archiveFormActions: document.getElementById("archive-form-actions"),
+        archiveUpdateButton: document.getElementById("archive-update-button"),
+        formFeedback: document.getElementById("form-feedback"),
+        updatesHeading: document.getElementById("updates-heading"),
+        updatesRowList: document.getElementById("updates-row-list"),
+        publicArchiveButton: document.getElementById("public-archive-button"),
+        publicArchivePanel: document.getElementById("public-archive-panel"),
+        adminRowList: document.getElementById("admin-row-list"),
+        adminPreviewHeading: document.getElementById("admin-preview-heading"),
+        adminPreviewCopy: document.getElementById("admin-preview-copy"),
+        showUpdatesListButton: document.getElementById("show-updates-list-button"),
+        adminListFooter: document.getElementById("admin-list-footer"),
+        adminArchiveListButton: document.getElementById("admin-archive-list-button"),
+      };
+
+      function isCursorTestingEnvironment() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        const referrer = document.referrer.toLowerCase();
+        const isLocalPreview =
+          window.location.protocol === "file:" ||
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1";
+
+        return (
+          isLocalPreview ||
+          userAgent.includes("cursor") ||
+          userAgent.includes("electron") ||
+          referrer.includes("cursor")
+        );
+      }
+
+      function normalizeEmail(value) {
+        return String(value || "").trim().toLowerCase();
+      }
+
+      function getConfiguredGoogleClientId() {
+        const globalClientId = String(window.CARBON_FRONTIER_GOOGLE_CLIENT_ID || "").trim();
+        const metaClientId = String(
+          document.querySelector('meta[name="google-signin-client_id"]')?.content || ""
+        ).trim();
+        const configuredClientId = (globalClientId || metaClientId).replace(/^['"]+|['"]+$/g, "");
+
+        if (!configuredClientId || configuredClientId.startsWith("YOUR_")) {
+          return "";
+        }
+
+        return configuredClientId;
+      }
+
+      function decodeJwtPayload(token) {
+        const tokenParts = String(token || "").split(".");
+        if (tokenParts.length < 2) {
+          return null;
+        }
+
+        try {
+          const base64 = tokenParts[1].replace(/-/g, "+").replace(/_/g, "/");
+          const paddedBase64 = `${base64}${"=".repeat((4 - (base64.length % 4)) % 4)}`;
+          const json = atob(paddedBase64);
+          const utf8 = decodeURIComponent(
+            Array.from(json)
+              .map((character) => `%${character.charCodeAt(0).toString(16).padStart(2, "0")}`)
+              .join("")
+          );
+
+          return JSON.parse(utf8);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function isGoogleIdTokenUsable(idToken) {
+        if (!idToken) {
+          return false;
+        }
+
+        const payload = decodeJwtPayload(idToken);
+        if (!payload?.email || payload.email_verified === false) {
+          return false;
+        }
+
+        const configuredClientId = getConfiguredGoogleClientId();
+        if (configuredClientId && payload.aud && payload.aud !== configuredClientId) {
+          return false;
+        }
+
+        if (!payload.exp) {
+          return false;
+        }
+
+        const expiresAtMs = Number(payload.exp) * 1000;
+        return Number.isFinite(expiresAtMs) && Date.now() < expiresAtMs - 30000;
+      }
+
+      function loadAuthSession() {
+        try {
+          const rawSession = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null");
+          const email = normalizeEmail(rawSession?.email);
+          const idToken = String(rawSession?.idToken || "").trim();
+          if (!email || !isGoogleIdTokenUsable(idToken)) {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            return null;
+          }
+
+          return {
+            email,
+            name: String(rawSession?.name || "").trim(),
+            picture: String(rawSession?.picture || "").trim(),
+            idToken,
+          };
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function saveAuthSession(account) {
+        if (!account?.email) {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+          return;
+        }
+
+        localStorage.setItem(
+          AUTH_STORAGE_KEY,
+          JSON.stringify({
+            email: normalizeEmail(account.email),
+            name: String(account.name || "").trim(),
+            picture: String(account.picture || "").trim(),
+            idToken: String(account.idToken || "").trim(),
+          })
+        );
+      }
+
+      function getInitials(account) {
+        const source = account?.name || account?.email || "CF";
+        return source
+          .split(/[\s@._-]+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0])
+          .join("")
+          .toUpperCase();
+      }
+
+      function setAvatar(element, account) {
+        const picture = String(account?.picture || "").trim();
+        element.textContent = getInitials(account);
+        element.style.backgroundImage = picture
+          ? `url("${picture.replaceAll('"', "%22")}")`
+          : "";
+      }
+
+      function openAccountMenu() {
+        updatesState.authMenuOpen = true;
+        elements.accountEntry.classList.add("is-open");
+        elements.accountMenuButton.setAttribute("aria-expanded", "true");
+        elements.accountMenu.setAttribute("aria-hidden", "false");
+        maybeRenderGoogleButton();
+      }
+
+      function closeAccountMenu() {
+        updatesState.authMenuOpen = false;
+        elements.accountEntry.classList.remove("is-open");
+        elements.accountMenuButton.setAttribute("aria-expanded", "false");
+        elements.accountMenu.setAttribute("aria-hidden", "true");
+      }
+
+      function syncAccountMenu() {
+        const account = updatesState.authAccount;
+        setAvatar(elements.accountAvatar, account);
+        setAvatar(elements.accountMenuAvatar, account);
+
+        if (account?.email) {
+          elements.accountMenuTitle.textContent = account.name || "Signed in";
+          elements.accountMenuEmail.textContent = account.email;
+          elements.accountMenuCopy.textContent = ADMIN_ACCOUNTS.includes(normalizeEmail(account.email))
+            ? "This Google account can manage update rows."
+            : "This Google account is signed in, but it is not on the admin allowlist.";
+          elements.signoutButton.hidden = false;
+        } else {
+          elements.accountMenuTitle.textContent = "Account";
+          elements.accountMenuEmail.textContent = "Not signed in";
+          elements.accountMenuCopy.textContent =
+            "Sign in with Google to unlock the updates admin panel.";
+          elements.signoutButton.hidden = true;
+        }
+      }
+
+      function handleGoogleCredential(response) {
+        const payload = decodeJwtPayload(response?.credential);
+        if (!payload?.email) {
+          elements.authNote.textContent = "Google sign-in did not return an email.";
+          return;
+        }
+
+        const account = {
+          email: normalizeEmail(payload.email),
+          name: String(payload.name || "").trim(),
+          picture: String(payload.picture || "").trim(),
+          idToken: String(response.credential || "").trim(),
+        };
+
+        updatesState.authAccount = account;
+        updatesState.authIdToken = account.idToken;
+        saveAuthSession(account);
+        elements.authNote.textContent = "";
+        syncAccountMenu();
+        updateAdminUI();
+      }
+
+      window.handleGoogleCredential = handleGoogleCredential;
+
+      function maybeRenderGoogleButton() {
+        if (!window.google?.accounts?.id || !elements.googleSigninSlot) {
+          return;
+        }
+
+        const clientId = getConfiguredGoogleClientId();
+        if (!clientId) {
+          elements.authNote.textContent = "Google sign-in needs a client ID before it can run.";
+          return;
+        }
+
+        if (!updatesState.googleAuthInitialized) {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleCredential,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+          });
+          updatesState.googleAuthInitialized = true;
+        }
+
+        elements.googleSigninSlot.innerHTML = "";
+        window.google.accounts.id.renderButton(elements.googleSigninSlot, {
+          theme: "outline",
+          size: "large",
+          shape: "pill",
+          text: "signin_with",
+          logo_alignment: "left",
+          width: 260,
+        });
+      }
+
+      function waitForGoogleIdentityClient(attempt = 0) {
+        if (window.google?.accounts?.id) {
+          maybeRenderGoogleButton();
+          return;
+        }
+
+        if (attempt >= 40) {
+          syncAccountMenu();
+          return;
+        }
+
+        window.setTimeout(() => {
+          waitForGoogleIdentityClient(attempt + 1);
+        }, 250);
+      }
+
+      function signOutGoogleAccount() {
+        updatesState.authAccount = null;
+        updatesState.authIdToken = "";
+        saveAuthSession(null);
+        window.google?.accounts?.id?.disableAutoSelect?.();
+        syncAccountMenu();
+        updateAdminUI();
+        closeAccountMenu();
+      }
+
+      function getCurrentAccount() {
+        if (updatesState.authAccount?.email) {
+          return normalizeEmail(updatesState.authAccount.email);
+        }
+
+        const globalAccount = window.CarbonFrontierAuth?.currentAccount;
+        const queryAccount = new URLSearchParams(window.location.search).get("account");
+
+        if (typeof globalAccount === "string" && globalAccount.trim()) {
+          return normalizeEmail(globalAccount);
+        }
+
+        if (typeof queryAccount === "string" && queryAccount.trim()) {
+          return normalizeEmail(queryAccount);
+        }
+
+        return null;
+      }
+
+      function createId() {
+        if (window.crypto && typeof window.crypto.randomUUID === "function") {
+          return window.crypto.randomUUID();
+        }
+
+        return `update-row-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+
+      function normalizeUpdateRow(row) {
+        const header = String(row?.header || "").trim();
+        const description = String(row?.description || "").trim();
+        const imagePath = String(row?.imagePath || "").trim();
+        const hasHeader = row?.hasHeader === true && header.length > 0;
+        const hasDescription = row?.hasDescription === true && description.length > 0;
+        const hasImage = row?.hasImage !== false && imagePath.length > 0;
+        const imageSide = row?.imageSide === "right" ? "right" : "left";
+
+        return {
+          id: String(row?.id || createId()),
+          hasHeader,
+          header,
+          hasDescription,
+          description,
+          hasImage,
+          imagePath,
+          imageSide,
+        };
+      }
+
+      function rowHasContent(row) {
+        return row.hasHeader || row.hasDescription || row.hasImage;
+      }
+
+      function normalizeUpdate(update, index = 0) {
+        const rows = Array.isArray(update?.rows)
+          ? update.rows.map(normalizeUpdateRow).filter(rowHasContent)
+          : [];
+        const version = String(update?.version || "").trim();
+        const header = String(update?.header || "").trim();
+        const hasHeader = update?.hasHeader === true && header.length > 0;
+        const isArchived = update?.isArchived === true;
+
+        return {
+          id: String(update?.id || createId()),
+          version: version || `Update ${index + 1}`,
+          hasHeader,
+          header,
+          isArchived,
+          rows,
+        };
+      }
+
+      function normalizeUpdatesPayload(payload) {
+        if (Array.isArray(payload?.updates)) {
+          return payload.updates.map(normalizeUpdate).filter((update) => update.rows.length > 0 || update.version);
+        }
+
+        const legacyRows = Array.isArray(payload?.rows)
+          ? payload.rows.map(normalizeUpdateRow).filter(rowHasContent)
+          : Array.isArray(payload)
+            ? payload.map(normalizeUpdateRow).filter(rowHasContent)
+            : [];
+
+        return legacyRows.length
+          ? [
+              {
+                id: createId(),
+                version: "Update 1",
+                hasHeader: false,
+                header: "",
+                isArchived: false,
+                rows: legacyRows,
+              },
+            ]
+          : [];
+      }
+
+      function getActiveUpdate() {
+        return updatesState.updates.find((update) => update.id === updatesState.currentUpdateId) || null;
+      }
+
+      function getCurrentUpdates() {
+        return updatesState.updates.filter((update) => update.isArchived !== true);
+      }
+
+      function getArchivedUpdates() {
+        return updatesState.updates.filter((update) => update.isArchived === true);
+      }
+
+      function getVisibleAdminUpdates() {
+        return updatesState.adminArchiveView ? getArchivedUpdates() : getCurrentUpdates();
+      }
+
+      function getUpdateDisplayTitle(update) {
+        return update.hasHeader ? update.header : update.version;
+      }
+
+      function loadUpdates() {
+        try {
+          const rawState = JSON.parse(localStorage.getItem(UPDATE_STORAGE_KEY) || "[]");
+          return normalizeUpdatesPayload(rawState);
+        } catch (error) {
+          return [];
+        }
+      }
+
+      function saveUpdates() {
+        localStorage.setItem(
+          UPDATE_STORAGE_KEY,
+          JSON.stringify({
+            updates: updatesState.updates,
+          })
+        );
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function normalizeImagePath(imagePath) {
+        const trimmedPath = String(imagePath || "").trim().replaceAll("\\", "/");
+        if (!trimmedPath) {
+          return "";
+        }
+
+        const imagesIndex = trimmedPath.toLowerCase().lastIndexOf("images/");
+        if (imagesIndex !== -1) {
+          return trimmedPath.slice(imagesIndex);
+        }
+
+        return trimmedPath.replace(/^\.?\//, "").replace(/^carbon-frontier-website\//, "");
+      }
+
+      function buildImageCandidates(imagePath) {
+        const normalizedPath = normalizeImagePath(imagePath);
+        if (!normalizedPath) {
+          return [];
+        }
+
+        const hasExtension = /\.[a-z0-9]+$/i.test(normalizedPath);
+        if (hasExtension) {
+          return [normalizedPath];
+        }
+
+        const extensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"];
+        return [normalizedPath, ...extensions.map((extension) => `${normalizedPath}${extension}`)];
+      }
+
+      function createImageMarkup(row, className) {
+        return `<div class="${className}"><img data-image-path="${escapeHtml(
+          normalizeImagePath(row.imagePath)
+        )}" alt="Carbon Frontier update" loading="lazy" /></div>`;
+      }
+
+      function createPublicRowMarkup(row) {
+        const hasText = row.hasHeader || row.hasDescription;
+        const imageSide = row.imageSide === "right" ? "right" : "left";
+        const rowClasses = [
+          "update-row",
+          hasText ? "has-text" : "no-text",
+          row.hasHeader ? "has-header" : "no-header",
+          row.hasDescription ? "has-description" : "no-description",
+          row.hasImage ? "has-image" : "",
+          row.hasImage ? `image-${imageSide}` : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        const textMarkup =
+          hasText
+            ? `<div class="update-row-content">
+                ${row.hasHeader ? `<h2 class="update-row-title">${escapeHtml(row.header)}</h2>` : ""}
+                ${
+                  row.hasDescription
+                    ? `<p class="update-row-description">${escapeHtml(row.description)}</p>`
+                    : ""
+                }
+              </div>`
+            : "";
+        const imageMarkup = row.hasImage ? createImageMarkup(row, "update-row-image") : "";
+        const rowContent =
+          row.hasImage && hasText && imageSide === "left"
+            ? `${imageMarkup}${textMarkup}`
+            : `${textMarkup}${imageMarkup}`;
+
+        return `<article class="${rowClasses}">${rowContent}</article>`;
+      }
+
+      function createPublicUpdateMarkup(update) {
+        const rowsMarkup = update.rows.length
+          ? update.rows.map(createPublicRowMarkup).join("")
+          : `<article class="update-row">
+              <div class="update-row-content">
+                <p class="update-row-description">No rows have been added to this update yet.</p>
+              </div>
+            </article>`;
+
+        return `
+          <article class="public-update">
+            <div class="update-row-list">
+              <div class="public-update-heading">
+                <h2 class="update-version">${escapeHtml(getUpdateDisplayTitle(update))}</h2>
+                <span class="update-version-label">${escapeHtml(update.version)}</span>
+              </div>
+              ${rowsMarkup}
+            </div>
+          </article>
+        `;
+      }
+
+      function createArchiveCardMarkup(update) {
+        return `
+          <article class="archive-card">
+            <p class="archive-card-version">${escapeHtml(update.version)}</p>
+            <h2 class="archive-card-title">${escapeHtml(getUpdateDisplayTitle(update))}</h2>
+          </article>
+        `;
+      }
+
+      function createAdminImageMarkup(row) {
+        if (row.hasImage) {
+          return createImageMarkup(row, "admin-row-image");
+        }
+
+        return '<div class="admin-row-image is-empty">No image</div>';
+      }
+
+      function renderPublicRows() {
+        if (updatesState.publicArchiveOpen) {
+          renderPublicArchive();
+          return;
+        }
+
+        const currentUpdates = getCurrentUpdates();
+        elements.updatesHeading.textContent = "UPDATES";
+        elements.publicArchiveButton.textContent = "Archive";
+        elements.publicArchiveButton.setAttribute("aria-expanded", "false");
+        elements.publicArchivePanel.hidden = true;
+        elements.publicArchivePanel.innerHTML = "";
+
+        if (currentUpdates.length === 0) {
+          elements.updatesRowList.innerHTML = `
+            <article class="empty-state">
+              <h2>No updates yet.</h2>
+              <p>Open the admin panel, click Add Update, and start adding rows.</p>
+            </article>
+          `;
+        } else {
+          elements.updatesRowList.innerHTML = currentUpdates.map(createPublicUpdateMarkup).join("");
+        }
+      }
+
+      function renderPublicArchive() {
+        const archivedUpdates = getArchivedUpdates();
+        elements.updatesHeading.textContent = "ARCHIVE";
+        elements.publicArchiveButton.textContent = "Updates";
+        elements.publicArchiveButton.setAttribute("aria-expanded", "true");
+        elements.publicArchivePanel.hidden = true;
+        elements.publicArchivePanel.innerHTML = "";
+
+        if (archivedUpdates.length === 0) {
+          elements.updatesRowList.innerHTML = `
+            <article class="empty-state">
+              <h2>No archived updates yet.</h2>
+              <p>Archived updates will appear here forever once an admin moves them into the archive.</p>
+            </article>
+          `;
+          return;
+        }
+
+        elements.updatesRowList.innerHTML = `
+          <div class="archive-grid">
+            ${archivedUpdates.map(createArchiveCardMarkup).join("")}
+          </div>
+        `;
+      }
+
+      function renderAdminRows() {
+        const activeUpdate = getActiveUpdate();
+        const visibleUpdates = getVisibleAdminUpdates();
+        const listLabel = updatesState.adminArchiveView ? "Archived updates" : "Current updates";
+
+        if (updatesState.currentUpdateId && !activeUpdate) {
+          updatesState.currentUpdateId = null;
+        }
+
+        if (updatesState.updates.length === 0) {
+          updatesState.pendingDeleteId = null;
+          updatesState.pendingDeleteUpdateId = null;
+          elements.adminPreviewHeading.textContent = "Current updates";
+          elements.adminPreviewCopy.textContent = "Add an update to start building this page.";
+          elements.showUpdatesListButton.hidden = true;
+          elements.adminListFooter.hidden = true;
+          elements.adminRowList.innerHTML = `
+            <div class="empty-state">
+              <h2>No updates yet.</h2>
+              <p>Click Add Update to create the first version.</p>
+            </div>
+          `;
+          return;
+        }
+
+        if (!activeUpdate) {
+          elements.adminPreviewHeading.textContent = listLabel;
+          elements.adminPreviewCopy.textContent = updatesState.adminArchiveView
+            ? "These archived updates stay here forever. Drag to reorder, or choose one to edit it."
+            : "Drag updates to rearrange the live order, or choose one to edit its rows.";
+          elements.showUpdatesListButton.hidden = true;
+          elements.adminListFooter.hidden = false;
+          elements.adminArchiveListButton.textContent = updatesState.adminArchiveView
+            ? "Current Updates"
+            : "Archive";
+
+          if (visibleUpdates.length === 0) {
+            elements.adminRowList.innerHTML = `
+              <div class="empty-state">
+                <h2>${updatesState.adminArchiveView ? "Archive is empty." : "No current updates."}</h2>
+                <p>${
+                  updatesState.adminArchiveView
+                    ? "Archived updates will show up here after you archive them from the editor."
+                    : "Click Add Update to create a current update."
+                }</p>
+              </div>
+            `;
+            return;
+          }
+
+          elements.adminRowList.innerHTML = visibleUpdates
+            .map((update) => {
+              const isUpdateDeleteArmed = updatesState.pendingDeleteUpdateId === update.id;
+
+              return `
+                <article class="admin-update-card" data-update-id="${escapeHtml(update.id)}">
+                  <div class="admin-update-card-header">
+                    <div>
+                      <p class="admin-update-title">${escapeHtml(getUpdateDisplayTitle(update))}</p>
+                      <p class="admin-update-meta">${escapeHtml(update.version)} &middot; ${update.rows.length} row${update.rows.length === 1 ? "" : "s"}</p>
+                    </div>
+                    <div class="admin-row-actions">
+                      <button class="subtle-button drag-button" type="button" data-update-drag-handle="${escapeHtml(update.id)}">Drag</button>
+                      <button class="subtle-button" type="button" data-edit-update="${escapeHtml(update.id)}">Edit Update</button>
+                      <button class="danger-button ${isUpdateDeleteArmed ? "is-armed" : ""}" type="button" data-delete-update="${escapeHtml(update.id)}">
+                        ${isUpdateDeleteArmed ? "Confirm Delete" : "Delete Update"}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              `;
+            })
+            .join("");
+          return;
+        }
+
+        elements.adminPreviewHeading.textContent = `Rows in ${activeUpdate.version}`;
+        elements.adminPreviewCopy.textContent = activeUpdate.isArchived
+          ? "This archived update can be edited normally, or moved back out of the archive."
+          : "This list is only the selected update's rows. Edit, move, or delete them here.";
+        elements.showUpdatesListButton.hidden = false;
+        elements.showUpdatesListButton.textContent = activeUpdate.isArchived
+          ? "Back to Archive"
+          : "Back to All Updates";
+        elements.adminListFooter.hidden = true;
+        elements.adminRowList.innerHTML = activeUpdate.rows.length
+          ? activeUpdate.rows
+              .map((row, index) => {
+                const isDeleteArmed = updatesState.pendingDeleteId === row.id;
+                const isEditing = updatesState.editingRowId === row.id;
+                const imageSide = row.imageSide === "right" ? "right" : "left";
+
+                return `
+                  <article class="admin-update-row ${isEditing ? "is-editing" : ""}" data-row-id="${escapeHtml(row.id)}">
+                    ${createAdminImageMarkup(row)}
+                    <div class="admin-row-info">
+                      <p class="admin-row-title">${index + 1}. ${
+                        row.hasHeader ? escapeHtml(row.header) : "No header"
+                      }</p>
+                      <p class="admin-row-description">${
+                        row.hasDescription ? escapeHtml(row.description) : "No description"
+                      }</p>
+                      <p class="admin-row-path">${
+                        row.hasImage
+                          ? `${escapeHtml(imageSide)} image: ${escapeHtml(normalizeImagePath(row.imagePath))}`
+                          : "No image"
+                      }</p>
+                      <div class="admin-row-actions">
+                        <button class="subtle-button" type="button" data-edit-row="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}">Edit Row</button>
+                        <button class="subtle-button" type="button" data-move-row="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}" data-direction="up" ${index === 0 ? "disabled" : ""}>Move Up</button>
+                        <button class="subtle-button" type="button" data-move-row="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}" data-direction="down" ${index === activeUpdate.rows.length - 1 ? "disabled" : ""}>Move Down</button>
+                        <button class="danger-button ${isDeleteArmed ? "is-armed" : ""}" type="button" data-delete-row="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}">
+                          ${isDeleteArmed ? "Confirm Delete" : "Delete"}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                `;
+              })
+              .join("")
+          : `<div class="empty-state"><h2>No rows yet.</h2><p>Add rows in the editor.</p></div>`;
+      }
+
+      function hydrateUpdateImages() {
+        document.querySelectorAll("img[data-image-path]").forEach((image) => {
+          const candidates = buildImageCandidates(image.dataset.imagePath);
+          if (candidates.length === 0) {
+            image.remove();
+            return;
+          }
+
+          let candidateIndex = 0;
+          const tryNextCandidate = () => {
+            const nextCandidate = candidates[candidateIndex];
+            if (!nextCandidate) {
+              image.remove();
+              return;
+            }
+
+            image.src = nextCandidate;
+            candidateIndex += 1;
+          };
+
+          image.onerror = tryNextCandidate;
+          tryNextCandidate();
+        });
+      }
+
+      function clearUpdateDropIndicators() {
+        elements.adminRowList
+          .querySelectorAll(".admin-update-card")
+          .forEach((card) => card.classList.remove("drop-before", "drop-after"));
+      }
+
+      function releaseDraggableUpdates() {
+        elements.adminRowList.querySelectorAll(".admin-update-card").forEach((card) => {
+          card.draggable = false;
+        });
+      }
+
+      function resetUpdateDragState() {
+        updatesState.draggingUpdateId = null;
+        updatesState.dropUpdateId = null;
+        updatesState.dropUpdatePosition = null;
+        clearUpdateDropIndicators();
+        elements.adminRowList
+          .querySelectorAll(".admin-update-card")
+          .forEach((card) => card.classList.remove("is-dragging"));
+        elements.adminRowList
+          .querySelectorAll("[data-update-drag-handle]")
+          .forEach((handle) => handle.classList.remove("is-armed"));
+        releaseDraggableUpdates();
+      }
+
+      function setUpdateDropIndicator(updateId, position) {
+        if (
+          updatesState.dropUpdateId === updateId &&
+          updatesState.dropUpdatePosition === position
+        ) {
+          return;
+        }
+
+        updatesState.dropUpdateId = updateId;
+        updatesState.dropUpdatePosition = position;
+        clearUpdateDropIndicators();
+
+        const targetCard = elements.adminRowList.querySelector(`[data-update-id="${updateId}"]`);
+        if (targetCard) {
+          targetCard.classList.add(position === "before" ? "drop-before" : "drop-after");
+        }
+      }
+
+      async function reorderUpdates(draggedId, targetId, position) {
+        const visibleUpdates = getVisibleAdminUpdates();
+        const draggedIndex = visibleUpdates.findIndex((update) => update.id === draggedId);
+        const targetIndex = visibleUpdates.findIndex((update) => update.id === targetId);
+
+        if (draggedIndex === -1 || targetIndex === -1) {
+          resetUpdateDragState();
+          return;
+        }
+
+        const reorderedUpdates = [...visibleUpdates];
+        const [draggedUpdate] = reorderedUpdates.splice(draggedIndex, 1);
+        let insertIndex = targetIndex;
+
+        if (draggedIndex < targetIndex) {
+          insertIndex -= 1;
+        }
+
+        if (position === "after") {
+          insertIndex += 1;
+        }
+
+        reorderedUpdates.splice(insertIndex, 0, draggedUpdate);
+        const oppositeUpdates = updatesState.adminArchiveView ? getCurrentUpdates() : getArchivedUpdates();
+        updatesState.updates = updatesState.adminArchiveView
+          ? [...oppositeUpdates, ...reorderedUpdates]
+          : [...reorderedUpdates, ...oppositeUpdates];
+        resetUpdateDragState();
+        await persistUpdatesState("Updates rearranged locally.", "Updates rearranged in shared updates.");
+      }
+
+      function renderAll() {
+        renderPublicRows();
+        renderAdminRows();
+        hydrateUpdateImages();
+      }
+
+      function setFeedback(message, isError = false) {
+        elements.formFeedback.textContent = message;
+        elements.formFeedback.style.color = isError ? "#ffb7bd" : "rgba(255, 255, 255, 0.72)";
+      }
+
+      async function loadSharedUpdatesState() {
+        for (const endpoint of REMOTE_UPDATES_ENDPOINTS) {
+          try {
+            const response = await fetch(endpoint, {
+              cache: "no-store",
+              headers: {
+                accept: "application/json",
+              },
+            });
+
+            if (!response.ok) {
+              continue;
+            }
+
+            const payload = await response.json();
+            updatesState.remoteEndpoint = endpoint;
+
+            return {
+              ok: true,
+              exists: Boolean(payload?.exists),
+              updates: normalizeUpdatesPayload(payload),
+            };
+          } catch (error) {
+            continue;
+          }
+        }
+
+        updatesState.remoteEndpoint = "";
+        return { ok: false, exists: false, updates: [] };
+      }
+
+      async function saveSharedUpdatesState() {
+        if (!isGoogleIdTokenUsable(updatesState.authIdToken)) {
+          updatesState.authAccount = null;
+          updatesState.authIdToken = "";
+          saveAuthSession(null);
+          syncAccountMenu();
+          updateAdminUI();
+          return {
+            ok: false,
+            message: "Your Google admin session expired. Sign in again, then save the row one more time.",
+          };
+        }
+
+        const endpointsToTry = updatesState.remoteEndpoint
+          ? [
+              updatesState.remoteEndpoint,
+              ...REMOTE_UPDATES_ENDPOINTS.filter((endpoint) => endpoint !== updatesState.remoteEndpoint),
+            ]
+          : REMOTE_UPDATES_ENDPOINTS;
+
+        let lastFailureMessage = "Shared updates save failed. This browser kept a local copy only.";
+
+        for (const endpoint of endpointsToTry) {
+          try {
+            const response = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                authorization: `Bearer ${updatesState.authIdToken}`,
+              },
+              body: JSON.stringify({
+                updates: updatesState.updates,
+              }),
+            });
+
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) {
+              lastFailureMessage =
+                payload?.error || `Shared updates save failed at ${endpoint} (${response.status}).`;
+              continue;
+            }
+
+            updatesState.remoteEndpoint = endpoint;
+            updatesState.storageMode = "netlify-blobs";
+
+            return {
+              ok: true,
+              updates:
+                Array.isArray(payload?.updates) || Array.isArray(payload?.rows)
+                  ? normalizeUpdatesPayload(payload)
+                  : updatesState.updates,
+            };
+          } catch (error) {
+            continue;
+          }
+        }
+
+        return {
+          ok: false,
+          message: lastFailureMessage,
+        };
+      }
+
+      async function initializeUpdatesState() {
+        updatesState.updates = loadUpdates();
+        updatesState.currentUpdateId = null;
+        updatesState.storageMode = "localStorage";
+        syncUpdateEditor();
+        renderAll();
+
+        const sharedState = await loadSharedUpdatesState();
+        if (sharedState.ok) {
+          updatesState.updates = sharedState.updates;
+          updatesState.currentUpdateId = null;
+          updatesState.storageMode = "netlify-blobs";
+          saveUpdates();
+          syncUpdateEditor();
+          renderAll();
+          return;
+        }
+
+        updatesState.storageMode = window.location.protocol === "file:" ? "localStorage" : "localStorage-fallback";
+      }
+
+      async function persistUpdatesState(localMessage, sharedMessage) {
+        saveUpdates();
+
+        const canSaveShared =
+          ADMIN_ACCOUNTS.includes(getCurrentAccount()) && isGoogleIdTokenUsable(updatesState.authIdToken);
+
+        if (!canSaveShared) {
+          setFeedback(localMessage);
+          renderAll();
+          return;
+        }
+
+        const remoteSave = await saveSharedUpdatesState();
+        if (remoteSave.ok) {
+          updatesState.updates = remoteSave.updates;
+          if (updatesState.currentUpdateId && !getActiveUpdate()) {
+            updatesState.currentUpdateId = null;
+          }
+          saveUpdates();
+          syncUpdateEditor();
+          setFeedback(sharedMessage);
+          renderAll();
+          return;
+        }
+
+        setFeedback(remoteSave.message || "The row changed locally, but shared updates could not be saved.", true);
+        renderAll();
+      }
+
+      function updateAdminUI() {
+        if (updatesState.authIdToken && !isGoogleIdTokenUsable(updatesState.authIdToken)) {
+          updatesState.authAccount = null;
+          updatesState.authIdToken = "";
+          saveAuthSession(null);
+        }
+
+        const currentAccount = getCurrentAccount();
+        const hasAuthorizedAccount =
+          typeof currentAccount === "string" && ADMIN_ACCOUNTS.includes(currentAccount);
+        const hasDevOverride = isCursorTestingEnvironment();
+        const hasUsableAdminSession = hasAuthorizedAccount && isGoogleIdTokenUsable(updatesState.authIdToken);
+
+        updatesState.hasAdminAccess = hasUsableAdminSession || hasDevOverride;
+        elements.adminPanelButton.hidden = !updatesState.hasAdminAccess;
+        syncAccountMenu();
+
+        if (hasUsableAdminSession) {
+          elements.accountPill.textContent = `Admin account: ${currentAccount}`;
+          return;
+        }
+
+        if (hasDevOverride) {
+          elements.accountPill.textContent = "Cursor/local testing override";
+          return;
+        }
+
+        elements.accountPill.textContent = currentAccount ? `Signed in: ${currentAccount}` : "No account connected";
+        closeAdminPanel();
+      }
+
+      function openAdminPanel() {
+        if (!updatesState.hasAdminAccess) {
+          return;
+        }
+
+        document.body.classList.add("admin-open");
+        elements.adminPanel.classList.add("is-open");
+        elements.panelBackdrop.classList.add("is-open");
+        elements.adminPanel.setAttribute("aria-hidden", "false");
+      }
+
+      function closeAdminPanel() {
+        document.body.classList.remove("admin-open");
+        elements.adminPanel.classList.remove("is-open");
+        elements.panelBackdrop.classList.remove("is-open");
+        elements.adminPanel.setAttribute("aria-hidden", "true");
+      }
+
+      function syncOptionalField(toggle, field, input) {
+        const hasUpdate = Boolean(getActiveUpdate());
+        const isEnabled = hasUpdate && toggle.checked;
+        toggle.disabled = !hasUpdate;
+        field.classList.toggle("is-disabled", !isEnabled);
+        input.disabled = !isEnabled;
+      }
+
+      function syncImageSideControl() {
+        const hasUpdate = Boolean(getActiveUpdate());
+        const isEnabled = hasUpdate && elements.imageToggle.checked;
+        elements.imageSideField.classList.toggle("is-disabled", !isEnabled);
+        elements.imageSideControl.classList.toggle("is-disabled", !isEnabled);
+        elements.imageSideInputs.forEach((input) => {
+          input.disabled = !isEnabled;
+        });
+      }
+
+      function setSelectedImageSide(imageSide) {
+        const safeImageSide = imageSide === "right" ? "right" : "left";
+        elements.imageSideInputs.forEach((input) => {
+          input.checked = input.value === safeImageSide;
+        });
+      }
+
+      function getSelectedImageSide() {
+        return elements.imageSideInputs.find((input) => input.checked)?.value === "right"
+          ? "right"
+          : "left";
+      }
+
+      function syncSidebarMode() {
+        const update = getActiveUpdate();
+        const isRowMode = Boolean(update) && updatesState.sidebarMode === "row";
+
+        elements.updateEditorFields.hidden = isRowMode;
+        elements.updateFormActions.hidden = isRowMode;
+        elements.rowEditorFields.hidden = !isRowMode;
+        elements.rowFormActions.hidden = !isRowMode;
+        elements.archiveFormActions.hidden = isRowMode || !update;
+
+        if (!update) {
+          updatesState.sidebarMode = "update";
+          elements.formTag.textContent = "Edit Update";
+          elements.formHeading.textContent = "No update selected";
+          elements.formSubheading.textContent = "Click Add Update or edit an existing update to start adding rows.";
+          elements.archiveUpdateButton.hidden = true;
+          return;
+        }
+
+        if (isRowMode) {
+          const isEditing = Boolean(updatesState.editingRowId);
+          elements.formTag.textContent = "Edit Row";
+          elements.formHeading.textContent = isEditing ? "Edit row" : "Add row";
+          elements.formSubheading.textContent = `${update.version}: configure this row, then save it.`;
+          elements.archiveUpdateButton.hidden = true;
+          return;
+        }
+
+        elements.formTag.textContent = "Edit Update";
+        elements.formHeading.textContent = `Editing ${update.version}`;
+        elements.formSubheading.textContent = `${update.rows.length} row${update.rows.length === 1 ? "" : "s"} in this ${update.isArchived ? "archived" : "current"} update.`;
+        elements.archiveUpdateButton.hidden = false;
+        elements.archiveUpdateButton.textContent = update.isArchived
+          ? "Take Update Out of Archive"
+          : "Archive Update";
+        elements.archiveUpdateButton.className = update.isArchived ? "subtle-button" : "danger-button";
+      }
+
+      function setSidebarMode(mode) {
+        updatesState.sidebarMode = mode === "row" ? "row" : "update";
+        syncSidebarMode();
+        syncRowBuilderOptions();
+      }
+
+      function syncRowBuilderOptions() {
+        const hasUpdate = Boolean(getActiveUpdate());
+        const isRowMode = hasUpdate && updatesState.sidebarMode === "row";
+        elements.versionInput.disabled = !hasUpdate;
+        elements.saveUpdateButton.disabled = !hasUpdate;
+        elements.openRowBuilderButton.disabled = !hasUpdate;
+        elements.submitButton.disabled = !isRowMode;
+        elements.clearRowsButton.disabled = !hasUpdate;
+        syncOptionalField(
+          elements.updateHeaderToggle,
+          elements.updateHeaderField,
+          elements.updateHeaderInput
+        );
+        syncOptionalField(elements.headerToggle, elements.headerField, elements.headerInput);
+        syncOptionalField(
+          elements.descriptionToggle,
+          elements.descriptionField,
+          elements.descriptionInput
+        );
+        syncOptionalField(elements.imageToggle, elements.imageField, elements.imageInput);
+        syncImageSideControl();
+      }
+
+      function setRowBuilderValues(row = null) {
+        const isEditing = Boolean(row);
+        updatesState.editingRowId = row?.id || null;
+        elements.headerToggle.checked = Boolean(row?.hasHeader);
+        elements.headerInput.value = row?.header || "";
+        elements.descriptionToggle.checked = Boolean(row?.hasDescription);
+        elements.descriptionInput.value = row?.description || "";
+        elements.imageToggle.checked = row ? Boolean(row.hasImage) : true;
+        elements.imageInput.value = row?.imagePath || "";
+        setSelectedImageSide(row?.imageSide || "left");
+        elements.rowFormHeading.textContent = isEditing ? "Edit row" : "Add row";
+        elements.submitButton.textContent = isEditing ? "Save Row" : "Add Row";
+        elements.cancelRowEditButton.textContent = isEditing ? "Cancel Edit" : "Cancel";
+        syncSidebarMode();
+        syncRowBuilderOptions();
+      }
+
+      function resetRowBuilderForm() {
+        setRowBuilderValues(null);
+      }
+
+      function syncUpdateEditor() {
+        const update = getActiveUpdate();
+
+        if (!update) {
+          updatesState.editingRowId = null;
+          updatesState.sidebarMode = "update";
+          elements.versionInput.value = "";
+          elements.updateHeaderToggle.checked = false;
+          elements.updateHeaderInput.value = "";
+          setRowBuilderValues(null);
+          syncSidebarMode();
+          syncRowBuilderOptions();
+          return;
+        }
+
+        elements.versionInput.value = update.version;
+        elements.updateHeaderToggle.checked = Boolean(update.hasHeader);
+        elements.updateHeaderInput.value = update.header || "";
+        syncSidebarMode();
+        syncRowBuilderOptions();
+      }
+
+      function selectUpdate(updateId) {
+        const update = updatesState.updates.find((entry) => entry.id === updateId);
+        if (!update) {
+          return;
+        }
+
+        updatesState.currentUpdateId = update.id;
+        updatesState.adminArchiveView = update.isArchived === true;
+        updatesState.sidebarMode = "update";
+        updatesState.pendingDeleteId = null;
+        updatesState.pendingDeleteUpdateId = null;
+        resetRowBuilderForm();
+        syncUpdateEditor();
+        renderAll();
+      }
+
+      function deselectUpdate() {
+        updatesState.currentUpdateId = null;
+        updatesState.editingRowId = null;
+        updatesState.pendingDeleteId = null;
+        updatesState.sidebarMode = "update";
+        resetRowBuilderForm();
+        syncUpdateEditor();
+        renderAll();
+        setFeedback(
+          updatesState.adminArchiveView
+            ? "Showing archived updates. Drag them to rearrange the archive order."
+            : "Showing all updates. Drag them to rearrange the page order."
+        );
+      }
+
+      function startAddingRow() {
+        const update = getActiveUpdate();
+        if (!update) {
+          setFeedback("Choose an update before adding a row.", true);
+          return;
+        }
+
+        resetRowBuilderForm();
+        setSidebarMode("row");
+        setFeedback("Adding a new row.");
+      }
+
+      function togglePublicArchive() {
+        updatesState.publicArchiveOpen = !updatesState.publicArchiveOpen;
+        renderPublicRows();
+        hydrateUpdateImages();
+      }
+
+      function toggleAdminArchiveList() {
+        updatesState.adminArchiveView = !updatesState.adminArchiveView;
+        updatesState.currentUpdateId = null;
+        updatesState.editingRowId = null;
+        updatesState.sidebarMode = "update";
+        updatesState.pendingDeleteId = null;
+        updatesState.pendingDeleteUpdateId = null;
+        resetRowBuilderForm();
+        syncUpdateEditor();
+        renderAll();
+        setFeedback(
+          updatesState.adminArchiveView
+            ? "Showing archived updates."
+            : "Showing current updates."
+        );
+      }
+
+      async function createUpdate() {
+        const nextNumber = updatesState.updates.length + 1;
+        const update = {
+          id: createId(),
+          version: `v${nextNumber}.0.0`,
+          hasHeader: false,
+          header: "",
+          isArchived: false,
+          rows: [],
+        };
+
+        updatesState.updates = [...updatesState.updates, update];
+        updatesState.currentUpdateId = update.id;
+        updatesState.adminArchiveView = false;
+        updatesState.sidebarMode = "update";
+        updatesState.pendingDeleteId = null;
+        updatesState.pendingDeleteUpdateId = null;
+        resetRowBuilderForm();
+        syncUpdateEditor();
+        saveUpdates();
+        renderAll();
+        setFeedback("Update draft ready. Add rows or click Save Update to publish it.");
+      }
+
+      function getUpdateMetaFromForm(update) {
+        const version = elements.versionInput.value.trim();
+        const hasHeader = elements.updateHeaderToggle.checked;
+        const header = elements.updateHeaderInput.value.trim();
+
+        if (!version) {
+          elements.versionInput.value = update.version;
+          setFeedback("Version number is required.", true);
+          return null;
+        }
+
+        if (hasHeader && !header) {
+          setFeedback("Update header is checked, so update header text is required.", true);
+          return null;
+        }
+
+        return {
+          version,
+          hasHeader,
+          header,
+        };
+      }
+
+      async function saveSelectedUpdateMeta() {
+        const update = getActiveUpdate();
+        if (!update) {
+          return;
+        }
+
+        const meta = getUpdateMetaFromForm(update);
+        if (!meta) {
+          return;
+        }
+
+        updatesState.updates = updatesState.updates.map((entry) =>
+          entry.id === update.id ? { ...entry, ...meta } : entry
+        );
+        syncUpdateEditor();
+        await persistUpdatesState("Update saved locally.", "Update saved to shared updates.");
+      }
+
+      function getRowFromActiveUpdate(rowId) {
+        const update = getActiveUpdate();
+        if (!update) {
+          return null;
+        }
+
+        return update.rows.find((row) => row.id === rowId) || null;
+      }
+
+      async function handleUpdateSubmit(event) {
+        event.preventDefault();
+
+        if (updatesState.sidebarMode !== "row") {
+          await saveSelectedUpdateMeta();
+          return;
+        }
+
+        const update = getActiveUpdate();
+        if (!update) {
+          setFeedback("Click Add Update before adding rows.", true);
+          return;
+        }
+
+        const meta = getUpdateMetaFromForm(update);
+        if (!meta) {
+          return;
+        }
+
+        const hasHeader = elements.headerToggle.checked;
+        const hasDescription = elements.descriptionToggle.checked;
+        const hasImage = elements.imageToggle.checked;
+        const header = elements.headerInput.value.trim();
+        const description = elements.descriptionInput.value.trim();
+        const imagePath = elements.imageInput.value.trim();
+        const imageSide = getSelectedImageSide();
+
+        if (!hasHeader && !hasDescription && !hasImage) {
+          setFeedback("Check at least one row option before adding it.", true);
+          return;
+        }
+
+        if (hasHeader && !header) {
+          setFeedback("Header is checked, so header text is required.", true);
+          return;
+        }
+
+        if (hasDescription && !description) {
+          setFeedback("Description is checked, so description text is required.", true);
+          return;
+        }
+
+        if (hasImage && !imagePath) {
+          setFeedback("Image is checked, so an image path is required.", true);
+          return;
+        }
+
+        const row = normalizeUpdateRow({
+          id: updatesState.editingRowId || createId(),
+          hasHeader,
+          header,
+          hasDescription,
+          description,
+          hasImage,
+          imagePath,
+          imageSide,
+        });
+        const isEditingRow = Boolean(updatesState.editingRowId);
+
+        updatesState.pendingDeleteId = null;
+        updatesState.updates = updatesState.updates.map((entry) => {
+          if (entry.id !== update.id) {
+            return entry;
+          }
+
+          const rows = isEditingRow
+            ? entry.rows.map((existingRow) => (existingRow.id === updatesState.editingRowId ? row : existingRow))
+            : [...entry.rows, row];
+
+          return {
+            ...entry,
+            ...meta,
+            rows,
+          };
+        });
+        resetRowBuilderForm();
+        updatesState.sidebarMode = "update";
+        syncUpdateEditor();
+
+        await persistUpdatesState(
+          isEditingRow ? "Row updated locally." : "Row added locally.",
+          isEditingRow ? "Row updated in shared updates." : "Row added to shared updates."
+        );
+      }
+
+      function editRow(updateId, rowId) {
+        selectUpdate(updateId);
+        const row = getRowFromActiveUpdate(rowId);
+        if (!row) {
+          return;
+        }
+
+        setRowBuilderValues(row);
+        setSidebarMode("row");
+        renderAll();
+        setFeedback("Editing selected row.");
+      }
+
+      async function moveRow(updateId, rowId, direction) {
+        const update = updatesState.updates.find((entry) => entry.id === updateId);
+        if (!update) {
+          return;
+        }
+
+        const currentIndex = update.rows.findIndex((row) => row.id === rowId);
+        const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+        if (currentIndex === -1 || nextIndex < 0 || nextIndex >= update.rows.length) {
+          return;
+        }
+
+        const rows = [...update.rows];
+        const [movedRow] = rows.splice(currentIndex, 1);
+        rows.splice(nextIndex, 0, movedRow);
+
+        updatesState.currentUpdateId = update.id;
+        updatesState.pendingDeleteId = null;
+        updatesState.updates = updatesState.updates.map((entry) =>
+          entry.id === update.id ? { ...entry, rows } : entry
+        );
+        syncUpdateEditor();
+        await persistUpdatesState("Rows rearranged locally.", "Rows rearranged in shared updates.");
+      }
+
+      async function removeRow(updateId, rowId) {
+        updatesState.currentUpdateId = updateId;
+        updatesState.updates = updatesState.updates.map((update) =>
+          update.id === updateId
+            ? { ...update, rows: update.rows.filter((row) => row.id !== rowId) }
+            : update
+        );
+        updatesState.pendingDeleteId = null;
+        if (updatesState.editingRowId === rowId) {
+          resetRowBuilderForm();
+        }
+        syncUpdateEditor();
+        await persistUpdatesState("Row removed locally.", "Row removed from shared updates.");
+      }
+
+      async function clearRows() {
+        const update = getActiveUpdate();
+        if (!update) {
+          setFeedback("Click Add Update before clearing rows.", true);
+          return;
+        }
+
+        if (update.rows.length === 0) {
+          setFeedback("There are no rows to clear.");
+          return;
+        }
+
+        const isConfirmed = window.confirm("Clear every update row?");
+        if (!isConfirmed) {
+          return;
+        }
+
+        updatesState.updates = updatesState.updates.map((entry) =>
+          entry.id === update.id ? { ...entry, rows: [] } : entry
+        );
+        updatesState.pendingDeleteId = null;
+        resetRowBuilderForm();
+        syncUpdateEditor();
+        await persistUpdatesState("All rows cleared locally.", "All rows cleared from shared updates.");
+      }
+
+      async function toggleSelectedUpdateArchive() {
+        const update = getActiveUpdate();
+        if (!update) {
+          setFeedback("Choose an update before changing archive status.", true);
+          return;
+        }
+
+        const nextArchivedState = update.isArchived !== true;
+        updatesState.updates = updatesState.updates.map((entry) =>
+          entry.id === update.id ? { ...entry, isArchived: nextArchivedState } : entry
+        );
+        updatesState.adminArchiveView = nextArchivedState;
+        updatesState.currentUpdateId = null;
+        updatesState.editingRowId = null;
+        updatesState.sidebarMode = "update";
+        updatesState.pendingDeleteId = null;
+        updatesState.pendingDeleteUpdateId = null;
+        resetRowBuilderForm();
+        syncUpdateEditor();
+
+        await persistUpdatesState(
+          nextArchivedState ? "Update archived locally." : "Update moved out of archive locally.",
+          nextArchivedState ? "Update archived in shared updates." : "Update moved out of archive in shared updates."
+        );
+      }
+
+      async function removeUpdate(updateId) {
+        updatesState.updates = updatesState.updates.filter((update) => update.id !== updateId);
+        updatesState.pendingDeleteUpdateId = null;
+        updatesState.pendingDeleteId = null;
+
+        if (updatesState.currentUpdateId === updateId) {
+          updatesState.currentUpdateId = null;
+          updatesState.sidebarMode = "update";
+          resetRowBuilderForm();
+        }
+
+        syncUpdateEditor();
+        await persistUpdatesState("Update removed locally.", "Update removed from shared updates.");
+      }
+
+      elements.accountMenuButton.addEventListener("click", () => {
+        if (updatesState.authMenuOpen) {
+          closeAccountMenu();
+          return;
+        }
+
+        openAccountMenu();
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!updatesState.authMenuOpen || elements.accountEntry.contains(event.target)) {
+          return;
+        }
+
+        closeAccountMenu();
+      });
+
+      elements.signoutButton.addEventListener("click", signOutGoogleAccount);
+      elements.adminPanelButton.addEventListener("click", openAdminPanel);
+      elements.addUpdateButton.addEventListener("click", createUpdate);
+      elements.closeAdminPanel.addEventListener("click", closeAdminPanel);
+      elements.panelBackdrop.addEventListener("click", closeAdminPanel);
+      elements.updateForm.addEventListener("submit", handleUpdateSubmit);
+      elements.saveUpdateButton.addEventListener("click", saveSelectedUpdateMeta);
+      elements.archiveUpdateButton.addEventListener("click", toggleSelectedUpdateArchive);
+      elements.publicArchiveButton.addEventListener("click", togglePublicArchive);
+      elements.showUpdatesListButton.addEventListener("click", deselectUpdate);
+      elements.adminArchiveListButton.addEventListener("click", toggleAdminArchiveList);
+      elements.openRowBuilderButton.addEventListener("click", startAddingRow);
+      elements.cancelRowEditButton.addEventListener("click", () => {
+        resetRowBuilderForm();
+        setSidebarMode("update");
+        setFeedback("Row edit cancelled.");
+      });
+      elements.clearRowsButton.addEventListener("click", clearRows);
+      [
+        elements.updateHeaderToggle,
+        elements.headerToggle,
+        elements.descriptionToggle,
+        elements.imageToggle,
+      ].forEach((toggle) => {
+        toggle.addEventListener("change", syncRowBuilderOptions);
+      });
+
+      elements.adminRowList.addEventListener("pointerdown", (event) => {
+        const dragHandle = event.target.closest("[data-update-drag-handle]");
+        if (!dragHandle || getActiveUpdate()) {
+          return;
+        }
+
+        const updateCard = dragHandle.closest(".admin-update-card");
+        if (!updateCard) {
+          return;
+        }
+
+        updateCard.draggable = true;
+        dragHandle.classList.add("is-armed");
+      });
+
+      elements.adminRowList.addEventListener("dragstart", (event) => {
+        if (getActiveUpdate()) {
+          return;
+        }
+
+        const updateCard = event.target.closest(".admin-update-card");
+        if (!updateCard) {
+          return;
+        }
+
+        updatesState.draggingUpdateId = updateCard.dataset.updateId;
+        updateCard.classList.add("is-dragging");
+
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", updateCard.dataset.updateId);
+        }
+      });
+
+      elements.adminRowList.addEventListener("dragover", (event) => {
+        if (!updatesState.draggingUpdateId || getActiveUpdate()) {
+          return;
+        }
+
+        event.preventDefault();
+        const targetCard = event.target.closest(".admin-update-card");
+
+        if (!targetCard || targetCard.dataset.updateId === updatesState.draggingUpdateId) {
+          clearUpdateDropIndicators();
+          updatesState.dropUpdateId = null;
+          updatesState.dropUpdatePosition = null;
+          return;
+        }
+
+        const bounds = targetCard.getBoundingClientRect();
+        const position = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+        setUpdateDropIndicator(targetCard.dataset.updateId, position);
+
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "move";
+        }
+      });
+
+      elements.adminRowList.addEventListener("drop", async (event) => {
+        if (!updatesState.draggingUpdateId || getActiveUpdate()) {
+          return;
+        }
+
+        event.preventDefault();
+        const targetCard = event.target.closest(".admin-update-card");
+
+        if (
+          !targetCard ||
+          targetCard.dataset.updateId === updatesState.draggingUpdateId ||
+          !updatesState.dropUpdatePosition
+        ) {
+          resetUpdateDragState();
+          renderAdminRows();
+          return;
+        }
+
+        await reorderUpdates(
+          updatesState.draggingUpdateId,
+          targetCard.dataset.updateId,
+          updatesState.dropUpdatePosition
+        );
+      });
+
+      elements.adminRowList.addEventListener("dragend", () => {
+        if (!updatesState.draggingUpdateId) {
+          resetUpdateDragState();
+          return;
+        }
+
+        resetUpdateDragState();
+        renderAdminRows();
+      });
+
+      elements.adminRowList.addEventListener("click", async (event) => {
+        const editUpdateButton = event.target.closest("[data-edit-update]");
+        if (editUpdateButton) {
+          selectUpdate(editUpdateButton.dataset.editUpdate);
+          setFeedback("Editing selected update.");
+          return;
+        }
+
+        const deleteUpdateButton = event.target.closest("[data-delete-update]");
+        if (deleteUpdateButton) {
+          const updateId = deleteUpdateButton.dataset.deleteUpdate;
+
+          if (updatesState.pendingDeleteUpdateId === updateId) {
+            await removeUpdate(updateId);
+            return;
+          }
+
+          updatesState.pendingDeleteUpdateId = updateId;
+          updatesState.pendingDeleteId = null;
+          renderAdminRows();
+          hydrateUpdateImages();
+          setFeedback("Click delete update again to confirm removal.");
+          return;
+        }
+
+        const editRowButton = event.target.closest("[data-edit-row]");
+        if (editRowButton) {
+          editRow(editRowButton.dataset.updateId, editRowButton.dataset.editRow);
+          return;
+        }
+
+        const moveRowButton = event.target.closest("[data-move-row]");
+        if (moveRowButton) {
+          await moveRow(
+            moveRowButton.dataset.updateId,
+            moveRowButton.dataset.moveRow,
+            moveRowButton.dataset.direction
+          );
+          return;
+        }
+
+        const deleteButton = event.target.closest("[data-delete-row]");
+        if (!deleteButton) {
+          return;
+        }
+
+        const rowId = deleteButton.dataset.deleteRow;
+        const updateId = deleteButton.dataset.updateId;
+        if (updatesState.pendingDeleteId === rowId) {
+          await removeRow(updateId, rowId);
+          return;
+        }
+
+        updatesState.pendingDeleteId = rowId;
+        updatesState.pendingDeleteUpdateId = null;
+        renderAdminRows();
+        hydrateUpdateImages();
+        setFeedback("Click delete again to confirm removal.");
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          closeAccountMenu();
+          closeAdminPanel();
+        }
+      });
+
+      updatesState.authAccount = loadAuthSession();
+      updatesState.authIdToken = updatesState.authAccount?.idToken || "";
+      syncRowBuilderOptions();
+      syncAccountMenu();
+      updateAdminUI();
+      waitForGoogleIdentityClient();
+
+      initializeUpdatesState();
+    </script>
+  </body>
+</html>
