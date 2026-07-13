@@ -54,6 +54,7 @@ function rowHasContent(row) {
 
 function normalizeUpdate(update, index = 0) {
   const version = String(update?.version || "").trim();
+  const date = String(update?.date || "").trim();
   const header = String(update?.header || "").trim();
   const hasHeader = update?.hasHeader === true && header.length > 0;
   const isArchived = update?.isArchived === true;
@@ -64,6 +65,7 @@ function normalizeUpdate(update, index = 0) {
   return {
     id: String(update?.id || "").trim() || crypto.randomUUID(),
     version: version || `Update ${index + 1}`,
+    date,
     hasHeader,
     header,
     isArchived,
@@ -90,6 +92,7 @@ function normalizeState(payload) {
           {
             id: crypto.randomUUID(),
             version: "Update 1",
+            date: "",
             hasHeader: false,
             header: "",
             isArchived: false,

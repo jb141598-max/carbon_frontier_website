@@ -463,6 +463,7 @@
       }
 
       .archive-card-version,
+      .archive-card-date,
       .archive-card-title {
         margin: 0;
         font-weight: 700;
@@ -480,6 +481,16 @@
         line-height: 1.05;
       }
 
+      .archive-card-date {
+        display: block;
+        align-self: center;
+        color: var(--cf-text-muted);
+        font-size: 0.95rem;
+        letter-spacing: 0.08em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
       .public-update {
         display: grid;
         gap: 0;
@@ -487,11 +498,10 @@
 
       .public-update-heading {
         position: relative;
-        display: flex;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
         align-items: center;
-        justify-content: space-between;
         gap: 14px;
-        flex-wrap: wrap;
         padding: 28px 34px 24px;
         background: var(--cf-update-frame);
         background-image: none;
@@ -509,22 +519,37 @@
       }
 
       .update-version {
+        grid-column: 2;
+        justify-self: center;
         margin: 0;
         font-size: clamp(2rem, 3.2vw, 3rem);
         font-weight: 700;
         line-height: 1;
+        text-align: center;
+      }
+
+      .update-date-label {
+        grid-column: 1;
+        justify-self: start;
+        color: var(--cf-text-muted);
+        font-size: clamp(1.62rem, 2.7vw, 2.43rem);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
       }
 
       .update-version-label {
+        grid-column: 3;
+        justify-self: end;
         display: inline-flex;
         align-items: center;
         min-height: 0;
         padding: 0;
         border: 0;
         border-radius: 0;
-        color: var(--cf-white);
+        color: var(--cf-text-muted);
         background: transparent;
-        font-size: clamp(1.8rem, 3vw, 2.7rem);
+        font-size: clamp(1.62rem, 2.7vw, 2.43rem);
         font-weight: 700;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -1125,6 +1150,19 @@
           letter-spacing: 0.03em;
         }
 
+        .public-update-heading {
+          grid-template-columns: 1fr;
+          justify-items: center;
+          text-align: center;
+        }
+
+        .update-date-label,
+        .update-version,
+        .update-version-label {
+          grid-column: 1;
+          justify-self: center;
+        }
+
         .update-row {
           grid-template-columns: 1fr;
           padding: 22px;
@@ -1271,6 +1309,11 @@
               <label class="form-field">
                 <span>Version Number</span>
                 <input id="version-input" name="version" type="text" placeholder="v1.0.0" />
+              </label>
+
+              <label class="form-field">
+                <span>Release Date</span>
+                <input id="date-input" name="date" type="date" />
               </label>
 
               <label class="field-option" for="update-header-toggle">
@@ -1428,6 +1471,7 @@
         rowEditorFields: document.getElementById("row-editor-fields"),
         rowFormHeading: document.getElementById("row-form-heading"),
         versionInput: document.getElementById("version-input"),
+        dateInput: document.getElementById("date-input"),
         updateHeaderToggle: document.getElementById("update-header-toggle"),
         updateHeaderField: document.getElementById("update-header-field"),
         updateHeaderInput: document.getElementById("update-header-input"),
@@ -1776,6 +1820,7 @@
           ? update.rows.map(normalizeUpdateRow).filter(rowHasContent)
           : [];
         const version = String(update?.version || "").trim();
+        const date = String(update?.date || "").trim();
         const header = String(update?.header || "").trim();
         const hasHeader = update?.hasHeader === true && header.length > 0;
         const isArchived = update?.isArchived === true;
@@ -1783,6 +1828,7 @@
         return {
           id: String(update?.id || createId()),
           version: version || `Update ${index + 1}`,
+          date,
           hasHeader,
           header,
           isArchived,
@@ -1806,6 +1852,7 @@
               {
                 id: createId(),
                 version: "Update 1",
+                date: "",
                 hasHeader: false,
                 header: "",
                 isArchived: false,
@@ -1860,6 +1907,34 @@
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#39;");
+      }
+
+      function formatUpdateDate(dateString) {
+        if (!dateString) {
+          return "";
+        }
+
+        const parsedDate = new Date(`${dateString}T12:00:00`);
+        if (Number.isNaN(parsedDate.getTime())) {
+          return dateString;
+        }
+
+        const month = parsedDate.getMonth() + 1;
+        const day = parsedDate.getDate();
+        const year = String(parsedDate.getFullYear()).slice(-2);
+
+        return `${month}/${day}/${year}`;
+      }
+
+      function createUpdateDateMarkup(update, className) {
+        const formattedDate = formatUpdateDate(update.date);
+        return formattedDate ? `<span class="${className}">${escapeHtml(formattedDate)}</span>` : "";
+      }
+
+      function getAdminUpdateMetaText(update) {
+        const rowLabel = `${update.rows.length} row${update.rows.length === 1 ? "" : "s"}`;
+        const formattedDate = formatUpdateDate(update.date);
+        return [update.version, formattedDate, rowLabel].filter(Boolean).join(" - ");
       }
 
       function normalizeImagePath(imagePath) {
@@ -1943,6 +2018,7 @@
           <article class="public-update">
             <div class="update-row-list">
               <div class="public-update-heading">
+                ${createUpdateDateMarkup(update, "update-date-label")}
                 <h2 class="update-version">${escapeHtml(getUpdateDisplayTitle(update))}</h2>
                 <span class="update-version-label">${escapeHtml(update.version)}</span>
               </div>
@@ -1956,6 +2032,7 @@
         return `
           <article class="archive-card">
             <p class="archive-card-version">${escapeHtml(update.version)}</p>
+            ${createUpdateDateMarkup(update, "archive-card-date")}
             <h2 class="archive-card-title">${escapeHtml(getUpdateDisplayTitle(update))}</h2>
           </article>
         `;
@@ -2078,7 +2155,7 @@
                   <div class="admin-update-card-header">
                     <div>
                       <p class="admin-update-title">${escapeHtml(getUpdateDisplayTitle(update))}</p>
-                      <p class="admin-update-meta">${escapeHtml(update.version)} &middot; ${update.rows.length} row${update.rows.length === 1 ? "" : "s"}</p>
+                      <p class="admin-update-meta">${escapeHtml(getAdminUpdateMetaText(update))}</p>
                     </div>
                     <div class="admin-row-actions">
                       <button class="subtle-button drag-button" type="button" data-update-drag-handle="${escapeHtml(update.id)}">Drag</button>
@@ -2525,6 +2602,7 @@
         const hasUpdate = Boolean(getActiveUpdate());
         const isRowMode = hasUpdate && updatesState.sidebarMode === "row";
         elements.versionInput.disabled = !hasUpdate;
+        elements.dateInput.disabled = !hasUpdate;
         elements.saveUpdateButton.disabled = !hasUpdate;
         elements.openRowBuilderButton.disabled = !hasUpdate;
         elements.submitButton.disabled = !isRowMode;
@@ -2572,6 +2650,7 @@
           updatesState.editingRowId = null;
           updatesState.sidebarMode = "update";
           elements.versionInput.value = "";
+          elements.dateInput.value = "";
           elements.updateHeaderToggle.checked = false;
           elements.updateHeaderInput.value = "";
           setRowBuilderValues(null);
@@ -2581,6 +2660,7 @@
         }
 
         elements.versionInput.value = update.version;
+        elements.dateInput.value = update.date || "";
         elements.updateHeaderToggle.checked = Boolean(update.hasHeader);
         elements.updateHeaderInput.value = update.header || "";
         syncSidebarMode();
@@ -2658,6 +2738,7 @@
         const update = {
           id: createId(),
           version: `v${nextNumber}.0.0`,
+          date: "",
           hasHeader: false,
           header: "",
           isArchived: false,
@@ -2679,6 +2760,7 @@
 
       function getUpdateMetaFromForm(update) {
         const version = elements.versionInput.value.trim();
+        const date = elements.dateInput.value.trim();
         const hasHeader = elements.updateHeaderToggle.checked;
         const header = elements.updateHeaderInput.value.trim();
 
@@ -2695,6 +2777,7 @@
 
         return {
           version,
+          date,
           hasHeader,
           header,
         };
