@@ -668,9 +668,12 @@
       }
 
       .update-row.has-image.has-text {
-        display: flex;
-        align-items: stretch;
-        min-height: clamp(220px, 28vw, 520px);
+        height: clamp(220px, 28vw, 520px);
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      .update-row.has-image.has-text.image-right {
+        grid-template-columns: minmax(0, 1fr) auto;
       }
 
       .update-row.has-image.no-text {
@@ -711,10 +714,10 @@
       }
 
       .update-row.has-image.has-text .update-row-content {
-        flex: 1 1 0;
         min-width: 0;
         min-height: 100%;
         padding: 0;
+        overflow-y: auto;
       }
 
       .update-row-title {
@@ -732,8 +735,6 @@
       }
 
       .update-row-image {
-        width: auto;
-        height: auto;
         min-width: 0;
         min-height: 0;
         aspect-ratio: var(--image-aspect-ratio, 16 / 9);
@@ -745,14 +746,22 @@
       }
 
       .update-row.has-image.has-text .update-row-image {
-        flex: 0 0 auto;
-        align-self: stretch;
         width: auto;
-        height: auto;
+        height: 100%;
+        max-width: 100%;
+        justify-self: start;
+        align-self: stretch;
+      }
+
+      .update-row.has-image.has-text.image-right .update-row-image {
+        justify-self: end;
       }
 
       .update-row.has-image.no-text .update-row-image {
-        width: min(100%, 720px);
+        width: auto;
+        height: clamp(220px, 24vw, 430px);
+        max-width: min(100%, 720px);
+        justify-self: center;
       }
 
       .update-row img {
@@ -1186,9 +1195,9 @@
         }
 
         .update-row.has-image.has-text {
-          display: grid;
-          grid-template-columns: 1fr;
+          height: auto;
           min-height: 0;
+          grid-template-columns: 1fr;
         }
 
         .update-row.has-image.has-text .update-row-content {
@@ -1197,9 +1206,12 @@
         }
 
         .update-row.has-image.has-text .update-row-image,
+        .update-row.has-image.has-text.image-right .update-row-image,
         .update-row.has-image.no-text .update-row-image {
-          width: 100%;
-          height: auto;
+          width: auto;
+          height: 260px;
+          max-width: 100%;
+          justify-self: center;
           align-self: auto;
         }
 
