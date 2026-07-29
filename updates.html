@@ -1990,6 +1990,60 @@
           : [];
       }
 
+      function updatePayloadSupportsHeaderImages(payload) {
+        if (Number(payload?.schemaVersion) >= 2) {
+          return true;
+        }
+
+        const rawUpdates = Array.isArray(payload?.updates) ? payload.updates : [];
+        return rawUpdates.some((update) =>
+          ["hasHeaderImage", "headerImagePath", "headerImageHeight"].some((propertyName) =>
+            Object.prototype.hasOwnProperty.call(update || {}, propertyName)
+          )
+        );
+      }
+
+      function mergeHeaderImageSettingsFromLocal(payload, normalizedUpdates, localUpdates) {
+        const rawUpdates = Array.isArray(payload?.updates) ? payload.updates : [];
+        const rawUpdatesById = new Map(
+          rawUpdates.map((update) => [String(update?.id || ""), update])
+        );
+        const localUpdatesById = new Map(
+          (Array.isArray(localUpdates) ? localUpdates : []).map((update) => [update.id, update])
+        );
+        const payloadSupportsHeaderImages = updatePayloadSupportsHeaderImages(payload);
+
+        const updates = normalizedUpdates.map((remoteUpdate) => {
+          const rawUpdate = rawUpdatesById.get(remoteUpdate.id);
+          const rawUpdateHasHeaderImageFields = rawUpdate
+            ? ["hasHeaderImage", "headerImagePath", "headerImageHeight"].some((propertyName) =>
+                Object.prototype.hasOwnProperty.call(rawUpdate, propertyName)
+              )
+            : payloadSupportsHeaderImages;
+
+          if (rawUpdateHasHeaderImageFields) {
+            return remoteUpdate;
+          }
+
+          const localUpdate = localUpdatesById.get(remoteUpdate.id);
+          if (!localUpdate) {
+            return remoteUpdate;
+          }
+
+          return {
+            ...remoteUpdate,
+            hasHeaderImage: Boolean(localUpdate.hasHeaderImage),
+            headerImagePath: String(localUpdate.headerImagePath || "").trim(),
+            headerImageHeight: getClampedHeaderImageHeight(localUpdate.headerImageHeight),
+          };
+        });
+
+        return {
+          updates,
+          supportsHeaderImages: payloadSupportsHeaderImages,
+        };
+      }
+
       function getActiveUpdate() {
         return updatesState.updates.find((update) => update.id === updatesState.currentUpdateId) || null;
       }
@@ -2568,11 +2622,18 @@
 
             const payload = await response.json();
             updatesState.remoteEndpoint = endpoint;
+            const normalizedUpdates = normalizeUpdatesPayload(payload);
+            const mergedState = mergeHeaderImageSettingsFromLocal(
+              payload,
+              normalizedUpdates,
+              updatesState.updates
+            );
 
             return {
               ok: true,
               exists: Boolean(payload?.exists),
-              updates: normalizeUpdatesPayload(payload),
+              updates: mergedState.updates,
+              supportsHeaderImages: mergedState.supportsHeaderImages,
             };
           } catch (error) {
             continue;
@@ -2628,12 +2689,20 @@
             updatesState.remoteEndpoint = endpoint;
             updatesState.storageMode = "netlify-blobs";
 
+            const normalizedUpdates =
+              Array.isArray(payload?.updates) || Array.isArray(payload?.rows)
+                ? normalizeUpdatesPayload(payload)
+                : updatesState.updates;
+            const mergedState = mergeHeaderImageSettingsFromLocal(
+              payload,
+              normalizedUpdates,
+              updatesState.updates
+            );
+
             return {
               ok: true,
-              updates:
-                Array.isArray(payload?.updates) || Array.isArray(payload?.rows)
-                  ? normalizeUpdatesPayload(payload)
-                  : updatesState.updates,
+              updates: mergedState.updates,
+              supportsHeaderImages: mergedState.supportsHeaderImages,
             };
           } catch (error) {
             continue;
@@ -2687,7 +2756,19 @@
           }
           saveUpdates();
           syncUpdateEditor();
-          setFeedback(sharedMessage);
+
+          const hasEnabledHeaderPicture = updatesState.updates.some(
+            (update) => update.hasHeaderImage && update.headerImagePath
+          );
+          if (remoteSave.supportsHeaderImages === false && hasEnabledHeaderPicture) {
+            setFeedback(
+              "Header picture kept locally, but the deployed updates function is outdated. Replace netlify/functions/updates.mjs with the included v3 file so it saves for every visitor.",
+              true
+            );
+          } else {
+            setFeedback(sharedMessage);
+          }
+
           renderAll();
           return;
         }
