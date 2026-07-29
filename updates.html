@@ -714,12 +714,8 @@
       }
 
       .update-row.has-image.has-text {
+        display: block;
         height: clamp(220px, 28vw, 520px);
-        grid-template-columns: auto minmax(0, 1fr);
-      }
-
-      .update-row.has-image.has-text.image-right {
-        grid-template-columns: minmax(0, 1fr) auto;
       }
 
       .update-row.has-image.no-text {
@@ -760,10 +756,23 @@
       }
 
       .update-row.has-image.has-text .update-row-content {
+        display: block;
+        width: 100%;
+        height: 100%;
         min-width: 0;
-        min-height: 100%;
+        min-height: 0;
         padding: 0;
         overflow-y: auto;
+      }
+
+      .update-row.has-image.has-text .update-row-content::after {
+        content: "";
+        display: block;
+        clear: both;
+      }
+
+      .update-row.has-image.has-text .update-row-title {
+        margin-bottom: 10px;
       }
 
       .update-row-title {
@@ -792,15 +801,17 @@
       }
 
       .update-row.has-image.has-text .update-row-image {
-        width: auto;
-        height: 100%;
-        max-width: 100%;
-        justify-self: start;
-        align-self: stretch;
+        float: left;
+        width: var(--row-image-width, min(48%, 560px));
+        height: var(--row-image-height, auto);
+        max-width: 48%;
+        max-height: 100%;
+        margin: 0 18px 12px 0;
       }
 
       .update-row.has-image.has-text.image-right .update-row-image {
-        justify-self: end;
+        float: right;
+        margin: 0 0 12px 18px;
       }
 
       .update-row.has-image.no-text .update-row-image {
@@ -1245,22 +1256,33 @@
         }
 
         .update-row.has-image.has-text {
+          display: grid;
           height: auto;
           min-height: 0;
           grid-template-columns: 1fr;
         }
 
         .update-row.has-image.has-text .update-row-content {
+          display: grid;
+          gap: 10px;
+          height: auto;
           min-height: 0;
           padding: 0;
+          overflow: visible;
+        }
+
+        .update-row.has-image.has-text .update-row-content::after {
+          display: none;
         }
 
         .update-row.has-image.has-text .update-row-image,
         .update-row.has-image.has-text.image-right .update-row-image,
         .update-row.has-image.no-text .update-row-image {
+          float: none;
           width: auto;
           height: 260px;
           max-width: 100%;
+          margin: 0;
           justify-self: center;
           align-self: auto;
         }
@@ -2167,22 +2189,19 @@
         ]
           .filter(Boolean)
           .join(" ");
-        const textMarkup =
-          hasText
-            ? `<div class="update-row-content">
-                ${row.hasHeader ? `<h2 class="update-row-title">${escapeHtml(row.header)}</h2>` : ""}
-                ${
-                  row.hasDescription
-                    ? `<p class="update-row-description">${escapeHtml(row.description)}</p>`
-                    : ""
-                }
-              </div>`
-            : "";
         const imageMarkup = row.hasImage ? createImageMarkup(row, "update-row-image") : "";
-        const rowContent =
-          row.hasImage && hasText && imageSide === "left"
-            ? `${imageMarkup}${textMarkup}`
-            : `${textMarkup}${imageMarkup}`;
+        const textMarkup = hasText
+          ? `<div class="update-row-content">
+              ${imageMarkup}
+              ${row.hasHeader ? `<h2 class="update-row-title">${escapeHtml(row.header)}</h2>` : ""}
+              ${
+                row.hasDescription
+                  ? `<p class="update-row-description">${escapeHtml(row.description)}</p>`
+                  : ""
+              }
+            </div>`
+          : "";
+        const rowContent = hasText ? textMarkup : imageMarkup;
 
         return `<article class="${rowClasses}">${rowContent}</article>`;
       }
@@ -2408,6 +2427,72 @@
           : `<div class="empty-state"><h2>No rows yet.</h2><p>Add rows in the editor.</p></div>`;
       }
 
+      function sizeWrappingRowImage(image) {
+        const imageFrame = image.closest(".update-row-image");
+        const rowContent = imageFrame?.closest(".update-row-content");
+        const row = imageFrame?.closest(".update-row.has-image.has-text");
+
+        if (!imageFrame || !rowContent || !row) {
+          return;
+        }
+
+        if (window.matchMedia("(max-width: 720px)").matches) {
+          imageFrame.style.removeProperty("--row-image-width");
+          imageFrame.style.removeProperty("--row-image-height");
+          return;
+        }
+
+        const naturalWidth = Number(image.naturalWidth);
+        const naturalHeight = Number(image.naturalHeight);
+        const contentWidth = Number(rowContent.clientWidth);
+        const contentHeight = Number(rowContent.clientHeight);
+
+        if (
+          naturalWidth <= 0 ||
+          naturalHeight <= 0 ||
+          contentWidth <= 0 ||
+          contentHeight <= 0
+        ) {
+          return;
+        }
+
+        const aspectRatio = naturalWidth / naturalHeight;
+        const minimumTextWidth = contentWidth >= 760 ? 300 : 220;
+        const widthAllowedByText = Math.max(120, contentWidth - minimumTextWidth - 18);
+        const maximumWidth = Math.max(
+          120,
+          Math.min(contentWidth * 0.48, 560, widthAllowedByText)
+        );
+        const maximumHeight = contentHeight;
+
+        let renderedWidth = maximumWidth;
+        let renderedHeight = renderedWidth / aspectRatio;
+
+        if (renderedHeight > maximumHeight) {
+          renderedHeight = maximumHeight;
+          renderedWidth = renderedHeight * aspectRatio;
+        }
+
+        imageFrame.style.setProperty(
+          "--row-image-width",
+          `${Math.max(1, Math.floor(renderedWidth))}px`
+        );
+        imageFrame.style.setProperty(
+          "--row-image-height",
+          `${Math.max(1, Math.floor(renderedHeight))}px`
+        );
+      }
+
+      function refreshWrappingRowImages() {
+        document
+          .querySelectorAll(".update-row.has-image.has-text img[data-image-path]")
+          .forEach((image) => {
+            if (image.complete && image.naturalWidth > 0) {
+              sizeWrappingRowImage(image);
+            }
+          });
+      }
+
       function hydrateUpdateImages() {
         document.querySelectorAll("img[data-image-path]").forEach((image) => {
           const candidates = buildImageCandidates(image.dataset.imagePath);
@@ -2438,12 +2523,19 @@
                 "--image-aspect-ratio",
                 `${naturalWidth} / ${naturalHeight}`
               );
+              sizeWrappingRowImage(image);
             }
           };
           image.onerror = tryNextCandidate;
           tryNextCandidate();
         });
       }
+
+      let wrappingImageResizeTimer = null;
+      window.addEventListener("resize", () => {
+        window.clearTimeout(wrappingImageResizeTimer);
+        wrappingImageResizeTimer = window.setTimeout(refreshWrappingRowImages, 100);
+      });
 
       function clearUpdateDropIndicators() {
         elements.adminRowList
