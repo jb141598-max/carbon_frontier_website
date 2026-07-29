@@ -524,6 +524,30 @@
         height: 2px;
         border-radius: 999px;
         background: rgba(255, 255, 255, 0.78);
+        z-index: 2;
+      }
+
+      .public-update-header-image {
+        --header-image-height: 320px;
+        position: relative;
+        height: var(--header-image-height);
+        margin: 0 5%;
+        overflow: hidden;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.78);
+        border-radius: 0;
+        background: #090909;
+      }
+
+      .public-update-header-image img {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        display: block;
+        width: auto;
+        max-width: none;
+        height: 100%;
+        object-fit: contain;
+        transform: translateX(-50%);
       }
 
       .update-version {
@@ -616,6 +640,28 @@
         box-shadow:
           inset 0 -3px 0 0 rgba(223, 37, 49, 0.95),
           0 0 0 3px rgba(223, 37, 49, 0.1);
+      }
+
+      .admin-update-row.is-dragging {
+        opacity: 0.52;
+      }
+
+      .admin-update-row.drop-before {
+        box-shadow: inset 0 3px 0 0 rgba(223, 37, 49, 0.95);
+      }
+
+      .admin-update-row.drop-after {
+        box-shadow: inset 0 -3px 0 0 rgba(223, 37, 49, 0.95);
+      }
+
+      .row-drag-button {
+        cursor: grab;
+        user-select: none;
+      }
+
+      .row-drag-button.is-armed,
+      .admin-update-row.is-dragging .row-drag-button {
+        cursor: grabbing;
       }
 
       .admin-list-footer,
@@ -1182,6 +1228,10 @@
           text-align: center;
         }
 
+        .public-update-header-image {
+          max-height: 70vh;
+        }
+
         .update-date-label,
         .update-version,
         .update-version-label {
@@ -1353,6 +1403,37 @@
                 <span>Update Header Text</span>
                 <input id="update-header-input" name="updateHeader" type="text" placeholder="Launch Notes" disabled />
               </label>
+
+              <label class="field-option" for="update-header-image-toggle">
+                <input id="update-header-image-toggle" name="hasUpdateHeaderImage" type="checkbox" />
+                <span>Header Picture</span>
+              </label>
+              <label class="form-field is-disabled" id="update-header-image-field">
+                <span>Header Picture Path</span>
+                <input
+                  id="update-header-image-input"
+                  name="updateHeaderImage"
+                  type="text"
+                  placeholder="images/update-header.png"
+                  disabled
+                />
+              </label>
+              <label class="form-field is-disabled" id="update-header-image-height-field">
+                <span id="update-header-image-height-label">Header Picture Height (320 px)</span>
+                <input
+                  id="update-header-image-height-input"
+                  name="updateHeaderImageHeight"
+                  type="number"
+                  min="120"
+                  max="900"
+                  step="10"
+                  value="320"
+                  disabled
+                />
+              </label>
+              <p class="panel-note">
+                The header picture keeps its full height. Extra width is cropped evenly from the center.
+              </p>
             </div>
 
             <div class="form-grid" id="row-editor-fields" hidden>
@@ -1462,6 +1543,9 @@
         draggingUpdateId: null,
         dropUpdateId: null,
         dropUpdatePosition: null,
+        draggingRowId: null,
+        dropRowId: null,
+        dropRowPosition: null,
         adminArchiveView: false,
         publicArchiveOpen: false,
         sidebarMode: "update",
@@ -1504,6 +1588,12 @@
         updateHeaderToggle: document.getElementById("update-header-toggle"),
         updateHeaderField: document.getElementById("update-header-field"),
         updateHeaderInput: document.getElementById("update-header-input"),
+        updateHeaderImageToggle: document.getElementById("update-header-image-toggle"),
+        updateHeaderImageField: document.getElementById("update-header-image-field"),
+        updateHeaderImageInput: document.getElementById("update-header-image-input"),
+        updateHeaderImageHeightField: document.getElementById("update-header-image-height-field"),
+        updateHeaderImageHeightLabel: document.getElementById("update-header-image-height-label"),
+        updateHeaderImageHeightInput: document.getElementById("update-header-image-height-input"),
         saveUpdateButton: document.getElementById("save-update-button"),
         headerToggle: document.getElementById("header-toggle"),
         headerField: document.getElementById("header-field"),
@@ -1852,6 +1942,12 @@
         const date = String(update?.date || "").trim();
         const header = String(update?.header || "").trim();
         const hasHeader = update?.hasHeader === true && header.length > 0;
+        const headerImagePath = String(update?.headerImagePath || "").trim();
+        const hasHeaderImage = update?.hasHeaderImage === true && headerImagePath.length > 0;
+        const requestedHeaderImageHeight = Number(update?.headerImageHeight);
+        const headerImageHeight = Number.isFinite(requestedHeaderImageHeight)
+          ? Math.min(900, Math.max(120, Math.round(requestedHeaderImageHeight)))
+          : 320;
         const isArchived = update?.isArchived === true;
 
         return {
@@ -1860,6 +1956,9 @@
           date,
           hasHeader,
           header,
+          hasHeaderImage,
+          headerImagePath,
+          headerImageHeight,
           isArchived,
           rows,
         };
@@ -2035,6 +2134,13 @@
       }
 
       function createPublicUpdateMarkup(update) {
+        const headerImageMarkup = update.hasHeaderImage
+          ? `<div class="public-update-header-image" style="--header-image-height: ${escapeHtml(
+              update.headerImageHeight
+            )}px"><img data-image-path="${escapeHtml(
+              normalizeImagePath(update.headerImagePath)
+            )}" alt="${escapeHtml(getUpdateDisplayTitle(update))} header" loading="lazy" /></div>`
+          : "";
         const rowsMarkup = update.rows.length
           ? update.rows.map(createPublicRowMarkup).join("")
           : `<article class="update-row">
@@ -2044,13 +2150,14 @@
             </article>`;
 
         return `
-          <article class="public-update">
+          <article class="public-update" data-public-update-id="${escapeHtml(update.id)}">
             <div class="update-row-list">
               <div class="public-update-heading">
                 ${createUpdateDateMarkup(update, "update-date-label")}
                 <h2 class="update-version">${escapeHtml(getUpdateDisplayTitle(update))}</h2>
                 <span class="update-version-label">${escapeHtml(update.version)}</span>
               </div>
+              ${headerImageMarkup}
               ${rowsMarkup}
             </div>
           </article>
@@ -2218,7 +2325,7 @@
                 const imageSide = row.imageSide === "right" ? "right" : "left";
 
                 return `
-                  <article class="admin-update-row ${isEditing ? "is-editing" : ""}" data-row-id="${escapeHtml(row.id)}">
+                  <article class="admin-update-row ${isEditing ? "is-editing" : ""}" data-row-id="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}">
                     ${createAdminImageMarkup(row)}
                     <div class="admin-row-info">
                       <p class="admin-row-title">${index + 1}. ${
@@ -2233,9 +2340,8 @@
                           : "No image"
                       }</p>
                       <div class="admin-row-actions">
+                        <button class="subtle-button drag-button row-drag-button" type="button" data-row-drag-handle="${escapeHtml(row.id)}">Drag</button>
                         <button class="subtle-button" type="button" data-edit-row="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}">Edit Row</button>
-                        <button class="subtle-button" type="button" data-move-row="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}" data-direction="up" ${index === 0 ? "disabled" : ""}>Move Up</button>
-                        <button class="subtle-button" type="button" data-move-row="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}" data-direction="down" ${index === activeUpdate.rows.length - 1 ? "disabled" : ""}>Move Down</button>
                         <button class="danger-button ${isDeleteArmed ? "is-armed" : ""}" type="button" data-delete-row="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}">
                           ${isDeleteArmed ? "Confirm Delete" : "Delete"}
                         </button>
@@ -2327,6 +2433,81 @@
         if (targetCard) {
           targetCard.classList.add(position === "before" ? "drop-before" : "drop-after");
         }
+      }
+
+      function clearRowDropIndicators() {
+        elements.adminRowList
+          .querySelectorAll(".admin-update-row")
+          .forEach((row) => row.classList.remove("drop-before", "drop-after"));
+      }
+
+      function releaseDraggableRows() {
+        elements.adminRowList.querySelectorAll(".admin-update-row").forEach((row) => {
+          row.draggable = false;
+        });
+      }
+
+      function resetRowDragState() {
+        updatesState.draggingRowId = null;
+        updatesState.dropRowId = null;
+        updatesState.dropRowPosition = null;
+        clearRowDropIndicators();
+        elements.adminRowList
+          .querySelectorAll(".admin-update-row")
+          .forEach((row) => row.classList.remove("is-dragging"));
+        elements.adminRowList
+          .querySelectorAll("[data-row-drag-handle]")
+          .forEach((handle) => handle.classList.remove("is-armed"));
+        releaseDraggableRows();
+      }
+
+      function setRowDropIndicator(rowId, position) {
+        if (updatesState.dropRowId === rowId && updatesState.dropRowPosition === position) {
+          return;
+        }
+
+        updatesState.dropRowId = rowId;
+        updatesState.dropRowPosition = position;
+        clearRowDropIndicators();
+
+        const targetRow = elements.adminRowList.querySelector(`[data-row-id="${rowId}"]`);
+        if (targetRow) {
+          targetRow.classList.add(position === "before" ? "drop-before" : "drop-after");
+        }
+      }
+
+      async function reorderRows(updateId, draggedId, targetId, position) {
+        const update = updatesState.updates.find((entry) => entry.id === updateId);
+        if (!update) {
+          resetRowDragState();
+          return;
+        }
+
+        const draggedIndex = update.rows.findIndex((row) => row.id === draggedId);
+        const targetIndex = update.rows.findIndex((row) => row.id === targetId);
+        if (draggedIndex === -1 || targetIndex === -1) {
+          resetRowDragState();
+          return;
+        }
+
+        const rows = [...update.rows];
+        const [draggedRow] = rows.splice(draggedIndex, 1);
+        let insertIndex = targetIndex;
+
+        if (draggedIndex < targetIndex) {
+          insertIndex -= 1;
+        }
+
+        if (position === "after") {
+          insertIndex += 1;
+        }
+
+        rows.splice(insertIndex, 0, draggedRow);
+        updatesState.updates = updatesState.updates.map((entry) =>
+          entry.id === updateId ? { ...entry, rows } : entry
+        );
+        resetRowDragState();
+        await persistUpdatesState("Rows rearranged locally.", "Rows rearranged in shared updates.");
       }
 
       async function reorderUpdates(draggedId, targetId, position) {
@@ -2595,6 +2776,28 @@
           : "left";
       }
 
+      function getClampedHeaderImageHeight(value) {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+          return 320;
+        }
+
+        return Math.min(900, Math.max(120, Math.round(numericValue)));
+      }
+
+      function syncUpdateHeaderImageControls() {
+        const hasUpdate = Boolean(getActiveUpdate());
+        const isEnabled = hasUpdate && elements.updateHeaderImageToggle.checked;
+        const height = getClampedHeaderImageHeight(elements.updateHeaderImageHeightInput.value);
+
+        elements.updateHeaderImageToggle.disabled = !hasUpdate;
+        elements.updateHeaderImageField.classList.toggle("is-disabled", !isEnabled);
+        elements.updateHeaderImageInput.disabled = !isEnabled;
+        elements.updateHeaderImageHeightField.classList.toggle("is-disabled", !isEnabled);
+        elements.updateHeaderImageHeightInput.disabled = !isEnabled;
+        elements.updateHeaderImageHeightLabel.textContent = `Header Picture Height (${height} px)`;
+      }
+
       function syncSidebarMode() {
         const update = getActiveUpdate();
         const isRowMode = Boolean(update) && updatesState.sidebarMode === "row";
@@ -2653,6 +2856,7 @@
           elements.updateHeaderField,
           elements.updateHeaderInput
         );
+        syncUpdateHeaderImageControls();
         syncOptionalField(elements.headerToggle, elements.headerField, elements.headerInput);
         syncOptionalField(
           elements.descriptionToggle,
@@ -2694,6 +2898,9 @@
           elements.dateInput.value = "";
           elements.updateHeaderToggle.checked = false;
           elements.updateHeaderInput.value = "";
+          elements.updateHeaderImageToggle.checked = false;
+          elements.updateHeaderImageInput.value = "";
+          elements.updateHeaderImageHeightInput.value = "320";
           setRowBuilderValues(null);
           syncSidebarMode();
           syncRowBuilderOptions();
@@ -2704,6 +2911,9 @@
         elements.dateInput.value = update.date || "";
         elements.updateHeaderToggle.checked = Boolean(update.hasHeader);
         elements.updateHeaderInput.value = update.header || "";
+        elements.updateHeaderImageToggle.checked = Boolean(update.hasHeaderImage);
+        elements.updateHeaderImageInput.value = update.headerImagePath || "";
+        elements.updateHeaderImageHeightInput.value = String(update.headerImageHeight || 320);
         syncSidebarMode();
         syncRowBuilderOptions();
       }
@@ -2782,6 +2992,9 @@
           date: "",
           hasHeader: false,
           header: "",
+          hasHeaderImage: false,
+          headerImagePath: "",
+          headerImageHeight: 320,
           isArchived: false,
           rows: [],
         };
@@ -2804,6 +3017,11 @@
         const date = elements.dateInput.value.trim();
         const hasHeader = elements.updateHeaderToggle.checked;
         const header = elements.updateHeaderInput.value.trim();
+        const hasHeaderImage = elements.updateHeaderImageToggle.checked;
+        const headerImagePath = elements.updateHeaderImageInput.value.trim();
+        const headerImageHeight = getClampedHeaderImageHeight(
+          elements.updateHeaderImageHeightInput.value
+        );
 
         if (!version) {
           elements.versionInput.value = update.version;
@@ -2816,11 +3034,22 @@
           return null;
         }
 
+        if (hasHeaderImage && !headerImagePath) {
+          setFeedback("Header picture is checked, so a picture path is required.", true);
+          return null;
+        }
+
+        elements.updateHeaderImageHeightInput.value = String(headerImageHeight);
+        syncUpdateHeaderImageControls();
+
         return {
           version,
           date,
           hasHeader,
           header,
+          hasHeaderImage,
+          headerImagePath,
+          headerImageHeight,
         };
       }
 
@@ -2949,31 +3178,6 @@
         setFeedback("Editing selected row.");
       }
 
-      async function moveRow(updateId, rowId, direction) {
-        const update = updatesState.updates.find((entry) => entry.id === updateId);
-        if (!update) {
-          return;
-        }
-
-        const currentIndex = update.rows.findIndex((row) => row.id === rowId);
-        const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-        if (currentIndex === -1 || nextIndex < 0 || nextIndex >= update.rows.length) {
-          return;
-        }
-
-        const rows = [...update.rows];
-        const [movedRow] = rows.splice(currentIndex, 1);
-        rows.splice(nextIndex, 0, movedRow);
-
-        updatesState.currentUpdateId = update.id;
-        updatesState.pendingDeleteId = null;
-        updatesState.updates = updatesState.updates.map((entry) =>
-          entry.id === update.id ? { ...entry, rows } : entry
-        );
-        syncUpdateEditor();
-        await persistUpdatesState("Rows rearranged locally.", "Rows rearranged in shared updates.");
-      }
-
       async function removeRow(updateId, rowId) {
         updatesState.currentUpdateId = updateId;
         updatesState.updates = updatesState.updates.map((update) =>
@@ -3093,6 +3297,7 @@
       elements.clearRowsButton.addEventListener("click", clearRows);
       [
         elements.updateHeaderToggle,
+        elements.updateHeaderImageToggle,
         elements.headerToggle,
         elements.descriptionToggle,
         elements.imageToggle,
@@ -3100,9 +3305,48 @@
         toggle.addEventListener("change", syncRowBuilderOptions);
       });
 
+      elements.updateHeaderImageHeightInput.addEventListener("input", () => {
+        const height = getClampedHeaderImageHeight(elements.updateHeaderImageHeightInput.value);
+        elements.updateHeaderImageHeightLabel.textContent = `Header Picture Height (${height} px)`;
+
+        const update = getActiveUpdate();
+        if (!update) {
+          return;
+        }
+
+        const publicHeaderImage = elements.updatesRowList.querySelector(
+          `[data-public-update-id="${update.id}"] .public-update-header-image`
+        );
+        publicHeaderImage?.style.setProperty("--header-image-height", `${height}px`);
+      });
+
+      elements.updateHeaderImageHeightInput.addEventListener("change", () => {
+        elements.updateHeaderImageHeightInput.value = String(
+          getClampedHeaderImageHeight(elements.updateHeaderImageHeightInput.value)
+        );
+        syncUpdateHeaderImageControls();
+      });
+
       elements.adminRowList.addEventListener("pointerdown", (event) => {
+        const activeUpdate = getActiveUpdate();
+        if (activeUpdate) {
+          const rowDragHandle = event.target.closest("[data-row-drag-handle]");
+          if (!rowDragHandle) {
+            return;
+          }
+
+          const row = rowDragHandle.closest(".admin-update-row");
+          if (!row) {
+            return;
+          }
+
+          row.draggable = true;
+          rowDragHandle.classList.add("is-armed");
+          return;
+        }
+
         const dragHandle = event.target.closest("[data-update-drag-handle]");
-        if (!dragHandle || getActiveUpdate()) {
+        if (!dragHandle) {
           return;
         }
 
@@ -3116,7 +3360,20 @@
       });
 
       elements.adminRowList.addEventListener("dragstart", (event) => {
-        if (getActiveUpdate()) {
+        const activeUpdate = getActiveUpdate();
+        if (activeUpdate) {
+          const row = event.target.closest(".admin-update-row");
+          if (!row || !row.draggable) {
+            return;
+          }
+
+          updatesState.draggingRowId = row.dataset.rowId;
+          row.classList.add("is-dragging");
+
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", row.dataset.rowId);
+          }
           return;
         }
 
@@ -3135,7 +3392,29 @@
       });
 
       elements.adminRowList.addEventListener("dragover", (event) => {
-        if (!updatesState.draggingUpdateId || getActiveUpdate()) {
+        const activeUpdate = getActiveUpdate();
+        if (updatesState.draggingRowId && activeUpdate) {
+          event.preventDefault();
+          const targetRow = event.target.closest(".admin-update-row");
+
+          if (!targetRow || targetRow.dataset.rowId === updatesState.draggingRowId) {
+            clearRowDropIndicators();
+            updatesState.dropRowId = null;
+            updatesState.dropRowPosition = null;
+            return;
+          }
+
+          const bounds = targetRow.getBoundingClientRect();
+          const position = event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+          setRowDropIndicator(targetRow.dataset.rowId, position);
+
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = "move";
+          }
+          return;
+        }
+
+        if (!updatesState.draggingUpdateId || activeUpdate) {
           return;
         }
 
@@ -3159,7 +3438,32 @@
       });
 
       elements.adminRowList.addEventListener("drop", async (event) => {
-        if (!updatesState.draggingUpdateId || getActiveUpdate()) {
+        const activeUpdate = getActiveUpdate();
+        if (updatesState.draggingRowId && activeUpdate) {
+          event.preventDefault();
+          const targetRow = event.target.closest(".admin-update-row");
+
+          if (
+            !targetRow ||
+            targetRow.dataset.rowId === updatesState.draggingRowId ||
+            !updatesState.dropRowPosition
+          ) {
+            resetRowDragState();
+            renderAdminRows();
+            hydrateUpdateImages();
+            return;
+          }
+
+          await reorderRows(
+            activeUpdate.id,
+            updatesState.draggingRowId,
+            targetRow.dataset.rowId,
+            updatesState.dropRowPosition
+          );
+          return;
+        }
+
+        if (!updatesState.draggingUpdateId || activeUpdate) {
           return;
         }
 
@@ -3184,8 +3488,10 @@
       });
 
       elements.adminRowList.addEventListener("dragend", () => {
-        if (!updatesState.draggingUpdateId) {
-          resetUpdateDragState();
+        if (updatesState.draggingRowId) {
+          resetRowDragState();
+          renderAdminRows();
+          hydrateUpdateImages();
           return;
         }
 
@@ -3221,16 +3527,6 @@
         const editRowButton = event.target.closest("[data-edit-row]");
         if (editRowButton) {
           editRow(editRowButton.dataset.updateId, editRowButton.dataset.editRow);
-          return;
-        }
-
-        const moveRowButton = event.target.closest("[data-move-row]");
-        if (moveRowButton) {
-          await moveRow(
-            moveRowButton.dataset.updateId,
-            moveRowButton.dataset.moveRow,
-            moveRowButton.dataset.direction
-          );
           return;
         }
 
