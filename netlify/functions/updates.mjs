@@ -64,12 +64,30 @@ function normalizeRowImage(image) {
   };
 }
 
+function normalizeStandaloneCaption(caption) {
+  const text = String(caption?.caption || caption?.text || "").trim();
+  if (!text) {
+    return null;
+  }
+
+  return {
+    id: String(caption?.id || "").trim() || crypto.randomUUID(),
+    caption: text,
+    captionTextSize: normalizeCaptionTextSize(caption?.captionTextSize),
+  };
+}
+
 function normalizeUpdateRow(row) {
   const header = String(row?.header || "").trim();
   const hasHeader = row?.hasHeader === true && header.length > 0;
   let images = Array.isArray(row?.images)
     ? row.images.map(normalizeRowImage).filter(Boolean)
     : [];
+  const standaloneCaptions = Array.isArray(row?.standaloneCaptions)
+    ? row.standaloneCaptions.map(normalizeStandaloneCaption).filter(Boolean)
+    : Array.isArray(row?.captions)
+      ? row.captions.map(normalizeStandaloneCaption).filter(Boolean)
+      : [];
 
   // Migrate rows created before rows supported multiple pictures.
   if (images.length === 0) {
@@ -94,11 +112,12 @@ function normalizeUpdateRow(row) {
     hasHeader,
     header,
     images,
+    standaloneCaptions,
   };
 }
 
 function rowHasContent(row) {
-  return row.hasHeader || row.images.length > 0;
+  return row.hasHeader || row.images.length > 0 || row.standaloneCaptions.length > 0;
 }
 
 function normalizeHeaderImageHeight(value) {

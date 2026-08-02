@@ -670,12 +670,26 @@
       }
 
       .archive-form-actions {
-        justify-content: stretch;
+        justify-content: flex-start;
       }
 
       .archive-form-actions .danger-button,
       .archive-form-actions .subtle-button {
-        width: 100%;
+        width: auto;
+      }
+
+      .admin-preview-header-actions,
+      .admin-preview-update-actions,
+      .row-images-editor-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .admin-preview-header-actions {
+        margin-left: auto;
       }
 
       .admin-update-card-header {
@@ -733,10 +747,15 @@
         line-height: 1.08;
       }
 
-      .update-row-media-list {
+      .update-row-media-list,
+      .update-row-standalone-caption-list {
         display: grid;
         gap: 26px;
         width: 100%;
+      }
+
+      .update-row-standalone-caption-list {
+        gap: 18px;
       }
 
       .update-row-media {
@@ -982,7 +1001,8 @@
       }
 
       .row-images-editor-header,
-      .row-image-editor-card-header {
+      .row-image-editor-card-header,
+      .row-caption-editor-card-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -990,7 +1010,8 @@
       }
 
       .row-images-editor-header h3,
-      .row-image-editor-card-header h4 {
+      .row-image-editor-card-header h4,
+      .row-caption-editor-card-header h4 {
         margin: 0;
       }
 
@@ -998,12 +1019,18 @@
         font-size: 1.18rem;
       }
 
-      .row-image-editor-list {
+      .row-image-editor-list,
+      .row-caption-editor-list {
         display: grid;
         gap: 12px;
       }
 
-      .row-image-editor-card {
+      .row-caption-editor-list:not(:empty) {
+        padding-top: 4px;
+      }
+
+      .row-image-editor-card,
+      .row-caption-editor-card {
         display: grid;
         gap: 12px;
         padding: 14px;
@@ -1012,7 +1039,8 @@
         background: rgba(255, 255, 255, 0.025);
       }
 
-      .row-image-editor-card-header h4 {
+      .row-image-editor-card-header h4,
+      .row-caption-editor-card-header h4 {
         font-size: 1rem;
       }
 
@@ -1356,7 +1384,8 @@
         }
 
         .row-images-editor-header,
-        .row-image-editor-card-header {
+        .row-image-editor-card-header,
+        .row-caption-editor-card-header {
           align-items: flex-start;
           flex-direction: column;
         }
@@ -1570,36 +1599,31 @@
               <section class="row-images-editor" aria-labelledby="row-images-heading">
                 <div class="row-images-editor-header">
                   <div>
-                    <p class="meta-tag">Pictures</p>
-                    <h3 id="row-images-heading">Row pictures</h3>
+                    <p class="meta-tag">Row Content</p>
+                    <h3 id="row-images-heading">Pictures and captions</h3>
                   </div>
-                  <button class="subtle-button" id="add-row-image-button" type="button">
-                    + Add Picture
-                  </button>
+                  <div class="row-images-editor-actions">
+                    <button class="subtle-button" id="add-row-image-button" type="button">
+                      + Add Picture
+                    </button>
+                    <button class="subtle-button" id="add-row-caption-button" type="button">
+                      + Add Lone Caption
+                    </button>
+                  </div>
                 </div>
                 <div class="row-image-editor-list" id="row-image-editor-list"></div>
+                <div class="row-caption-editor-list" id="row-caption-editor-list"></div>
                 <p class="panel-note">
-                  Add as many horizontal pictures as needed. Each picture is centered and uses its own
-                  width percentage. Captions are optional and appear directly below their picture.
+                  Add as many horizontal pictures or full-width lone captions as needed. Each picture is
+                  centered and uses its own width percentage. Picture captions appear directly below their
+                  picture, while lone captions span the full row without requiring a picture.
                 </p>
               </section>
-            </div>
-
-            <div class="form-actions" id="update-form-actions">
-              <button class="save-button" id="save-update-button" type="button">Save Update</button>
-              <button class="save-button" id="open-row-builder-button" type="button">Add Row</button>
-              <button class="subtle-button" id="clear-rows-button" type="button">Clear Rows</button>
             </div>
 
             <div class="form-actions" id="row-form-actions" hidden>
               <button class="save-button" id="submit-button" type="submit">Add Row</button>
               <button class="subtle-button" id="cancel-row-edit-button" type="button">Cancel</button>
-            </div>
-
-            <div class="archive-form-actions" id="archive-form-actions">
-              <button class="danger-button" id="archive-update-button" type="button" hidden>
-                Archive Update
-              </button>
             </div>
 
             <p class="feedback" id="form-feedback"></p>
@@ -1612,9 +1636,21 @@
                 <h3 id="admin-preview-heading">Current updates</h3>
                 <p id="admin-preview-copy">Choose an update to edit, then edit or rearrange its rows.</p>
               </div>
-              <button class="subtle-button" id="show-updates-list-button" type="button" hidden>
-                Back to All Updates
-              </button>
+              <div class="admin-preview-header-actions">
+                <div class="form-actions admin-preview-update-actions" id="update-form-actions" hidden>
+                  <button class="save-button" id="save-update-button" type="button">Save Update</button>
+                  <button class="save-button" id="open-row-builder-button" type="button">Add Row</button>
+                  <div class="archive-form-actions" id="archive-form-actions" hidden>
+                    <button class="danger-button" id="archive-update-button" type="button" hidden>
+                      Archive Update
+                    </button>
+                  </div>
+                  <button class="subtle-button" id="clear-rows-button" type="button">Clear Rows</button>
+                </div>
+                <button class="subtle-button" id="show-updates-list-button" type="button" hidden>
+                  Back to All Updates
+                </button>
+              </div>
             </div>
             <div class="admin-row-list" id="admin-row-list"></div>
             <div class="admin-list-footer" id="admin-list-footer">
@@ -1710,6 +1746,8 @@
         headerInput: document.getElementById("header-input"),
         rowImageEditorList: document.getElementById("row-image-editor-list"),
         addRowImageButton: document.getElementById("add-row-image-button"),
+        rowCaptionEditorList: document.getElementById("row-caption-editor-list"),
+        addRowCaptionButton: document.getElementById("add-row-caption-button"),
         updateFormActions: document.getElementById("update-form-actions"),
         openRowBuilderButton: document.getElementById("open-row-builder-button"),
         rowFormActions: document.getElementById("row-form-actions"),
@@ -2049,12 +2087,30 @@
         };
       }
 
+      function normalizeStandaloneCaption(caption) {
+        const text = String(caption?.caption || caption?.text || "").trim();
+        if (!text) {
+          return null;
+        }
+
+        return {
+          id: String(caption?.id || createId()),
+          caption: text,
+          captionTextSize: getClampedCaptionTextSize(caption?.captionTextSize),
+        };
+      }
+
       function normalizeUpdateRow(row) {
         const header = String(row?.header || "").trim();
         const hasHeader = row?.hasHeader === true && header.length > 0;
         let images = Array.isArray(row?.images)
           ? row.images.map(normalizeRowImage).filter(Boolean)
           : [];
+        const standaloneCaptions = Array.isArray(row?.standaloneCaptions)
+          ? row.standaloneCaptions.map(normalizeStandaloneCaption).filter(Boolean)
+          : Array.isArray(row?.captions)
+            ? row.captions.map(normalizeStandaloneCaption).filter(Boolean)
+            : [];
 
         // Migrate rows made before the multi-picture editor existed.
         if (images.length === 0) {
@@ -2079,11 +2135,12 @@
           hasHeader,
           header,
           images,
+          standaloneCaptions,
         };
       }
 
       function rowHasContent(row) {
-        return row.hasHeader || row.images.length > 0;
+        return row.hasHeader || row.images.length > 0 || row.standaloneCaptions.length > 0;
       }
 
       function normalizeUpdate(update, index = 0) {
@@ -2346,6 +2403,12 @@
         `;
       }
 
+      function createPublicStandaloneCaptionMarkup(caption) {
+        return `<p class="update-row-caption update-row-standalone-caption" style="--caption-text-size: ${escapeHtml(
+          caption.captionTextSize
+        )}px">${escapeHtml(caption.caption)}</p>`;
+      }
+
       function createPublicRowMarkup(row) {
         const rowTitle = row.hasHeader ? row.header : "Update row";
         const headerMarkup = row.hasHeader
@@ -2356,8 +2419,13 @@
               .map((image, index) => createPublicRowImageMarkup(image, index, rowTitle))
               .join("")}</div>`
           : "";
+        const standaloneCaptionsMarkup = row.standaloneCaptions.length
+          ? `<div class="update-row-standalone-caption-list">${row.standaloneCaptions
+              .map(createPublicStandaloneCaptionMarkup)
+              .join("")}</div>`
+          : "";
 
-        return `<article class="update-row">${headerMarkup}${imagesMarkup}</article>`;
+        return `<article class="update-row">${headerMarkup}${imagesMarkup}${standaloneCaptionsMarkup}</article>`;
       }
 
       function createPublicUpdateMarkup(update) {
@@ -2548,7 +2616,9 @@
               .map((row, index) => {
                 const isDeleteArmed = updatesState.pendingDeleteId === row.id;
                 const isEditing = updatesState.editingRowId === row.id;
-                const captionCount = row.images.filter((image) => image.hasCaption).length;
+                const captionCount =
+                  row.images.filter((image) => image.hasCaption).length +
+                  row.standaloneCaptions.length;
                 const firstImagePath = row.images[0]?.imagePath || "";
 
                 return `
@@ -3157,6 +3227,98 @@
         renumberRowImageEditors();
       }
 
+      function renumberRowCaptionEditors() {
+        elements.rowCaptionEditorList
+          .querySelectorAll("[data-row-caption-editor]")
+          .forEach((card, index) => {
+            const title = card.querySelector("[data-row-caption-editor-title]");
+            if (title) {
+              title.textContent = `Lone Caption ${index + 1}`;
+            }
+          });
+      }
+
+      function addRowCaptionEditor(caption = null) {
+        const normalizedCaption = caption ? normalizeStandaloneCaption(caption) : null;
+        const card = document.createElement("div");
+        const editorId = normalizedCaption?.id || createId();
+        const captionTextSize = normalizedCaption?.captionTextSize || 18;
+
+        card.className = "row-caption-editor-card";
+        card.dataset.rowCaptionEditor = editorId;
+        card.innerHTML = `
+          <div class="row-caption-editor-card-header">
+            <h4 data-row-caption-editor-title>Lone Caption</h4>
+            <button class="danger-button" type="button" data-remove-row-caption>Remove Caption</button>
+          </div>
+          <label class="form-field row-image-caption-field">
+            <span>Caption Text</span>
+            <textarea data-row-caption-input placeholder="Write a full-width caption that does not need a picture."></textarea>
+          </label>
+          <label class="form-field row-image-caption-size-field">
+            <span>
+              <span>Caption Text Size</span>
+              <strong data-row-caption-size-label>${captionTextSize} px</strong>
+            </span>
+            <input
+              data-row-caption-size
+              type="number"
+              min="12"
+              max="48"
+              step="1"
+              value="${captionTextSize}"
+            />
+          </label>
+        `;
+
+        const captionInput = card.querySelector("[data-row-caption-input]");
+        const captionSizeInput = card.querySelector("[data-row-caption-size]");
+        const captionSizeLabel = card.querySelector("[data-row-caption-size-label]");
+        const removeButton = card.querySelector("[data-remove-row-caption]");
+
+        captionInput.value = normalizedCaption?.caption || "";
+        captionSizeInput.addEventListener("input", () => {
+          captionSizeLabel.textContent = `${getClampedCaptionTextSize(captionSizeInput.value)} px`;
+        });
+        captionSizeInput.addEventListener("change", () => {
+          captionSizeInput.value = String(getClampedCaptionTextSize(captionSizeInput.value));
+          captionSizeLabel.textContent = `${captionSizeInput.value} px`;
+        });
+        removeButton.addEventListener("click", () => {
+          card.remove();
+          renumberRowCaptionEditors();
+        });
+
+        elements.rowCaptionEditorList.append(card);
+        renumberRowCaptionEditors();
+      }
+
+      function getRowCaptionValues() {
+        const standaloneCaptions = [];
+        const cards = Array.from(
+          elements.rowCaptionEditorList.querySelectorAll("[data-row-caption-editor]")
+        );
+
+        for (const card of cards) {
+          const caption = card.querySelector("[data-row-caption-input]")?.value.trim() || "";
+          const captionTextSize = getClampedCaptionTextSize(
+            card.querySelector("[data-row-caption-size]")?.value
+          );
+
+          if (!caption) {
+            return { ok: false, message: "Every added lone caption needs caption text." };
+          }
+
+          standaloneCaptions.push({
+            id: card.dataset.rowCaptionEditor || createId(),
+            caption,
+            captionTextSize,
+          });
+        }
+
+        return { ok: true, standaloneCaptions };
+      }
+
       function getRowImageValues() {
         const images = [];
         const cards = Array.from(
@@ -3345,7 +3507,7 @@
         const isRowMode = Boolean(update) && updatesState.sidebarMode === "row";
 
         elements.updateEditorFields.hidden = isRowMode;
-        elements.updateFormActions.hidden = isRowMode;
+        elements.updateFormActions.hidden = !update || isRowMode;
         elements.rowEditorFields.hidden = !isRowMode;
         elements.rowFormActions.hidden = !isRowMode;
         elements.archiveFormActions.hidden = isRowMode || !update;
@@ -3401,6 +3563,7 @@
         syncUpdateHeaderImageControls();
         syncOptionalField(elements.headerToggle, elements.headerField, elements.headerInput);
         elements.addRowImageButton.disabled = !isRowMode;
+        elements.addRowCaptionButton.disabled = !isRowMode;
         elements.rowImageEditorList
           .querySelectorAll("input, textarea, button")
           .forEach((control) => {
@@ -3415,6 +3578,11 @@
         elements.rowImageEditorList
           .querySelectorAll("[data-row-image-editor]")
           .forEach(syncRowImageCaptionControls);
+        elements.rowCaptionEditorList
+          .querySelectorAll("input, textarea, button")
+          .forEach((control) => {
+            control.disabled = !isRowMode;
+          });
       }
 
       function setRowBuilderValues(row = null) {
@@ -3423,6 +3591,7 @@
         elements.headerToggle.checked = Boolean(row?.hasHeader);
         elements.headerInput.value = row?.header || "";
         elements.rowImageEditorList.innerHTML = "";
+        elements.rowCaptionEditorList.innerHTML = "";
 
         const images = Array.isArray(row?.images) ? row.images : [];
         if (images.length > 0) {
@@ -3430,6 +3599,11 @@
         } else {
           addRowImageEditor();
         }
+
+        const standaloneCaptions = Array.isArray(row?.standaloneCaptions)
+          ? row.standaloneCaptions
+          : [];
+        standaloneCaptions.forEach((caption) => addRowCaptionEditor(caption));
 
         elements.rowFormHeading.textContent = isEditing ? "Edit row" : "Add row";
         elements.submitButton.textContent = isEditing ? "Save Row" : "Add Row";
@@ -3670,14 +3844,24 @@
         const hasHeader = elements.headerToggle.checked;
         const header = elements.headerInput.value.trim();
         const imageResult = getRowImageValues();
+        const captionResult = getRowCaptionValues();
 
         if (!imageResult.ok) {
           setFeedback(imageResult.message, true);
           return;
         }
 
-        if (!hasHeader && imageResult.images.length === 0) {
-          setFeedback("Add a header or at least one picture before saving the row.", true);
+        if (!captionResult.ok) {
+          setFeedback(captionResult.message, true);
+          return;
+        }
+
+        if (
+          !hasHeader &&
+          imageResult.images.length === 0 &&
+          captionResult.standaloneCaptions.length === 0
+        ) {
+          setFeedback("Add a header, picture, or lone caption before saving the row.", true);
           return;
         }
 
@@ -3691,6 +3875,7 @@
           hasHeader,
           header,
           images: imageResult.images,
+          standaloneCaptions: captionResult.standaloneCaptions,
         });
         const isEditingRow = Boolean(updatesState.editingRowId);
 
@@ -3860,6 +4045,11 @@
 
       elements.addRowImageButton.addEventListener("click", () => {
         addRowImageEditor();
+        syncRowBuilderOptions();
+      });
+
+      elements.addRowCaptionButton.addEventListener("click", () => {
+        addRowCaptionEditor();
         syncRowBuilderOptions();
       });
 
