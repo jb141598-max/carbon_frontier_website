@@ -464,10 +464,26 @@
         padding: 20px;
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 22px;
+        color: var(--cf-white);
         background:
           radial-gradient(circle at top right, rgba(223, 37, 49, 0.18), transparent 44%),
           var(--cf-update-frame);
         box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      .archive-card:hover,
+      .archive-card:focus-visible {
+        border-color: rgba(223, 37, 49, 0.72);
+        box-shadow:
+          0 18px 40px rgba(0, 0, 0, 0.34),
+          0 0 0 4px rgba(223, 37, 49, 0.12);
+        outline: none;
+        transform: translateY(-2px);
       }
 
       .archive-card-version,
@@ -1689,6 +1705,7 @@
         dropRowPosition: null,
         adminArchiveView: false,
         publicArchiveOpen: false,
+        publicArchiveSelectedUpdateId: null,
         sidebarMode: "update",
         hasAdminAccess: false,
         authAccount: null,
@@ -2458,12 +2475,19 @@
       }
 
       function createArchiveCardMarkup(update) {
+        const displayTitle = getUpdateDisplayTitle(update);
+
         return `
-          <article class="archive-card">
+          <button
+            class="archive-card"
+            type="button"
+            data-open-archived-update="${escapeHtml(update.id)}"
+            aria-label="Open archived update ${escapeHtml(displayTitle)}"
+          >
             <p class="archive-card-version">${escapeHtml(update.version)}</p>
             ${createUpdateDateMarkup(update, "archive-card-date")}
-            <h2 class="archive-card-title">${escapeHtml(getUpdateDisplayTitle(update))}</h2>
-          </article>
+            <h2 class="archive-card-title">${escapeHtml(displayTitle)}</h2>
+          </button>
         `;
       }
 
@@ -2503,11 +2527,24 @@
 
       function renderPublicArchive() {
         const archivedUpdates = getArchivedUpdates();
+        const selectedUpdate = archivedUpdates.find(
+          (update) => update.id === updatesState.publicArchiveSelectedUpdateId
+        );
+
         elements.updatesHeading.textContent = "ARCHIVE";
-        elements.publicArchiveButton.textContent = "Updates";
+        elements.publicArchiveButton.textContent = selectedUpdate ? "Back to Archive" : "Updates";
         elements.publicArchiveButton.setAttribute("aria-expanded", "true");
         elements.publicArchivePanel.hidden = true;
         elements.publicArchivePanel.innerHTML = "";
+
+        if (updatesState.publicArchiveSelectedUpdateId && !selectedUpdate) {
+          updatesState.publicArchiveSelectedUpdateId = null;
+        }
+
+        if (selectedUpdate) {
+          elements.updatesRowList.innerHTML = createPublicUpdateMarkup(selectedUpdate);
+          return;
+        }
 
         if (archivedUpdates.length === 0) {
           elements.updatesRowList.innerHTML = `
@@ -3703,8 +3740,34 @@
         setFeedback("Adding a new row.");
       }
 
+      function openPublicArchivedUpdate(updateId) {
+        const archivedUpdate = getArchivedUpdates().find((update) => update.id === updateId);
+        if (!archivedUpdate) {
+          return;
+        }
+
+        updatesState.publicArchiveOpen = true;
+        updatesState.publicArchiveSelectedUpdateId = archivedUpdate.id;
+        renderPublicRows();
+        hydrateUpdateImages();
+
+        document.querySelector(".updates-section")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+
       function togglePublicArchive() {
-        updatesState.publicArchiveOpen = !updatesState.publicArchiveOpen;
+        if (updatesState.publicArchiveSelectedUpdateId) {
+          updatesState.publicArchiveSelectedUpdateId = null;
+          updatesState.publicArchiveOpen = true;
+        } else {
+          updatesState.publicArchiveOpen = !updatesState.publicArchiveOpen;
+          if (!updatesState.publicArchiveOpen) {
+            updatesState.publicArchiveSelectedUpdateId = null;
+          }
+        }
+
         renderPublicRows();
         hydrateUpdateImages();
       }
@@ -4026,6 +4089,14 @@
       elements.saveUpdateButton.addEventListener("click", saveSelectedUpdateMeta);
       elements.archiveUpdateButton.addEventListener("click", toggleSelectedUpdateArchive);
       elements.publicArchiveButton.addEventListener("click", togglePublicArchive);
+      elements.updatesRowList.addEventListener("click", (event) => {
+        const archiveCard = event.target.closest("[data-open-archived-update]");
+        if (!archiveCard || !elements.updatesRowList.contains(archiveCard)) {
+          return;
+        }
+
+        openPublicArchivedUpdate(archiveCard.dataset.openArchivedUpdate);
+      });
       elements.showUpdatesListButton.addEventListener("click", deselectUpdate);
       elements.adminArchiveListButton.addEventListener("click", toggleAdminArchiveList);
       elements.openRowBuilderButton.addEventListener("click", startAddingRow);
