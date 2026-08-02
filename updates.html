@@ -1026,6 +1026,94 @@
         min-height: 112px;
       }
 
+      .image-upload-control {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px dashed rgba(255, 255, 255, 0.18);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.025);
+        transition: border-color 160ms ease, background-color 160ms ease, opacity 160ms ease;
+      }
+
+      .image-upload-control.is-dragover {
+        border-color: rgba(223, 37, 49, 0.9);
+        background: rgba(223, 37, 49, 0.12);
+      }
+
+      .image-upload-control.is-disabled {
+        opacity: 0.48;
+      }
+
+      .image-upload-row {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .image-upload-file-input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .image-upload-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 10px 14px;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .image-upload-control.is-disabled .image-upload-button {
+        cursor: not-allowed;
+      }
+
+      .image-upload-status {
+        margin: 0;
+        color: var(--cf-text-muted);
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      .image-upload-status.is-error {
+        color: #ffb7bd;
+      }
+
+      .image-upload-preview {
+        width: 100%;
+        max-height: 240px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        background: #090909;
+      }
+
+      .image-upload-preview[hidden] {
+        display: none;
+      }
+
+      .image-upload-preview img {
+        display: block;
+        width: 100%;
+        max-height: 240px;
+        object-fit: contain;
+      }
+
+      .image-upload-path-field input {
+        font-family: "Courier New", monospace;
+        font-size: 0.82rem;
+      }
+
       .side-control {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1443,13 +1531,33 @@
                 <input id="update-header-image-toggle" name="hasUpdateHeaderImage" type="checkbox" />
                 <span>Header Picture</span>
               </label>
-              <label class="form-field is-disabled" id="update-header-image-field">
-                <span>Header Picture Path</span>
+              <div class="image-upload-control is-disabled" id="update-header-image-upload-control">
+                <input
+                  class="image-upload-file-input"
+                  id="update-header-image-file-input"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  disabled
+                />
+                <div class="image-upload-row">
+                  <label class="subtle-button image-upload-button" for="update-header-image-file-input">
+                    Upload Header Picture
+                  </label>
+                  <p class="image-upload-status" id="update-header-image-upload-status">
+                    PNG, JPG, WebP, or GIF up to 4.5 MB. You can also drop a file here.
+                  </p>
+                </div>
+                <div class="image-upload-preview" id="update-header-image-upload-preview" hidden>
+                  <img id="update-header-image-upload-preview-image" alt="Header picture preview" />
+                </div>
+              </div>
+              <label class="form-field image-upload-path-field is-disabled" id="update-header-image-field">
+                <span>Image URL / Existing Path</span>
                 <input
                   id="update-header-image-input"
                   name="updateHeaderImage"
                   type="text"
-                  placeholder="images/update-header.png"
+                  placeholder="Uploaded pictures fill this automatically"
                   disabled
                 />
               </label>
@@ -1549,6 +1657,14 @@
       const UPDATE_STORAGE_KEY = "carbon-frontier-update-rows-v1";
       const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
       const REMOTE_UPDATES_ENDPOINTS = ["/api/updates", "/.netlify/functions/updates"];
+      const IMAGE_UPLOAD_ENDPOINT = "/api/images";
+      const MAX_IMAGE_UPLOAD_BYTES = Math.floor(4.5 * 1024 * 1024);
+      const ALLOWED_IMAGE_UPLOAD_TYPES = new Set([
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/gif",
+      ]);
 
       const updatesState = {
         updates: [],
@@ -1605,6 +1721,11 @@
         updateHeaderField: document.getElementById("update-header-field"),
         updateHeaderInput: document.getElementById("update-header-input"),
         updateHeaderImageToggle: document.getElementById("update-header-image-toggle"),
+        updateHeaderImageUploadControl: document.getElementById("update-header-image-upload-control"),
+        updateHeaderImageFileInput: document.getElementById("update-header-image-file-input"),
+        updateHeaderImageUploadStatus: document.getElementById("update-header-image-upload-status"),
+        updateHeaderImageUploadPreview: document.getElementById("update-header-image-upload-preview"),
+        updateHeaderImageUploadPreviewImage: document.getElementById("update-header-image-upload-preview-image"),
         updateHeaderImageField: document.getElementById("update-header-image-field"),
         updateHeaderImageInput: document.getElementById("update-header-image-input"),
         updateHeaderImageHeightField: document.getElementById("update-header-image-height-field"),
@@ -2172,6 +2293,14 @@
           return "";
         }
 
+        if (/^(?:https?:|data:|blob:)/i.test(trimmedPath)) {
+          return trimmedPath;
+        }
+
+        if (/^\/?api\/images\//i.test(trimmedPath)) {
+          return trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+        }
+
         const imagesIndex = trimmedPath.toLowerCase().lastIndexOf("images/");
         if (imagesIndex !== -1) {
           return trimmedPath.slice(imagesIndex);
@@ -2186,6 +2315,13 @@
           return [];
         }
 
+        if (
+          /^(?:https?:|data:|blob:|\/api\/images\/)/i.test(normalizedPath) ||
+          /[?#]/.test(normalizedPath)
+        ) {
+          return [normalizedPath];
+        }
+
         const hasExtension = /\.[a-z0-9]+$/i.test(normalizedPath);
         if (hasExtension) {
           return [normalizedPath];
@@ -2193,6 +2329,176 @@
 
         const extensions = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"];
         return [normalizedPath, ...extensions.map((extension) => `${normalizedPath}${extension}`)];
+      }
+
+      function setImageUploadStatus(statusElement, message, isError = false) {
+        if (!statusElement) {
+          return;
+        }
+
+        statusElement.textContent = message;
+        statusElement.classList.toggle("is-error", isError);
+      }
+
+      function setImageUploadPreview(previewElement, previewImage, source, altText) {
+        if (!previewElement || !previewImage) {
+          return;
+        }
+
+        const normalizedSource = normalizeImagePath(source);
+        if (!normalizedSource) {
+          previewElement.hidden = true;
+          previewImage.removeAttribute("src");
+          return;
+        }
+
+        previewImage.src = normalizedSource;
+        previewImage.alt = altText || "Uploaded image preview";
+        previewElement.hidden = false;
+      }
+
+      function getImageUploadValidationError(file) {
+        if (!file) {
+          return "Choose an image to upload.";
+        }
+
+        if (!ALLOWED_IMAGE_UPLOAD_TYPES.has(String(file.type || "").toLowerCase())) {
+          return "Use a PNG, JPG, WebP, or GIF image.";
+        }
+
+        if (file.size <= 0) {
+          return "The selected image is empty.";
+        }
+
+        if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+          return "The image is too large. The maximum upload size is 4.5 MB.";
+        }
+
+        return "";
+      }
+
+      async function uploadImageFile({
+        file,
+        pathInput,
+        statusElement,
+        previewElement,
+        previewImage,
+        fileInput,
+        altText,
+        restoreControls,
+      }) {
+        const validationError = getImageUploadValidationError(file);
+        if (validationError) {
+          setImageUploadStatus(statusElement, validationError, true);
+          return false;
+        }
+
+        if (!window.location.protocol.startsWith("http")) {
+          setImageUploadStatus(
+            statusElement,
+            "Uploads work through Netlify. Open the deployed website or run it with netlify dev.",
+            true
+          );
+          return false;
+        }
+
+        if (!isGoogleIdTokenUsable(updatesState.authIdToken)) {
+          setImageUploadStatus(
+            statusElement,
+            "Your admin sign-in expired. Sign in again before uploading.",
+            true
+          );
+          return false;
+        }
+
+        const localPreviewUrl = URL.createObjectURL(file);
+        setImageUploadPreview(previewElement, previewImage, localPreviewUrl, altText);
+        setImageUploadStatus(statusElement, `Uploading ${file.name}...`);
+        if (fileInput) {
+          fileInput.disabled = true;
+        }
+
+        try {
+          const formData = new FormData();
+          formData.append("file", file, file.name);
+
+          const response = await fetch(IMAGE_UPLOAD_ENDPOINT, {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${updatesState.authIdToken}`,
+            },
+            body: formData,
+          });
+          const payload = await response.json().catch(() => null);
+
+          if (!response.ok || !payload?.url) {
+            throw new Error(
+              payload?.error || `Image upload failed (${response.status}).`
+            );
+          }
+
+          pathInput.value = String(payload.url);
+          pathInput.dispatchEvent(new Event("input", { bubbles: true }));
+          setImageUploadPreview(previewElement, previewImage, payload.url, altText);
+          setImageUploadStatus(
+            statusElement,
+            `Uploaded ${payload.originalName || file.name}.`
+          );
+          return true;
+        } catch (error) {
+          setImageUploadStatus(
+            statusElement,
+            error?.message || "The image could not be uploaded.",
+            true
+          );
+          return false;
+        } finally {
+          URL.revokeObjectURL(localPreviewUrl);
+          if (fileInput) {
+            fileInput.value = "";
+          }
+          if (typeof restoreControls === "function") {
+            restoreControls();
+          }
+        }
+      }
+
+      function bindImageDropTarget({
+        control,
+        fileInput,
+        uploadSelectedFile,
+      }) {
+        if (!control || !fileInput || typeof uploadSelectedFile !== "function") {
+          return;
+        }
+
+        ["dragenter", "dragover"].forEach((eventName) => {
+          control.addEventListener(eventName, (event) => {
+            if (fileInput.disabled) {
+              return;
+            }
+            event.preventDefault();
+            control.classList.add("is-dragover");
+          });
+        });
+
+        ["dragleave", "dragend"].forEach((eventName) => {
+          control.addEventListener(eventName, () => {
+            control.classList.remove("is-dragover");
+          });
+        });
+
+        control.addEventListener("drop", (event) => {
+          control.classList.remove("is-dragover");
+          if (fileInput.disabled) {
+            return;
+          }
+          event.preventDefault();
+          const file = event.dataTransfer?.files?.[0];
+          if (file) {
+            uploadSelectedFile(file);
+          }
+        });
       }
 
       function createImageMarkup(imagePath, className, altText = "Carbon Frontier update") {
@@ -2898,6 +3204,7 @@
         const card = document.createElement("div");
         const editorId = normalizedImage?.id || createId();
         const widthPercent = normalizedImage?.widthPercent || 100;
+        const fileInputId = `row-image-file-${editorId}`;
 
         card.className = "row-image-editor-card";
         card.dataset.rowImageEditor = editorId;
@@ -2906,9 +3213,29 @@
             <h4 data-row-image-editor-title>Picture</h4>
             <button class="danger-button" type="button" data-remove-row-image>Remove Picture</button>
           </div>
-          <label class="form-field">
-            <span>Image Path</span>
-            <input data-row-image-path type="text" placeholder="images/update-picture.png" />
+          <div class="image-upload-control" data-row-image-upload-control>
+            <input
+              class="image-upload-file-input"
+              id="${escapeHtml(fileInputId)}"
+              data-row-image-file
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+            />
+            <div class="image-upload-row">
+              <label class="subtle-button image-upload-button" for="${escapeHtml(fileInputId)}">
+                Upload Picture
+              </label>
+              <p class="image-upload-status" data-row-image-upload-status>
+                PNG, JPG, WebP, or GIF up to 4.5 MB. You can also drop a file here.
+              </p>
+            </div>
+            <div class="image-upload-preview" data-row-image-upload-preview hidden>
+              <img data-row-image-upload-preview-image alt="Row picture preview" />
+            </div>
+          </div>
+          <label class="form-field image-upload-path-field">
+            <span>Image URL / Existing Path</span>
+            <input data-row-image-path type="text" placeholder="Uploaded pictures fill this automatically" />
           </label>
           <label class="form-field row-image-width-field">
             <span>
@@ -2927,6 +3254,11 @@
           </label>
         `;
 
+        const uploadControl = card.querySelector("[data-row-image-upload-control]");
+        const fileInput = card.querySelector("[data-row-image-file]");
+        const uploadStatus = card.querySelector("[data-row-image-upload-status]");
+        const uploadPreview = card.querySelector("[data-row-image-upload-preview]");
+        const uploadPreviewImage = card.querySelector("[data-row-image-upload-preview-image]");
         const pathInput = card.querySelector("[data-row-image-path]");
         const widthInput = card.querySelector("[data-row-image-width]");
         const widthLabel = card.querySelector("[data-row-image-width-label]");
@@ -2938,6 +3270,49 @@
         captionToggle.checked = Boolean(normalizedImage?.hasCaption);
         captionInput.value = normalizedImage?.caption || "";
 
+        if (pathInput.value) {
+          setImageUploadPreview(
+            uploadPreview,
+            uploadPreviewImage,
+            pathInput.value,
+            "Row picture preview"
+          );
+          setImageUploadStatus(
+            uploadStatus,
+            pathInput.value.includes("/api/images/")
+              ? "Uploaded picture ready. Upload another file to replace it."
+              : "Existing image path loaded. Upload a file to replace it."
+          );
+        }
+
+        const uploadSelectedFile = (file) =>
+          uploadImageFile({
+            file,
+            pathInput,
+            statusElement: uploadStatus,
+            previewElement: uploadPreview,
+            previewImage: uploadPreviewImage,
+            fileInput,
+            altText: "Row picture preview",
+            restoreControls: syncRowBuilderOptions,
+          });
+
+        fileInput.addEventListener("change", () => {
+          const file = fileInput.files?.[0];
+          if (file) {
+            uploadSelectedFile(file);
+          }
+        });
+        bindImageDropTarget({ control: uploadControl, fileInput, uploadSelectedFile });
+
+        pathInput.addEventListener("input", () => {
+          setImageUploadPreview(
+            uploadPreview,
+            uploadPreviewImage,
+            pathInput.value,
+            "Row picture preview"
+          );
+        });
         widthInput.addEventListener("input", () => {
           widthLabel.textContent = `${getClampedRowImageWidth(widthInput.value)}%`;
         });
@@ -3012,11 +3387,38 @@
         const height = getClampedHeaderImageHeight(elements.updateHeaderImageHeightInput.value);
 
         elements.updateHeaderImageToggle.disabled = !hasUpdate;
+        elements.updateHeaderImageUploadControl.classList.toggle("is-disabled", !isEnabled);
+        elements.updateHeaderImageFileInput.disabled = !isEnabled;
         elements.updateHeaderImageField.classList.toggle("is-disabled", !isEnabled);
         elements.updateHeaderImageInput.disabled = !isEnabled;
         elements.updateHeaderImageHeightField.classList.toggle("is-disabled", !isEnabled);
         elements.updateHeaderImageHeightInput.disabled = !isEnabled;
         elements.updateHeaderImageHeightLabel.textContent = `Header Picture Height (${height} px)`;
+      }
+
+      function syncHeaderImageUploadPreview() {
+        const imagePath = elements.updateHeaderImageInput.value.trim();
+        setImageUploadPreview(
+          elements.updateHeaderImageUploadPreview,
+          elements.updateHeaderImageUploadPreviewImage,
+          imagePath,
+          "Header picture preview"
+        );
+
+        if (!imagePath) {
+          setImageUploadStatus(
+            elements.updateHeaderImageUploadStatus,
+            "PNG, JPG, WebP, or GIF up to 4.5 MB. You can also drop a file here."
+          );
+          return;
+        }
+
+        setImageUploadStatus(
+          elements.updateHeaderImageUploadStatus,
+          imagePath.includes("/api/images/")
+            ? "Uploaded header picture ready. Upload another file to replace it."
+            : "Existing image path loaded. Upload a file to replace it."
+        );
       }
 
       function syncSidebarMode() {
@@ -3131,6 +3533,7 @@
           elements.updateHeaderImageToggle.checked = false;
           elements.updateHeaderImageInput.value = "";
           elements.updateHeaderImageHeightInput.value = "320";
+          syncHeaderImageUploadPreview();
           setRowBuilderValues(null);
           syncSidebarMode();
           syncRowBuilderOptions();
@@ -3144,6 +3547,7 @@
         elements.updateHeaderImageToggle.checked = Boolean(update.hasHeaderImage);
         elements.updateHeaderImageInput.value = update.headerImagePath || "";
         elements.updateHeaderImageHeightInput.value = String(update.headerImageHeight || 320);
+        syncHeaderImageUploadPreview();
         syncSidebarMode();
         syncRowBuilderOptions();
       }
@@ -3523,6 +3927,38 @@
       elements.addRowImageButton.addEventListener("click", () => {
         addRowImageEditor();
         syncRowBuilderOptions();
+      });
+
+      const uploadSelectedHeaderImage = (file) =>
+        uploadImageFile({
+          file,
+          pathInput: elements.updateHeaderImageInput,
+          statusElement: elements.updateHeaderImageUploadStatus,
+          previewElement: elements.updateHeaderImageUploadPreview,
+          previewImage: elements.updateHeaderImageUploadPreviewImage,
+          fileInput: elements.updateHeaderImageFileInput,
+          altText: "Header picture preview",
+          restoreControls: syncRowBuilderOptions,
+        });
+
+      elements.updateHeaderImageFileInput.addEventListener("change", () => {
+        const file = elements.updateHeaderImageFileInput.files?.[0];
+        if (file) {
+          uploadSelectedHeaderImage(file);
+        }
+      });
+      bindImageDropTarget({
+        control: elements.updateHeaderImageUploadControl,
+        fileInput: elements.updateHeaderImageFileInput,
+        uploadSelectedFile: uploadSelectedHeaderImage,
+      });
+      elements.updateHeaderImageInput.addEventListener("input", () => {
+        setImageUploadPreview(
+          elements.updateHeaderImageUploadPreview,
+          elements.updateHeaderImageUploadPreviewImage,
+          elements.updateHeaderImageInput.value,
+          "Header picture preview"
+        );
       });
 
       elements.updateHeaderImageHeightInput.addEventListener("input", () => {
