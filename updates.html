@@ -537,9 +537,13 @@
       .public-update-heading {
         position: relative;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas:
+          "date version"
+          "title title";
         align-items: center;
-        gap: 14px;
+        column-gap: 24px;
+        row-gap: 18px;
         padding: 28px 34px 24px;
         background: var(--cf-update-frame);
         background-image: none;
@@ -580,17 +584,19 @@
       }
 
       .update-version {
-        grid-column: 2;
+        grid-area: title;
         justify-self: center;
+        width: 100%;
         margin: 0;
         font-size: clamp(2rem, 3.2vw, 3rem);
         font-weight: 700;
-        line-height: 1;
+        line-height: 1.08;
         text-align: center;
+        overflow-wrap: anywhere;
       }
 
       .update-date-label {
-        grid-column: 1;
+        grid-area: date;
         justify-self: start;
         color: var(--cf-text-muted);
         font-size: clamp(1.62rem, 2.7vw, 2.43rem);
@@ -600,7 +606,7 @@
       }
 
       .update-version-label {
-        grid-column: 3;
+        grid-area: version;
         justify-self: end;
         display: inline-flex;
         align-items: center;
@@ -613,6 +619,7 @@
         font-size: clamp(1.62rem, 2.7vw, 2.43rem);
         font-weight: 700;
         letter-spacing: 0.08em;
+        text-align: right;
         text-transform: uppercase;
       }
 
@@ -1389,20 +1396,32 @@
         }
 
         .public-update-heading {
-          grid-template-columns: 1fr;
-          justify-items: center;
-          text-align: center;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          grid-template-areas:
+            "date version"
+            "title title";
+          column-gap: 14px;
+          row-gap: 14px;
+          padding-inline: 22px;
         }
 
         .public-update-header-image {
           max-height: 70vh;
         }
 
-        .update-date-label,
-        .update-version,
+        .update-date-label {
+          justify-self: start;
+          text-align: left;
+        }
+
         .update-version-label {
-          grid-column: 1;
+          justify-self: end;
+          text-align: right;
+        }
+
+        .update-version {
           justify-self: center;
+          text-align: center;
         }
 
         .update-row {
