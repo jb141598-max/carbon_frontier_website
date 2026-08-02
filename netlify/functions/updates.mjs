@@ -36,6 +36,15 @@ function normalizeImageWidth(value) {
   return Math.min(100, Math.max(10, Math.round(numericValue)));
 }
 
+function normalizeCaptionTextSize(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return 18;
+  }
+
+  return Math.min(48, Math.max(12, Math.round(numericValue)));
+}
+
 function normalizeRowImage(image) {
   const imagePath = String(image?.imagePath || image?.path || "").trim();
   if (!imagePath) {
@@ -51,6 +60,7 @@ function normalizeRowImage(image) {
     widthPercent: normalizeImageWidth(image?.widthPercent),
     hasCaption,
     caption,
+    captionTextSize: normalizeCaptionTextSize(image?.captionTextSize),
   };
 }
 
@@ -73,6 +83,7 @@ function normalizeUpdateRow(row) {
           widthPercent: 100,
           hasCaption: row?.hasDescription === true && legacyCaption.length > 0,
           caption: legacyCaption,
+          captionTextSize: 18,
         },
       ];
     }

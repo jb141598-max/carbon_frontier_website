@@ -743,13 +743,15 @@
         display: grid;
         justify-items: center;
         gap: 11px;
-        width: var(--row-image-width, 100%);
+        width: 100%;
         max-width: 100%;
-        margin: 0 auto;
+        margin: 0;
       }
 
       .update-row-image {
-        width: 100%;
+        width: var(--row-image-width, 100%);
+        max-width: 100%;
+        margin: 0 auto;
         overflow: hidden;
         border-radius: 18px;
         background:
@@ -768,7 +770,7 @@
         width: 100%;
         margin: 0;
         color: var(--cf-text-muted);
-        font-size: 1rem;
+        font-size: var(--caption-text-size, 18px);
         line-height: 1.65;
         text-align: left;
         white-space: pre-wrap;
@@ -2019,6 +2021,15 @@
         return Math.min(100, Math.max(10, Math.round(numericValue)));
       }
 
+      function getClampedCaptionTextSize(value) {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+          return 18;
+        }
+
+        return Math.min(48, Math.max(12, Math.round(numericValue)));
+      }
+
       function normalizeRowImage(image) {
         const imagePath = String(image?.imagePath || image?.path || "").trim();
         if (!imagePath) {
@@ -2034,6 +2045,7 @@
           widthPercent: getClampedRowImageWidth(image?.widthPercent),
           hasCaption,
           caption,
+          captionTextSize: getClampedCaptionTextSize(image?.captionTextSize),
         };
       }
 
@@ -2056,6 +2068,7 @@
                 widthPercent: 100,
                 hasCaption: row?.hasDescription === true && legacyCaption.length > 0,
                 caption: legacyCaption,
+                captionTextSize: 18,
               },
             ];
           }
@@ -2314,7 +2327,9 @@
 
       function createPublicRowImageMarkup(image, index, rowTitle) {
         const captionMarkup = image.hasCaption
-          ? `<p class="update-row-caption">${escapeHtml(image.caption)}</p>`
+          ? `<p class="update-row-caption" style="--caption-text-size: ${escapeHtml(
+              image.captionTextSize
+            )}px">${escapeHtml(image.caption)}</p>`
           : "";
 
         return `
@@ -2984,12 +2999,18 @@
         const captionToggle = card.querySelector("[data-row-image-caption-toggle]");
         const captionField = card.querySelector("[data-row-image-caption-field]");
         const captionInput = card.querySelector("[data-row-image-caption-input]");
+        const captionSizeField = card.querySelector("[data-row-image-caption-size-field]");
+        const captionSizeInput = card.querySelector("[data-row-image-caption-size]");
         const isEnabled =
           updatesState.sidebarMode === "row" && Boolean(captionToggle?.checked);
 
         captionField?.classList.toggle("is-disabled", !isEnabled);
+        captionSizeField?.classList.toggle("is-disabled", !isEnabled);
         if (captionInput) {
           captionInput.disabled = !isEnabled;
+        }
+        if (captionSizeInput) {
+          captionSizeInput.disabled = !isEnabled;
         }
       }
 
@@ -3009,6 +3030,7 @@
         const card = document.createElement("div");
         const editorId = normalizedImage?.id || createId();
         const widthPercent = normalizedImage?.widthPercent || 100;
+        const captionTextSize = normalizedImage?.captionTextSize || 18;
 
         card.className = "row-image-editor-card";
         card.dataset.rowImageEditor = editorId;
@@ -3050,6 +3072,21 @@
             <span>Caption Text</span>
             <textarea data-row-image-caption-input placeholder="Write a caption for this picture." disabled></textarea>
           </label>
+          <label class="form-field row-image-caption-size-field is-disabled" data-row-image-caption-size-field>
+            <span>
+              <span>Caption Text Size</span>
+              <strong data-row-image-caption-size-label>${captionTextSize} px</strong>
+            </span>
+            <input
+              data-row-image-caption-size
+              type="number"
+              min="12"
+              max="48"
+              step="1"
+              value="${captionTextSize}"
+              disabled
+            />
+          </label>
         `;
 
         const pathInput = card.querySelector("[data-row-image-path]");
@@ -3062,6 +3099,8 @@
         const widthLabel = card.querySelector("[data-row-image-width-label]");
         const captionToggle = card.querySelector("[data-row-image-caption-toggle]");
         const captionInput = card.querySelector("[data-row-image-caption-input]");
+        const captionSizeInput = card.querySelector("[data-row-image-caption-size]");
+        const captionSizeLabel = card.querySelector("[data-row-image-caption-size-label]");
         const removeButton = card.querySelector("[data-remove-row-image]");
 
         pathInput.value = normalizedImage?.imagePath || "";
@@ -3072,6 +3111,8 @@
         );
         captionToggle.checked = Boolean(normalizedImage?.hasCaption);
         captionInput.value = normalizedImage?.caption || "";
+        captionSizeInput.value = String(captionTextSize);
+        captionSizeLabel.textContent = `${captionTextSize} px`;
 
         widthInput.addEventListener("input", () => {
           widthLabel.textContent = `${getClampedRowImageWidth(widthInput.value)}%`;
@@ -3097,6 +3138,13 @@
         });
         pathInput.addEventListener("change", () => {
           setImageUploadPreview(uploadPreview, uploadPreviewImage, pathInput.value);
+        });
+        captionSizeInput.addEventListener("input", () => {
+          captionSizeLabel.textContent = `${getClampedCaptionTextSize(captionSizeInput.value)} px`;
+        });
+        captionSizeInput.addEventListener("change", () => {
+          captionSizeInput.value = String(getClampedCaptionTextSize(captionSizeInput.value));
+          captionSizeLabel.textContent = `${captionSizeInput.value} px`;
         });
         captionToggle.addEventListener("change", () => syncRowImageCaptionControls(card));
         removeButton.addEventListener("click", () => {
@@ -3125,6 +3173,9 @@
           );
           const caption =
             card.querySelector("[data-row-image-caption-input]")?.value.trim() || "";
+          const captionTextSize = getClampedCaptionTextSize(
+            card.querySelector("[data-row-image-caption-size]")?.value
+          );
 
           if (!imagePath && !caption) {
             continue;
@@ -3144,6 +3195,7 @@
             widthPercent,
             hasCaption,
             caption,
+            captionTextSize,
           });
         }
 
@@ -3352,7 +3404,10 @@
         elements.rowImageEditorList
           .querySelectorAll("input, textarea, button")
           .forEach((control) => {
-            if (control.matches("[data-row-image-caption-input]")) {
+            if (
+              control.matches("[data-row-image-caption-input]") ||
+              control.matches("[data-row-image-caption-size]")
+            ) {
               return;
             }
             control.disabled = !isRowMode;
