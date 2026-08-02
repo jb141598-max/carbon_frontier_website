@@ -1025,6 +1025,66 @@
         min-height: 112px;
       }
 
+      .image-upload-controls {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .image-upload-controls input[type="file"] {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .image-upload-status {
+        min-height: 1.35em;
+        color: var(--cf-text-muted);
+        font-size: 0.84rem;
+        line-height: 1.35;
+      }
+
+      .image-upload-status.is-error {
+        color: #ffb7bd;
+      }
+
+      .image-upload-preview {
+        display: grid;
+        place-items: center;
+        width: min(100%, 340px);
+        min-height: 100px;
+        max-height: 220px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.28);
+      }
+
+      .image-upload-preview[hidden] {
+        display: none !important;
+      }
+
+      .image-upload-preview img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        max-height: 220px;
+        object-fit: contain;
+      }
+
+      .image-upload-button[disabled] {
+        cursor: not-allowed;
+        opacity: 0.46;
+        transform: none;
+      }
+
       .side-control {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1442,16 +1502,36 @@
                 <input id="update-header-image-toggle" name="hasUpdateHeaderImage" type="checkbox" />
                 <span>Header Picture</span>
               </label>
-              <label class="form-field is-disabled" id="update-header-image-field">
-                <span>Header Picture Path</span>
+              <div class="form-field is-disabled" id="update-header-image-field">
+                <span>Header Picture</span>
                 <input
                   id="update-header-image-input"
                   name="updateHeaderImage"
                   type="text"
-                  placeholder="images/update-header.png"
+                  placeholder="Upload an image or enter an existing image path"
                   disabled
                 />
-              </label>
+                <div class="image-upload-controls">
+                  <input
+                    id="update-header-image-file-input"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    disabled
+                  />
+                  <button
+                    class="subtle-button image-upload-button"
+                    id="upload-update-header-image-button"
+                    type="button"
+                    disabled
+                  >
+                    Upload Image
+                  </button>
+                  <span class="image-upload-status" id="update-header-image-upload-status"></span>
+                </div>
+                <div class="image-upload-preview" id="update-header-image-upload-preview" hidden>
+                  <img id="update-header-image-upload-preview-image" alt="Header picture preview" />
+                </div>
+              </div>
               <label class="form-field is-disabled" id="update-header-image-height-field">
                 <span id="update-header-image-height-label">Header Picture Height (320 px)</span>
                 <input
@@ -1548,6 +1628,14 @@
       const UPDATE_STORAGE_KEY = "carbon-frontier-update-rows-v1";
       const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
       const REMOTE_UPDATES_ENDPOINTS = ["/api/updates", "/.netlify/functions/updates"];
+      const IMAGE_UPLOAD_ENDPOINT = "/api/images";
+      const MAX_UPLOAD_IMAGE_BYTES = Math.floor(4.5 * 1024 * 1024);
+      const ALLOWED_UPLOAD_IMAGE_TYPES = new Set([
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/gif",
+      ]);
 
       const updatesState = {
         updates: [],
@@ -1606,6 +1694,11 @@
         updateHeaderImageToggle: document.getElementById("update-header-image-toggle"),
         updateHeaderImageField: document.getElementById("update-header-image-field"),
         updateHeaderImageInput: document.getElementById("update-header-image-input"),
+        updateHeaderImageFileInput: document.getElementById("update-header-image-file-input"),
+        uploadUpdateHeaderImageButton: document.getElementById("upload-update-header-image-button"),
+        updateHeaderImageUploadStatus: document.getElementById("update-header-image-upload-status"),
+        updateHeaderImageUploadPreview: document.getElementById("update-header-image-upload-preview"),
+        updateHeaderImageUploadPreviewImage: document.getElementById("update-header-image-upload-preview-image"),
         updateHeaderImageHeightField: document.getElementById("update-header-image-height-field"),
         updateHeaderImageHeightLabel: document.getElementById("update-header-image-height-label"),
         updateHeaderImageHeightInput: document.getElementById("update-header-image-height-input"),
@@ -2905,10 +2998,24 @@
             <h4 data-row-image-editor-title>Picture</h4>
             <button class="danger-button" type="button" data-remove-row-image>Remove Picture</button>
           </div>
-          <label class="form-field">
-            <span>Image Path</span>
-            <input data-row-image-path type="text" placeholder="images/update-picture.png" />
-          </label>
+          <div class="form-field">
+            <span>Image</span>
+            <input data-row-image-path type="text" placeholder="Upload an image or enter an existing image path" />
+            <div class="image-upload-controls">
+              <input
+                data-row-image-file-input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+              />
+              <button class="subtle-button image-upload-button" type="button" data-upload-row-image>
+                Upload Image
+              </button>
+              <span class="image-upload-status" data-row-image-upload-status></span>
+            </div>
+            <div class="image-upload-preview" data-row-image-upload-preview hidden>
+              <img data-row-image-upload-preview-image alt="Row picture preview" />
+            </div>
+          </div>
           <label class="form-field row-image-width-field">
             <span>
               <span>Image Width</span>
@@ -2927,6 +3034,11 @@
         `;
 
         const pathInput = card.querySelector("[data-row-image-path]");
+        const fileInput = card.querySelector("[data-row-image-file-input]");
+        const uploadButton = card.querySelector("[data-upload-row-image]");
+        const uploadStatus = card.querySelector("[data-row-image-upload-status]");
+        const uploadPreview = card.querySelector("[data-row-image-upload-preview]");
+        const uploadPreviewImage = card.querySelector("[data-row-image-upload-preview-image]");
         const widthInput = card.querySelector("[data-row-image-width]");
         const widthLabel = card.querySelector("[data-row-image-width-label]");
         const captionToggle = card.querySelector("[data-row-image-caption-toggle]");
@@ -2934,6 +3046,11 @@
         const removeButton = card.querySelector("[data-remove-row-image]");
 
         pathInput.value = normalizedImage?.imagePath || "";
+        setImageUploadPreview(
+          uploadPreview,
+          uploadPreviewImage,
+          normalizedImage?.imagePath || ""
+        );
         captionToggle.checked = Boolean(normalizedImage?.hasCaption);
         captionInput.value = normalizedImage?.caption || "";
 
@@ -2943,6 +3060,24 @@
         widthInput.addEventListener("change", () => {
           widthInput.value = String(getClampedRowImageWidth(widthInput.value));
           widthLabel.textContent = `${widthInput.value}%`;
+        });
+        uploadButton.addEventListener("click", () => {
+          fileInput.value = "";
+          fileInput.click();
+        });
+        fileInput.addEventListener("change", async () => {
+          const file = fileInput.files?.[0] || null;
+          await uploadSelectedImage({
+            file,
+            pathInput,
+            uploadButton,
+            statusElement: uploadStatus,
+            previewElement: uploadPreview,
+            previewImage: uploadPreviewImage,
+          });
+        });
+        pathInput.addEventListener("change", () => {
+          setImageUploadPreview(uploadPreview, uploadPreviewImage, pathInput.value);
         });
         captionToggle.addEventListener("change", () => syncRowImageCaptionControls(card));
         removeButton.addEventListener("click", () => {
@@ -2996,6 +3131,120 @@
         return { ok: true, images };
       }
 
+      function setImageUploadStatus(statusElement, message, isError = false) {
+        if (!statusElement) {
+          return;
+        }
+
+        statusElement.textContent = message;
+        statusElement.classList.toggle("is-error", isError);
+      }
+
+      function setImageUploadPreview(previewElement, previewImage, imagePath) {
+        if (!previewElement || !previewImage) {
+          return;
+        }
+
+        const safePath = String(imagePath || "").trim();
+        if (!safePath) {
+          previewElement.hidden = true;
+          previewImage.removeAttribute("src");
+          return;
+        }
+
+        previewImage.src = safePath;
+        previewElement.hidden = false;
+      }
+
+      function validateImageUploadFile(file) {
+        if (!file) {
+          return "Choose an image to upload.";
+        }
+
+        if (!ALLOWED_UPLOAD_IMAGE_TYPES.has(String(file.type || "").toLowerCase())) {
+          return "Only PNG, JPG, WebP, and GIF images can be uploaded.";
+        }
+
+        if (!Number.isFinite(file.size) || file.size <= 0) {
+          return "The selected image is empty.";
+        }
+
+        if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+          return "The image is too large. Maximum size is 4.5 MB.";
+        }
+
+        return "";
+      }
+
+      async function uploadSelectedImage({
+        file,
+        pathInput,
+        uploadButton,
+        statusElement,
+        previewElement,
+        previewImage,
+      }) {
+        const validationError = validateImageUploadFile(file);
+        if (validationError) {
+          setImageUploadStatus(statusElement, validationError, true);
+          return false;
+        }
+
+        if (!isGoogleIdTokenUsable(updatesState.authIdToken)) {
+          setImageUploadStatus(
+            statusElement,
+            "Your Google admin session expired. Sign in again before uploading.",
+            true
+          );
+          return false;
+        }
+
+        const originalButtonText = uploadButton?.textContent || "Upload Image";
+        if (uploadButton) {
+          uploadButton.disabled = true;
+          uploadButton.textContent = "Uploading...";
+        }
+        setImageUploadStatus(statusElement, `Uploading ${file.name}...`);
+
+        try {
+          const formData = new FormData();
+          formData.append("file", file, file.name);
+
+          const response = await fetch(IMAGE_UPLOAD_ENDPOINT, {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${updatesState.authIdToken}`,
+            },
+            body: formData,
+          });
+
+          const payload = await response.json().catch(() => null);
+          if (!response.ok || !payload?.url) {
+            throw new Error(
+              payload?.error || `Image upload failed (${response.status}).`
+            );
+          }
+
+          pathInput.value = String(payload.url);
+          setImageUploadPreview(previewElement, previewImage, payload.url);
+          setImageUploadStatus(statusElement, `Uploaded ${payload.originalName || file.name}.`);
+          setFeedback("Image uploaded. Save the update or row to publish it.");
+          return true;
+        } catch (error) {
+          setImageUploadStatus(
+            statusElement,
+            error instanceof Error ? error.message : "Image upload failed.",
+            true
+          );
+          return false;
+        } finally {
+          if (uploadButton) {
+            uploadButton.disabled = false;
+            uploadButton.textContent = originalButtonText;
+          }
+        }
+      }
+
       function getClampedHeaderImageHeight(value) {
         const numericValue = Number(value);
         if (!Number.isFinite(numericValue)) {
@@ -3013,6 +3262,8 @@
         elements.updateHeaderImageToggle.disabled = !hasUpdate;
         elements.updateHeaderImageField.classList.toggle("is-disabled", !isEnabled);
         elements.updateHeaderImageInput.disabled = !isEnabled;
+        elements.updateHeaderImageFileInput.disabled = !isEnabled;
+        elements.uploadUpdateHeaderImageButton.disabled = !isEnabled;
         elements.updateHeaderImageHeightField.classList.toggle("is-disabled", !isEnabled);
         elements.updateHeaderImageHeightInput.disabled = !isEnabled;
         elements.updateHeaderImageHeightLabel.textContent = `Header Picture Height (${height} px)`;
@@ -3129,6 +3380,13 @@
           elements.updateHeaderInput.value = "";
           elements.updateHeaderImageToggle.checked = false;
           elements.updateHeaderImageInput.value = "";
+          elements.updateHeaderImageFileInput.value = "";
+          setImageUploadStatus(elements.updateHeaderImageUploadStatus, "");
+          setImageUploadPreview(
+            elements.updateHeaderImageUploadPreview,
+            elements.updateHeaderImageUploadPreviewImage,
+            ""
+          );
           elements.updateHeaderImageHeightInput.value = "320";
           setRowBuilderValues(null);
           syncSidebarMode();
@@ -3142,6 +3400,13 @@
         elements.updateHeaderInput.value = update.header || "";
         elements.updateHeaderImageToggle.checked = Boolean(update.hasHeaderImage);
         elements.updateHeaderImageInput.value = update.headerImagePath || "";
+        elements.updateHeaderImageFileInput.value = "";
+        setImageUploadStatus(elements.updateHeaderImageUploadStatus, "");
+        setImageUploadPreview(
+          elements.updateHeaderImageUploadPreview,
+          elements.updateHeaderImageUploadPreviewImage,
+          update.headerImagePath || ""
+        );
         elements.updateHeaderImageHeightInput.value = String(update.headerImageHeight || 320);
         syncSidebarMode();
         syncRowBuilderOptions();
@@ -3522,6 +3787,36 @@
       elements.addRowImageButton.addEventListener("click", () => {
         addRowImageEditor();
         syncRowBuilderOptions();
+      });
+
+      elements.uploadUpdateHeaderImageButton.addEventListener("click", () => {
+        elements.updateHeaderImageFileInput.value = "";
+        elements.updateHeaderImageFileInput.click();
+      });
+
+      elements.updateHeaderImageFileInput.addEventListener("change", async () => {
+        const file = elements.updateHeaderImageFileInput.files?.[0] || null;
+        const didUpload = await uploadSelectedImage({
+          file,
+          pathInput: elements.updateHeaderImageInput,
+          uploadButton: elements.uploadUpdateHeaderImageButton,
+          statusElement: elements.updateHeaderImageUploadStatus,
+          previewElement: elements.updateHeaderImageUploadPreview,
+          previewImage: elements.updateHeaderImageUploadPreviewImage,
+        });
+
+        if (didUpload) {
+          elements.updateHeaderImageToggle.checked = true;
+          syncUpdateHeaderImageControls();
+        }
+      });
+
+      elements.updateHeaderImageInput.addEventListener("change", () => {
+        setImageUploadPreview(
+          elements.updateHeaderImageUploadPreview,
+          elements.updateHeaderImageUploadPreviewImage,
+          elements.updateHeaderImageInput.value
+        );
       });
 
       elements.updateHeaderImageHeightInput.addEventListener("input", () => {
