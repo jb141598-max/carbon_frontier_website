@@ -1,14 +1,9 @@
 import { getStore } from "@netlify/blobs";
 import { OAuth2Client } from "google-auth-library";
 
-const ADMIN_ACCOUNTS = new Set([
-  "jb141598@gmail.com",
-  "jb14296@gmail.com",
-]);
-
+const ADMIN_ACCOUNTS = new Set(["jb141598@gmail.com", "jb14296@gmail.com"]);
 const DEFAULT_GOOGLE_CLIENT_ID =
   "609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com";
-
 const UPDATES_STORE_NAME = "carbon-frontier-updates";
 const UPDATES_STORE_KEY = "shared-state";
 
@@ -32,36 +27,71 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeImageWidth(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return 100;
+  }
+
+  return Math.min(100, Math.max(10, Math.round(numericValue)));
+}
+
+function normalizeRowImage(image) {
+  const imagePath = String(image?.imagePath || image?.path || "").trim();
+  if (!imagePath) {
+    return null;
+  }
+
+  const caption = String(image?.caption || "").trim();
+  const hasCaption = image?.hasCaption === true && caption.length > 0;
+
+  return {
+    id: String(image?.id || "").trim() || crypto.randomUUID(),
+    imagePath,
+    widthPercent: normalizeImageWidth(image?.widthPercent),
+    hasCaption,
+    caption,
+  };
+}
+
 function normalizeUpdateRow(row) {
   const header = String(row?.header || "").trim();
-  const description = String(row?.description || "").trim();
-  const imagePath = String(row?.imagePath || "").trim();
-
   const hasHeader = row?.hasHeader === true && header.length > 0;
-  const hasDescription =
-    row?.hasDescription === true && description.length > 0;
-  const hasImage = row?.hasImage !== false && imagePath.length > 0;
-  const imageSide = row?.imageSide === "right" ? "right" : "left";
+  let images = Array.isArray(row?.images)
+    ? row.images.map(normalizeRowImage).filter(Boolean)
+    : [];
+
+  // Migrate rows created before rows supported multiple pictures.
+  if (images.length === 0) {
+    const legacyImagePath = String(row?.imagePath || "").trim();
+    if (legacyImagePath) {
+      const legacyCaption = String(row?.description || "").trim();
+      images = [
+        {
+          id: crypto.randomUUID(),
+          imagePath: legacyImagePath,
+          widthPercent: 100,
+          hasCaption: row?.hasDescription === true && legacyCaption.length > 0,
+          caption: legacyCaption,
+        },
+      ];
+    }
+  }
 
   return {
     id: String(row?.id || "").trim() || crypto.randomUUID(),
     hasHeader,
     header,
-    hasDescription,
-    description,
-    hasImage,
-    imagePath,
-    imageSide,
+    images,
   };
 }
 
 function rowHasContent(row) {
-  return row.hasHeader || row.hasDescription || row.hasImage;
+  return row.hasHeader || row.images.length > 0;
 }
 
-function getClampedHeaderImageHeight(value) {
+function normalizeHeaderImageHeight(value) {
   const numericValue = Number(value);
-
   if (!Number.isFinite(numericValue)) {
     return 320;
   }
@@ -72,19 +102,12 @@ function getClampedHeaderImageHeight(value) {
 function normalizeUpdate(update, index = 0) {
   const version = String(update?.version || "").trim();
   const date = String(update?.date || "").trim();
-
   const header = String(update?.header || "").trim();
   const hasHeader = update?.hasHeader === true && header.length > 0;
-
   const headerImagePath = String(update?.headerImagePath || "").trim();
-  const hasHeaderImage =
-    update?.hasHeaderImage === true && headerImagePath.length > 0;
-  const headerImageHeight = getClampedHeaderImageHeight(
-    update?.headerImageHeight
-  );
-
+  const hasHeaderImage = update?.hasHeaderImage === true && headerImagePath.length > 0;
+  const headerImageHeight = normalizeHeaderImageHeight(update?.headerImageHeight);
   const isArchived = update?.isArchived === true;
-
   const rows = Array.isArray(update?.rows)
     ? update.rows.map(normalizeUpdateRow).filter(rowHasContent)
     : [];
@@ -93,14 +116,11 @@ function normalizeUpdate(update, index = 0) {
     id: String(update?.id || "").trim() || crypto.randomUUID(),
     version: version || `Update ${index + 1}`,
     date,
-
     hasHeader,
     header,
-
     hasHeaderImage,
     headerImagePath,
     headerImageHeight,
-
     isArchived,
     rows,
   };
@@ -126,14 +146,11 @@ function normalizeState(payload) {
             id: crypto.randomUUID(),
             version: "Update 1",
             date: "",
-
             hasHeader: false,
             header: "",
-
             hasHeaderImage: false,
             headerImagePath: "",
             headerImageHeight: 320,
-
             isArchived: false,
             rows: legacyRows,
           },
@@ -144,15 +161,10 @@ function normalizeState(payload) {
 
 async function verifyAdminRequest(request) {
   const authHeader = request.headers.get("authorization") || "";
-  const idToken = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7).trim()
-    : "";
+  const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
 
   if (!idToken) {
-    return {
-      ok: false,
-      message: "Missing Google ID token.",
-    };
+    return { ok: false, message: "Missing Google ID token." };
   }
 
   const audience =
@@ -165,47 +177,28 @@ async function verifyAdminRequest(request) {
       idToken,
       audience,
     });
-
     const payload = ticket.getPayload();
     const email = normalizeEmail(payload?.email);
 
     if (!email || payload?.email_verified === false) {
-      return {
-        ok: false,
-        message: "Google account could not be verified.",
-      };
+      return { ok: false, message: "Google account could not be verified." };
     }
 
     if (!ADMIN_ACCOUNTS.has(email)) {
-      return {
-        ok: false,
-        message: "This email is not allowed to edit updates.",
-      };
+      return { ok: false, message: "This email is not allowed to edit updates." };
     }
 
-    return {
-      ok: true,
-      email,
-    };
+    return { ok: true, email };
   } catch (error) {
-    return {
-      ok: false,
-      message: "Google sign-in token is invalid or expired.",
-    };
+    return { ok: false, message: "Google sign-in token is invalid or expired." };
   }
 }
 
 export default async function handler(request) {
-  const store = getStore({
-    name: UPDATES_STORE_NAME,
-    consistency: "strong",
-  });
+  const store = getStore({ name: UPDATES_STORE_NAME, consistency: "strong" });
 
   if (request.method === "GET") {
-    const storedState = await store.get(UPDATES_STORE_KEY, {
-      type: "json",
-    });
-
+    const storedState = await store.get(UPDATES_STORE_KEY, { type: "json" });
     const normalizedState = normalizeState(storedState);
 
     return json({
@@ -218,36 +211,19 @@ export default async function handler(request) {
   }
 
   if (request.method !== "POST") {
-    return json(
-      {
-        error: "Method not allowed.",
-      },
-      405
-    );
+    return json({ error: "Method not allowed." }, 405);
   }
 
   const auth = await verifyAdminRequest(request);
-
   if (!auth.ok) {
-    return json(
-      {
-        error: auth.message,
-      },
-      401
-    );
+    return json({ error: auth.message }, 401);
   }
 
   let body;
-
   try {
     body = await request.json();
   } catch (error) {
-    return json(
-      {
-        error: "Request body must be valid JSON.",
-      },
-      400
-    );
+    return json({ error: "Request body must be valid JSON." }, 400);
   }
 
   const nextState = {

@@ -702,34 +702,14 @@
       .update-row {
         position: relative;
         display: grid;
-        gap: 18px;
+        gap: 22px;
         min-height: 0;
         padding: 28px;
-        align-items: stretch;
         border: 0;
         background: var(--cf-update-frame);
         background-image: none;
         box-shadow: none;
         backdrop-filter: none;
-      }
-
-      .update-row.has-image.has-text {
-        display: block;
-        height: clamp(220px, 28vw, 520px);
-      }
-
-      .update-row.has-image.no-text {
-        grid-template-columns: 1fr;
-        justify-items: center;
-      }
-
-      .update-row.has-image.no-text .update-row-content {
-        justify-items: center;
-        text-align: center;
-      }
-
-      .update-row.has-image.no-text .update-row-title {
-        text-align: center;
       }
 
       .update-row + .update-row {
@@ -747,34 +727,6 @@
         background: rgba(255, 255, 255, 0.78);
       }
 
-      .update-row-content {
-        display: grid;
-        gap: 10px;
-        align-content: start;
-        justify-items: start;
-        width: 100%;
-      }
-
-      .update-row.has-image.has-text .update-row-content {
-        display: block;
-        width: 100%;
-        height: 100%;
-        min-width: 0;
-        min-height: 0;
-        padding: 0;
-        overflow-y: auto;
-      }
-
-      .update-row.has-image.has-text .update-row-content::after {
-        content: "";
-        display: block;
-        clear: both;
-      }
-
-      .update-row.has-image.has-text .update-row-title {
-        margin-bottom: 10px;
-      }
-
       .update-row-title {
         margin: 0;
         font-size: 1.8rem;
@@ -782,17 +734,23 @@
         line-height: 1.08;
       }
 
-      .update-row-description {
-        margin: 0;
-        color: var(--cf-text-muted);
-        font-size: 1rem;
-        line-height: 1.65;
+      .update-row-media-list {
+        display: grid;
+        gap: 26px;
+        width: 100%;
+      }
+
+      .update-row-media {
+        display: grid;
+        justify-items: center;
+        gap: 11px;
+        width: var(--row-image-width, 100%);
+        max-width: 100%;
+        margin: 0 auto;
       }
 
       .update-row-image {
-        min-width: 0;
-        min-height: 0;
-        aspect-ratio: var(--image-aspect-ratio, 16 / 9);
+        width: 100%;
         overflow: hidden;
         border-radius: 18px;
         background:
@@ -800,32 +758,21 @@
           #090909;
       }
 
-      .update-row.has-image.has-text .update-row-image {
-        float: left;
-        width: var(--row-image-width, min(48%, 560px));
-        height: var(--row-image-height, auto);
-        max-width: 48%;
-        max-height: 100%;
-        margin: 0 18px 12px 0;
-      }
-
-      .update-row.has-image.has-text.image-right .update-row-image {
-        float: right;
-        margin: 0 0 12px 18px;
-      }
-
-      .update-row.has-image.no-text .update-row-image {
-        width: auto;
-        height: clamp(220px, 24vw, 430px);
-        max-width: min(100%, 720px);
-        justify-self: center;
-      }
-
-      .update-row img {
+      .update-row-image img {
         display: block;
         width: 100%;
-        height: 100%;
+        height: auto;
         object-fit: contain;
+      }
+
+      .update-row-caption {
+        width: 100%;
+        margin: 0;
+        color: var(--cf-text-muted);
+        font-size: 1rem;
+        line-height: 1.65;
+        text-align: left;
+        white-space: pre-wrap;
       }
 
       .admin-row-image img {
@@ -984,10 +931,99 @@
         font-weight: 700;
       }
 
-      .field-option input {
-        width: 18px;
-        height: 18px;
-        accent-color: var(--cf-red);
+      .field-option input[type="checkbox"] {
+        appearance: none;
+        display: grid;
+        place-content: center;
+        width: 20px;
+        height: 20px;
+        flex: 0 0 auto;
+        margin: 0;
+        border: 2px solid rgba(255, 255, 255, 0.42);
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.03);
+        cursor: pointer;
+        transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+      }
+
+      .field-option input[type="checkbox"]::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--cf-white);
+        transform: scale(0);
+        transition: transform 140ms ease;
+      }
+
+      .field-option input[type="checkbox"]:checked {
+        border-color: var(--cf-red);
+        background: var(--cf-red);
+        box-shadow: 0 0 0 4px rgba(223, 37, 49, 0.14);
+      }
+
+      .field-option input[type="checkbox"]:checked::before {
+        transform: scale(1);
+      }
+
+      .field-option input[type="checkbox"]:focus-visible {
+        outline: 2px solid rgba(255, 255, 255, 0.82);
+        outline-offset: 3px;
+      }
+
+      .row-images-editor {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .row-images-editor-header,
+      .row-image-editor-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .row-images-editor-header h3,
+      .row-image-editor-card-header h4 {
+        margin: 0;
+      }
+
+      .row-images-editor-header h3 {
+        font-size: 1.18rem;
+      }
+
+      .row-image-editor-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .row-image-editor-card {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .row-image-editor-card-header h4 {
+        font-size: 1rem;
+      }
+
+      .row-image-width-field span {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .row-image-caption-field textarea {
+        min-height: 112px;
       }
 
       .side-control {
@@ -1251,40 +1287,17 @@
         }
 
         .update-row {
-          grid-template-columns: 1fr;
           padding: 22px;
         }
 
-        .update-row.has-image.has-text {
-          display: grid;
-          height: auto;
-          min-height: 0;
-          grid-template-columns: 1fr;
+        .update-row-media {
+          width: min(100%, var(--row-image-width, 100%));
         }
 
-        .update-row.has-image.has-text .update-row-content {
-          display: grid;
-          gap: 10px;
-          height: auto;
-          min-height: 0;
-          padding: 0;
-          overflow: visible;
-        }
-
-        .update-row.has-image.has-text .update-row-content::after {
-          display: none;
-        }
-
-        .update-row.has-image.has-text .update-row-image,
-        .update-row.has-image.has-text.image-right .update-row-image,
-        .update-row.has-image.no-text .update-row-image {
-          float: none;
-          width: auto;
-          height: 260px;
-          max-width: 100%;
-          margin: 0;
-          justify-self: center;
-          align-self: auto;
+        .row-images-editor-header,
+        .row-image-editor-card-header {
+          align-items: flex-start;
+          flex-direction: column;
         }
 
         .admin-header,
@@ -1473,41 +1486,22 @@
                 <input id="header-input" name="header" type="text" placeholder="Major Update" disabled />
               </label>
 
-              <label class="field-option" for="description-toggle">
-                <input id="description-toggle" name="hasDescription" type="checkbox" />
-                <span>Description</span>
-              </label>
-              <label class="form-field is-disabled" id="description-field">
-                <span>Description Text</span>
-                <textarea
-                  id="description-input"
-                  name="description"
-                  placeholder="Describe what changed in this update."
-                  disabled
-                ></textarea>
-              </label>
-
-              <label class="field-option" for="image-toggle">
-                <input id="image-toggle" name="hasImage" type="checkbox" checked />
-                <span>Image</span>
-              </label>
-              <label class="form-field" id="image-field">
-                <span>Image Path</span>
-                <input id="image-input" name="image" type="text" placeholder="images/picture2.png" />
-              </label>
-              <div class="form-field" id="image-side-field">
-                <span>Picture Side</span>
-                <div class="side-control" id="image-side-control">
-                  <input id="image-side-left" name="imageSide" type="radio" value="left" checked />
-                  <label for="image-side-left">Left</label>
-                  <input id="image-side-right" name="imageSide" type="radio" value="right" />
-                  <label for="image-side-right">Right</label>
+              <section class="row-images-editor" aria-labelledby="row-images-heading">
+                <div class="row-images-editor-header">
+                  <div>
+                    <p class="meta-tag">Pictures</p>
+                    <h3 id="row-images-heading">Row pictures</h3>
+                  </div>
+                  <button class="subtle-button" id="add-row-image-button" type="button">
+                    + Add Picture
+                  </button>
                 </div>
-              </div>
-              <p class="panel-note">
-                Place the file in the <code>images/</code> folder, then type the relative path here.
-                Common image extensions are auto-tried if you leave the extension off.
-              </p>
+                <div class="row-image-editor-list" id="row-image-editor-list"></div>
+                <p class="panel-note">
+                  Add as many horizontal pictures as needed. Each picture is centered and uses its own
+                  width percentage. Captions are optional and appear directly below their picture.
+                </p>
+              </section>
             </div>
 
             <div class="form-actions" id="update-form-actions">
@@ -1620,15 +1614,8 @@
         headerToggle: document.getElementById("header-toggle"),
         headerField: document.getElementById("header-field"),
         headerInput: document.getElementById("header-input"),
-        descriptionToggle: document.getElementById("description-toggle"),
-        descriptionField: document.getElementById("description-field"),
-        descriptionInput: document.getElementById("description-input"),
-        imageToggle: document.getElementById("image-toggle"),
-        imageField: document.getElementById("image-field"),
-        imageInput: document.getElementById("image-input"),
-        imageSideField: document.getElementById("image-side-field"),
-        imageSideControl: document.getElementById("image-side-control"),
-        imageSideInputs: Array.from(document.querySelectorAll('input[name="imageSide"]')),
+        rowImageEditorList: document.getElementById("row-image-editor-list"),
+        addRowImageButton: document.getElementById("add-row-image-button"),
         updateFormActions: document.getElementById("update-form-actions"),
         openRowBuilderButton: document.getElementById("open-row-builder-button"),
         rowFormActions: document.getElementById("row-form-actions"),
@@ -1931,29 +1918,67 @@
         return `update-row-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       }
 
+      function getClampedRowImageWidth(value) {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue)) {
+          return 100;
+        }
+
+        return Math.min(100, Math.max(10, Math.round(numericValue)));
+      }
+
+      function normalizeRowImage(image) {
+        const imagePath = String(image?.imagePath || image?.path || "").trim();
+        if (!imagePath) {
+          return null;
+        }
+
+        const caption = String(image?.caption || "").trim();
+        const hasCaption = image?.hasCaption === true && caption.length > 0;
+
+        return {
+          id: String(image?.id || createId()),
+          imagePath,
+          widthPercent: getClampedRowImageWidth(image?.widthPercent),
+          hasCaption,
+          caption,
+        };
+      }
+
       function normalizeUpdateRow(row) {
         const header = String(row?.header || "").trim();
-        const description = String(row?.description || "").trim();
-        const imagePath = String(row?.imagePath || "").trim();
         const hasHeader = row?.hasHeader === true && header.length > 0;
-        const hasDescription = row?.hasDescription === true && description.length > 0;
-        const hasImage = row?.hasImage !== false && imagePath.length > 0;
-        const imageSide = row?.imageSide === "right" ? "right" : "left";
+        let images = Array.isArray(row?.images)
+          ? row.images.map(normalizeRowImage).filter(Boolean)
+          : [];
+
+        // Migrate rows made before the multi-picture editor existed.
+        if (images.length === 0) {
+          const legacyImagePath = String(row?.imagePath || "").trim();
+          if (legacyImagePath) {
+            const legacyCaption = String(row?.description || "").trim();
+            images = [
+              {
+                id: createId(),
+                imagePath: legacyImagePath,
+                widthPercent: 100,
+                hasCaption: row?.hasDescription === true && legacyCaption.length > 0,
+                caption: legacyCaption,
+              },
+            ];
+          }
+        }
 
         return {
           id: String(row?.id || createId()),
           hasHeader,
           header,
-          hasDescription,
-          description,
-          hasImage,
-          imagePath,
-          imageSide,
+          images,
         };
       }
 
       function rowHasContent(row) {
-        return row.hasHeader || row.hasDescription || row.hasImage;
+        return row.hasHeader || row.images.length > 0;
       }
 
       function normalizeUpdate(update, index = 0) {
@@ -2170,40 +2195,43 @@
         return [normalizedPath, ...extensions.map((extension) => `${normalizedPath}${extension}`)];
       }
 
-      function createImageMarkup(row, className) {
+      function createImageMarkup(imagePath, className, altText = "Carbon Frontier update") {
         return `<div class="${className}"><img data-image-path="${escapeHtml(
-          normalizeImagePath(row.imagePath)
-        )}" alt="Carbon Frontier update" loading="lazy" /></div>`;
+          normalizeImagePath(imagePath)
+        )}" alt="${escapeHtml(altText)}" loading="lazy" /></div>`;
+      }
+
+      function createPublicRowImageMarkup(image, index, rowTitle) {
+        const captionMarkup = image.hasCaption
+          ? `<p class="update-row-caption">${escapeHtml(image.caption)}</p>`
+          : "";
+
+        return `
+          <figure class="update-row-media" style="--row-image-width: ${escapeHtml(
+            image.widthPercent
+          )}%">
+            ${createImageMarkup(
+              image.imagePath,
+              "update-row-image",
+              `${rowTitle || "Update row"} picture ${index + 1}`
+            )}
+            ${captionMarkup}
+          </figure>
+        `;
       }
 
       function createPublicRowMarkup(row) {
-        const hasText = row.hasHeader || row.hasDescription;
-        const imageSide = row.imageSide === "right" ? "right" : "left";
-        const rowClasses = [
-          "update-row",
-          hasText ? "has-text" : "no-text",
-          row.hasHeader ? "has-header" : "no-header",
-          row.hasDescription ? "has-description" : "no-description",
-          row.hasImage ? "has-image" : "",
-          row.hasImage ? `image-${imageSide}` : "",
-        ]
-          .filter(Boolean)
-          .join(" ");
-        const imageMarkup = row.hasImage ? createImageMarkup(row, "update-row-image") : "";
-        const textMarkup = hasText
-          ? `<div class="update-row-content">
-              ${imageMarkup}
-              ${row.hasHeader ? `<h2 class="update-row-title">${escapeHtml(row.header)}</h2>` : ""}
-              ${
-                row.hasDescription
-                  ? `<p class="update-row-description">${escapeHtml(row.description)}</p>`
-                  : ""
-              }
-            </div>`
+        const rowTitle = row.hasHeader ? row.header : "Update row";
+        const headerMarkup = row.hasHeader
+          ? `<h2 class="update-row-title">${escapeHtml(row.header)}</h2>`
           : "";
-        const rowContent = hasText ? textMarkup : imageMarkup;
+        const imagesMarkup = row.images.length
+          ? `<div class="update-row-media-list">${row.images
+              .map((image, index) => createPublicRowImageMarkup(image, index, rowTitle))
+              .join("")}</div>`
+          : "";
 
-        return `<article class="${rowClasses}">${rowContent}</article>`;
+        return `<article class="update-row">${headerMarkup}${imagesMarkup}</article>`;
       }
 
       function createPublicUpdateMarkup(update) {
@@ -2217,9 +2245,7 @@
         const rowsMarkup = update.rows.length
           ? update.rows.map(createPublicRowMarkup).join("")
           : `<article class="update-row">
-              <div class="update-row-content">
-                <p class="update-row-description">No rows have been added to this update yet.</p>
-              </div>
+              <p class="update-row-caption">No rows have been added to this update yet.</p>
             </article>`;
 
         return `
@@ -2248,8 +2274,9 @@
       }
 
       function createAdminImageMarkup(row) {
-        if (row.hasImage) {
-          return createImageMarkup(row, "admin-row-image");
+        const firstImage = row.images[0];
+        if (firstImage) {
+          return createImageMarkup(firstImage.imagePath, "admin-row-image", "Row picture preview");
         }
 
         return '<div class="admin-row-image is-empty">No image</div>';
@@ -2395,7 +2422,8 @@
               .map((row, index) => {
                 const isDeleteArmed = updatesState.pendingDeleteId === row.id;
                 const isEditing = updatesState.editingRowId === row.id;
-                const imageSide = row.imageSide === "right" ? "right" : "left";
+                const captionCount = row.images.filter((image) => image.hasCaption).length;
+                const firstImagePath = row.images[0]?.imagePath || "";
 
                 return `
                   <article class="admin-update-row ${isEditing ? "is-editing" : ""}" data-row-id="${escapeHtml(row.id)}" data-update-id="${escapeHtml(activeUpdate.id)}">
@@ -2404,13 +2432,13 @@
                       <p class="admin-row-title">${index + 1}. ${
                         row.hasHeader ? escapeHtml(row.header) : "No header"
                       }</p>
-                      <p class="admin-row-description">${
-                        row.hasDescription ? escapeHtml(row.description) : "No description"
-                      }</p>
+                      <p class="admin-row-description">${escapeHtml(
+                        `${row.images.length} picture${row.images.length === 1 ? "" : "s"} - ${captionCount} caption${captionCount === 1 ? "" : "s"}`
+                      )}</p>
                       <p class="admin-row-path">${
-                        row.hasImage
-                          ? `${escapeHtml(imageSide)} image: ${escapeHtml(normalizeImagePath(row.imagePath))}`
-                          : "No image"
+                        firstImagePath
+                          ? `First picture: ${escapeHtml(normalizeImagePath(firstImagePath))}`
+                          : "No pictures"
                       }</p>
                       <div class="admin-row-actions">
                         <button class="subtle-button drag-button row-drag-button" type="button" data-row-drag-handle="${escapeHtml(row.id)}">Drag</button>
@@ -2425,72 +2453,6 @@
               })
               .join("")
           : `<div class="empty-state"><h2>No rows yet.</h2><p>Add rows in the editor.</p></div>`;
-      }
-
-      function sizeWrappingRowImage(image) {
-        const imageFrame = image.closest(".update-row-image");
-        const rowContent = imageFrame?.closest(".update-row-content");
-        const row = imageFrame?.closest(".update-row.has-image.has-text");
-
-        if (!imageFrame || !rowContent || !row) {
-          return;
-        }
-
-        if (window.matchMedia("(max-width: 720px)").matches) {
-          imageFrame.style.removeProperty("--row-image-width");
-          imageFrame.style.removeProperty("--row-image-height");
-          return;
-        }
-
-        const naturalWidth = Number(image.naturalWidth);
-        const naturalHeight = Number(image.naturalHeight);
-        const contentWidth = Number(rowContent.clientWidth);
-        const contentHeight = Number(rowContent.clientHeight);
-
-        if (
-          naturalWidth <= 0 ||
-          naturalHeight <= 0 ||
-          contentWidth <= 0 ||
-          contentHeight <= 0
-        ) {
-          return;
-        }
-
-        const aspectRatio = naturalWidth / naturalHeight;
-        const minimumTextWidth = contentWidth >= 760 ? 300 : 220;
-        const widthAllowedByText = Math.max(120, contentWidth - minimumTextWidth - 18);
-        const maximumWidth = Math.max(
-          120,
-          Math.min(contentWidth * 0.48, 560, widthAllowedByText)
-        );
-        const maximumHeight = contentHeight;
-
-        let renderedWidth = maximumWidth;
-        let renderedHeight = renderedWidth / aspectRatio;
-
-        if (renderedHeight > maximumHeight) {
-          renderedHeight = maximumHeight;
-          renderedWidth = renderedHeight * aspectRatio;
-        }
-
-        imageFrame.style.setProperty(
-          "--row-image-width",
-          `${Math.max(1, Math.floor(renderedWidth))}px`
-        );
-        imageFrame.style.setProperty(
-          "--row-image-height",
-          `${Math.max(1, Math.floor(renderedHeight))}px`
-        );
-      }
-
-      function refreshWrappingRowImages() {
-        document
-          .querySelectorAll(".update-row.has-image.has-text img[data-image-path]")
-          .forEach((image) => {
-            if (image.complete && image.naturalWidth > 0) {
-              sizeWrappingRowImage(image);
-            }
-          });
       }
 
       function hydrateUpdateImages() {
@@ -2513,29 +2475,10 @@
             candidateIndex += 1;
           };
 
-          image.onload = () => {
-            const naturalWidth = Number(image.naturalWidth);
-            const naturalHeight = Number(image.naturalHeight);
-            const imageFrame = image.closest(".update-row-image");
-
-            if (imageFrame && naturalWidth > 0 && naturalHeight > 0) {
-              imageFrame.style.setProperty(
-                "--image-aspect-ratio",
-                `${naturalWidth} / ${naturalHeight}`
-              );
-              sizeWrappingRowImage(image);
-            }
-          };
           image.onerror = tryNextCandidate;
           tryNextCandidate();
         });
       }
-
-      let wrappingImageResizeTimer = null;
-      window.addEventListener("resize", () => {
-        window.clearTimeout(wrappingImageResizeTimer);
-        wrappingImageResizeTimer = window.setTimeout(refreshWrappingRowImages, 100);
-      });
 
       function clearUpdateDropIndicators() {
         elements.adminRowList
@@ -2926,27 +2869,132 @@
         input.disabled = !isEnabled;
       }
 
-      function syncImageSideControl() {
-        const hasUpdate = Boolean(getActiveUpdate());
-        const isEnabled = hasUpdate && elements.imageToggle.checked;
-        elements.imageSideField.classList.toggle("is-disabled", !isEnabled);
-        elements.imageSideControl.classList.toggle("is-disabled", !isEnabled);
-        elements.imageSideInputs.forEach((input) => {
-          input.disabled = !isEnabled;
-        });
+      function syncRowImageCaptionControls(card) {
+        const captionToggle = card.querySelector("[data-row-image-caption-toggle]");
+        const captionField = card.querySelector("[data-row-image-caption-field]");
+        const captionInput = card.querySelector("[data-row-image-caption-input]");
+        const isEnabled =
+          updatesState.sidebarMode === "row" && Boolean(captionToggle?.checked);
+
+        captionField?.classList.toggle("is-disabled", !isEnabled);
+        if (captionInput) {
+          captionInput.disabled = !isEnabled;
+        }
       }
 
-      function setSelectedImageSide(imageSide) {
-        const safeImageSide = imageSide === "right" ? "right" : "left";
-        elements.imageSideInputs.forEach((input) => {
-          input.checked = input.value === safeImageSide;
-        });
+      function renumberRowImageEditors() {
+        elements.rowImageEditorList
+          .querySelectorAll("[data-row-image-editor]")
+          .forEach((card, index) => {
+            const title = card.querySelector("[data-row-image-editor-title]");
+            if (title) {
+              title.textContent = `Picture ${index + 1}`;
+            }
+          });
       }
 
-      function getSelectedImageSide() {
-        return elements.imageSideInputs.find((input) => input.checked)?.value === "right"
-          ? "right"
-          : "left";
+      function addRowImageEditor(image = null) {
+        const normalizedImage = image ? normalizeRowImage(image) : null;
+        const card = document.createElement("div");
+        const editorId = normalizedImage?.id || createId();
+        const widthPercent = normalizedImage?.widthPercent || 100;
+
+        card.className = "row-image-editor-card";
+        card.dataset.rowImageEditor = editorId;
+        card.innerHTML = `
+          <div class="row-image-editor-card-header">
+            <h4 data-row-image-editor-title>Picture</h4>
+            <button class="danger-button" type="button" data-remove-row-image>Remove Picture</button>
+          </div>
+          <label class="form-field">
+            <span>Image Path</span>
+            <input data-row-image-path type="text" placeholder="images/update-picture.png" />
+          </label>
+          <label class="form-field row-image-width-field">
+            <span>
+              <span>Image Width</span>
+              <strong data-row-image-width-label>${widthPercent}%</strong>
+            </span>
+            <input data-row-image-width type="number" min="10" max="100" step="1" value="${widthPercent}" />
+          </label>
+          <label class="field-option">
+            <input data-row-image-caption-toggle type="checkbox" />
+            <span>Caption</span>
+          </label>
+          <label class="form-field row-image-caption-field is-disabled" data-row-image-caption-field>
+            <span>Caption Text</span>
+            <textarea data-row-image-caption-input placeholder="Write a caption for this picture." disabled></textarea>
+          </label>
+        `;
+
+        const pathInput = card.querySelector("[data-row-image-path]");
+        const widthInput = card.querySelector("[data-row-image-width]");
+        const widthLabel = card.querySelector("[data-row-image-width-label]");
+        const captionToggle = card.querySelector("[data-row-image-caption-toggle]");
+        const captionInput = card.querySelector("[data-row-image-caption-input]");
+        const removeButton = card.querySelector("[data-remove-row-image]");
+
+        pathInput.value = normalizedImage?.imagePath || "";
+        captionToggle.checked = Boolean(normalizedImage?.hasCaption);
+        captionInput.value = normalizedImage?.caption || "";
+
+        widthInput.addEventListener("input", () => {
+          widthLabel.textContent = `${getClampedRowImageWidth(widthInput.value)}%`;
+        });
+        widthInput.addEventListener("change", () => {
+          widthInput.value = String(getClampedRowImageWidth(widthInput.value));
+          widthLabel.textContent = `${widthInput.value}%`;
+        });
+        captionToggle.addEventListener("change", () => syncRowImageCaptionControls(card));
+        removeButton.addEventListener("click", () => {
+          card.remove();
+          renumberRowImageEditors();
+        });
+
+        elements.rowImageEditorList.append(card);
+        syncRowImageCaptionControls(card);
+        renumberRowImageEditors();
+      }
+
+      function getRowImageValues() {
+        const images = [];
+        const cards = Array.from(
+          elements.rowImageEditorList.querySelectorAll("[data-row-image-editor]")
+        );
+
+        for (const card of cards) {
+          const imagePath = card.querySelector("[data-row-image-path]")?.value.trim() || "";
+          const widthPercent = getClampedRowImageWidth(
+            card.querySelector("[data-row-image-width]")?.value
+          );
+          const hasCaption = Boolean(
+            card.querySelector("[data-row-image-caption-toggle]")?.checked
+          );
+          const caption =
+            card.querySelector("[data-row-image-caption-input]")?.value.trim() || "";
+
+          if (!imagePath && !caption) {
+            continue;
+          }
+
+          if (!imagePath) {
+            return { ok: false, message: "Every added picture needs an image path." };
+          }
+
+          if (hasCaption && !caption) {
+            return { ok: false, message: "Caption is checked, so caption text is required." };
+          }
+
+          images.push({
+            id: card.dataset.rowImageEditor || createId(),
+            imagePath,
+            widthPercent,
+            hasCaption,
+            caption,
+          });
+        }
+
+        return { ok: true, images };
       }
 
       function getClampedHeaderImageHeight(value) {
@@ -3031,13 +3079,18 @@
         );
         syncUpdateHeaderImageControls();
         syncOptionalField(elements.headerToggle, elements.headerField, elements.headerInput);
-        syncOptionalField(
-          elements.descriptionToggle,
-          elements.descriptionField,
-          elements.descriptionInput
-        );
-        syncOptionalField(elements.imageToggle, elements.imageField, elements.imageInput);
-        syncImageSideControl();
+        elements.addRowImageButton.disabled = !isRowMode;
+        elements.rowImageEditorList
+          .querySelectorAll("input, textarea, button")
+          .forEach((control) => {
+            if (control.matches("[data-row-image-caption-input]")) {
+              return;
+            }
+            control.disabled = !isRowMode;
+          });
+        elements.rowImageEditorList
+          .querySelectorAll("[data-row-image-editor]")
+          .forEach(syncRowImageCaptionControls);
       }
 
       function setRowBuilderValues(row = null) {
@@ -3045,11 +3098,15 @@
         updatesState.editingRowId = row?.id || null;
         elements.headerToggle.checked = Boolean(row?.hasHeader);
         elements.headerInput.value = row?.header || "";
-        elements.descriptionToggle.checked = Boolean(row?.hasDescription);
-        elements.descriptionInput.value = row?.description || "";
-        elements.imageToggle.checked = row ? Boolean(row.hasImage) : true;
-        elements.imageInput.value = row?.imagePath || "";
-        setSelectedImageSide(row?.imageSide || "left");
+        elements.rowImageEditorList.innerHTML = "";
+
+        const images = Array.isArray(row?.images) ? row.images : [];
+        if (images.length > 0) {
+          images.forEach((image) => addRowImageEditor(image));
+        } else {
+          addRowImageEditor();
+        }
+
         elements.rowFormHeading.textContent = isEditing ? "Edit row" : "Add row";
         elements.submitButton.textContent = isEditing ? "Save Row" : "Add Row";
         elements.cancelRowEditButton.textContent = isEditing ? "Cancel Edit" : "Cancel";
@@ -3273,15 +3330,16 @@
         }
 
         const hasHeader = elements.headerToggle.checked;
-        const hasDescription = elements.descriptionToggle.checked;
-        const hasImage = elements.imageToggle.checked;
         const header = elements.headerInput.value.trim();
-        const description = elements.descriptionInput.value.trim();
-        const imagePath = elements.imageInput.value.trim();
-        const imageSide = getSelectedImageSide();
+        const imageResult = getRowImageValues();
 
-        if (!hasHeader && !hasDescription && !hasImage) {
-          setFeedback("Check at least one row option before adding it.", true);
+        if (!imageResult.ok) {
+          setFeedback(imageResult.message, true);
+          return;
+        }
+
+        if (!hasHeader && imageResult.images.length === 0) {
+          setFeedback("Add a header or at least one picture before saving the row.", true);
           return;
         }
 
@@ -3290,25 +3348,11 @@
           return;
         }
 
-        if (hasDescription && !description) {
-          setFeedback("Description is checked, so description text is required.", true);
-          return;
-        }
-
-        if (hasImage && !imagePath) {
-          setFeedback("Image is checked, so an image path is required.", true);
-          return;
-        }
-
         const row = normalizeUpdateRow({
           id: updatesState.editingRowId || createId(),
           hasHeader,
           header,
-          hasDescription,
-          description,
-          hasImage,
-          imagePath,
-          imageSide,
+          images: imageResult.images,
         });
         const isEditingRow = Boolean(updatesState.editingRowId);
 
@@ -3472,10 +3516,13 @@
         elements.updateHeaderToggle,
         elements.updateHeaderImageToggle,
         elements.headerToggle,
-        elements.descriptionToggle,
-        elements.imageToggle,
       ].forEach((toggle) => {
         toggle.addEventListener("change", syncRowBuilderOptions);
+      });
+
+      elements.addRowImageButton.addEventListener("click", () => {
+        addRowImageEditor();
+        syncRowBuilderOptions();
       });
 
       elements.updateHeaderImageHeightInput.addEventListener("input", () => {
