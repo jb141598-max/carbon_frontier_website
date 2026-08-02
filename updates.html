@@ -4063,9 +4063,30 @@
         }
 
         const nextArchivedState = update.isArchived !== true;
-        updatesState.updates = updatesState.updates.map((entry) =>
-          entry.id === update.id ? { ...entry, isArchived: nextArchivedState } : entry
-        );
+
+        if (nextArchivedState) {
+          const archivedUpdate = { ...update, isArchived: true };
+          const remainingUpdates = updatesState.updates.filter(
+            (entry) => entry.id !== update.id
+          );
+          const currentUpdates = remainingUpdates.filter(
+            (entry) => entry.isArchived !== true
+          );
+          const archivedUpdates = remainingUpdates.filter(
+            (entry) => entry.isArchived === true
+          );
+
+          // Newly archived updates appear first in the archive.
+          updatesState.updates = [
+            ...currentUpdates,
+            archivedUpdate,
+            ...archivedUpdates,
+          ];
+        } else {
+          updatesState.updates = updatesState.updates.map((entry) =>
+            entry.id === update.id ? { ...entry, isArchived: false } : entry
+          );
+        }
         updatesState.adminArchiveView = nextArchivedState;
         updatesState.currentUpdateId = null;
         updatesState.editingRowId = null;
