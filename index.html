@@ -1317,6 +1317,63 @@
         accent-color: var(--cf-red);
       }
 
+      .image-upload-editor {
+        display: grid;
+        gap: 10px;
+      }
+
+      .image-input-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .image-upload-trigger {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 50px;
+        padding: 11px 16px;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+
+      .image-upload-preview-wrap {
+        display: grid;
+        place-items: center;
+        min-height: 140px;
+        padding: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .image-upload-preview-wrap[hidden] {
+        display: none;
+      }
+
+      .image-upload-preview {
+        display: block;
+        width: 100%;
+        max-height: 260px;
+        object-fit: contain;
+        border-radius: 12px;
+      }
+
+      .image-upload-status {
+        margin: 0;
+        min-height: 1.35em;
+        color: var(--cf-text-muted);
+        font-size: 0.84rem;
+        line-height: 1.45;
+      }
+
+      .image-upload-status.is-error {
+        color: #ffb7bd;
+      }
+
       .status-field {
         display: grid;
         gap: 10px;
@@ -1734,6 +1791,14 @@
           grid-template-columns: 1fr;
         }
 
+        .image-input-row {
+          grid-template-columns: 1fr;
+        }
+
+        .image-upload-trigger {
+          width: 100%;
+        }
+
         .bullet-row {
           grid-template-columns: 1fr;
           grid-template-areas:
@@ -1902,20 +1967,36 @@
                 ></textarea>
               </label>
 
-              <label class="form-field">
-                <span>Image Path</span>
+              <div class="image-upload-editor">
+                <label class="form-field">
+                  <span>Image</span>
+                  <div class="image-input-row">
+                    <input
+                      id="image-input"
+                      name="image"
+                      type="text"
+                      placeholder="Upload an image or enter images/picture1.png"
+                    />
+                    <label class="subtle-button image-upload-trigger" for="image-file-input">Upload Image</label>
+                  </div>
+                </label>
+
                 <input
-                  id="image-input"
-                  name="image"
-                  type="text"
-                  placeholder="images/picture1.png"
+                  class="visually-hidden"
+                  id="image-file-input"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
                 />
-              </label>
+
+                <div class="image-upload-preview-wrap" id="image-upload-preview-wrap" hidden>
+                  <img class="image-upload-preview" id="image-upload-preview" alt="Roadmap image preview" />
+                </div>
+                <p class="image-upload-status" id="image-upload-status"></p>
+              </div>
 
               <p class="field-note">
-                To use an image, place the file in the <code>images/</code> folder, then type the
-                relative path here, like <code>images/picture1.png</code>. Including the file
-                extension is best, but common image extensions are now auto-tried too.
+                Click <strong>Upload Image</strong> to upload directly to the website. Existing
+                manual paths such as <code>images/picture1.png</code> still work too.
               </p>
 
               <label class="form-field">
@@ -2010,6 +2091,8 @@
       const ORDER_MODE_KEY = "carbon-frontier-roadmap-order-mode-v1";
       const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
       const REMOTE_ROADMAP_ENDPOINTS = ["/api/roadmap", "/.netlify/functions/roadmap"];
+      const IMAGE_UPLOAD_ENDPOINT = "/api/images";
+      const MAX_IMAGE_UPLOAD_BYTES = Math.floor(4.5 * 1024 * 1024);
       const roadmapState = {
         cards: [],
         currentEditId: null,
@@ -2058,6 +2141,10 @@
         titleInput: document.getElementById("title-input"),
         descriptionInput: document.getElementById("description-input"),
         imageInput: document.getElementById("image-input"),
+        imageFileInput: document.getElementById("image-file-input"),
+        imageUploadPreviewWrap: document.getElementById("image-upload-preview-wrap"),
+        imageUploadPreview: document.getElementById("image-upload-preview"),
+        imageUploadStatus: document.getElementById("image-upload-status"),
         dateInput: document.getElementById("date-input"),
         statusControl: document.getElementById("status-control"),
         statusInputs: Array.from(document.querySelectorAll('input[name="status"]')),
@@ -3158,6 +3245,135 @@
           .filter((bullet) => bullet.text);
       }
 
+      function setRoadmapImageUploadStatus(message = "", isError = false) {
+        elements.imageUploadStatus.textContent = message;
+        elements.imageUploadStatus.classList.toggle("is-error", Boolean(isError));
+      }
+
+      function getRoadmapPreviewPath(imagePath) {
+        const trimmedPath = String(imagePath || "").trim().replaceAll("\\", "/");
+        if (!trimmedPath) {
+          return "";
+        }
+
+        if (/^(?:https?:)?\/\//i.test(trimmedPath) || /^(?:data|blob):/i.test(trimmedPath)) {
+          return trimmedPath;
+        }
+
+        if (/^\/?api\/images\//i.test(trimmedPath)) {
+          return trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+        }
+
+        return normalizeImagePath(trimmedPath);
+      }
+
+      function syncRoadmapImagePreview() {
+        const path = getRoadmapPreviewPath(elements.imageInput.value);
+        if (!path) {
+          elements.imageUploadPreviewWrap.hidden = true;
+          elements.imageUploadPreview.removeAttribute("src");
+          return;
+        }
+
+        const candidates = buildImageCandidates(path);
+        let candidateIndex = 0;
+
+        const tryNextCandidate = () => {
+          const candidate = candidates[candidateIndex];
+          candidateIndex += 1;
+          if (!candidate) {
+            elements.imageUploadPreviewWrap.hidden = true;
+            elements.imageUploadPreview.removeAttribute("src");
+            return;
+          }
+          elements.imageUploadPreview.src = candidate;
+        };
+
+        elements.imageUploadPreview.onerror = tryNextCandidate;
+        elements.imageUploadPreview.onload = () => {
+          elements.imageUploadPreviewWrap.hidden = false;
+        };
+        tryNextCandidate();
+      }
+
+      function validateRoadmapImageFile(file) {
+        if (!file) {
+          return "Choose an image to upload.";
+        }
+
+        const allowedTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+        if (!allowedTypes.has(String(file.type || "").toLowerCase())) {
+          return "Only PNG, JPG, WebP, and GIF images can be uploaded.";
+        }
+
+        if (!Number.isFinite(file.size) || file.size <= 0) {
+          return "The selected image is empty.";
+        }
+
+        if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+          return "The image is too large. Maximum size is 4.5 MB.";
+        }
+
+        return "";
+      }
+
+      async function uploadRoadmapImage(file) {
+        const validationError = validateRoadmapImageFile(file);
+        if (validationError) {
+          setRoadmapImageUploadStatus(validationError, true);
+          return false;
+        }
+
+        if (!isGoogleIdTokenUsable(roadmapState.authIdToken)) {
+          setRoadmapImageUploadStatus(
+            "You need an active Google admin sign-in before uploading. Sign in again, then retry.",
+            true
+          );
+          return false;
+        }
+
+        setRoadmapImageUploadStatus(`Uploading ${file.name}...`);
+        elements.imageFileInput.disabled = true;
+
+        try {
+          const formData = new FormData();
+          formData.append("file", file, file.name);
+
+          const response = await fetch(IMAGE_UPLOAD_ENDPOINT, {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${roadmapState.authIdToken}`,
+            },
+            body: formData,
+          });
+
+          const payload = await response.json().catch(() => null);
+          if (!response.ok || !payload?.url) {
+            let message = payload?.error || `Image upload failed (${response.status}).`;
+            if (response.status === 404) {
+              message =
+                "The /api/images upload function was not found. Make sure netlify/functions/images.mjs is deployed, then redeploy the site.";
+            }
+            throw new Error(message);
+          }
+
+          elements.imageInput.value = String(payload.url);
+          syncRoadmapImagePreview();
+          setRoadmapImageUploadStatus(`Uploaded ${payload.originalName || file.name}.`);
+          setFeedback("Image uploaded. Save the roadmap card to publish the change.");
+          return true;
+        } catch (error) {
+          setRoadmapImageUploadStatus(
+            error instanceof Error ? error.message : "Image upload failed.",
+            true
+          );
+          return false;
+        } finally {
+          elements.imageFileInput.disabled = false;
+          elements.imageFileInput.value = "";
+        }
+      }
+
       function resetForm(message = "Ready for a new card.") {
         roadmapState.currentEditId = null;
         roadmapState.pendingDeleteId = null;
@@ -3169,6 +3385,8 @@
         elements.formHeading.textContent = "Add a roadmap card";
         elements.formSubheading.textContent = "Create a new update card for the website.";
         elements.submitButton.textContent = "Create Card";
+        setRoadmapImageUploadStatus("");
+        syncRoadmapImagePreview();
         setFeedback(message);
       }
 
@@ -3183,6 +3401,8 @@
         elements.titleInput.value = card.title;
         elements.descriptionInput.value = card.description;
         elements.imageInput.value = card.imagePath;
+        syncRoadmapImagePreview();
+        setRoadmapImageUploadStatus(card.imagePath ? "Current image loaded." : "");
         elements.dateInput.value = card.date;
         setSelectedStatus(card.status);
         elements.bulletsToggle.checked = card.bullets.length > 0;
@@ -3263,6 +3483,21 @@
         const trimmedPath = String(imagePath || "").trim().replaceAll("\\", "/");
         if (!trimmedPath) {
           return "";
+        }
+
+        // Uploaded images are served from /api/images/. Preserve that URL before
+        // looking for the local images/ folder, because /api/images/ also contains
+        // the text "images/".
+        if (/^(?:https?:)?\/\//i.test(trimmedPath) || /^(?:data|blob):/i.test(trimmedPath)) {
+          return trimmedPath;
+        }
+
+        if (/^\/?api\/images\//i.test(trimmedPath)) {
+          return trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+        }
+
+        if (/^\/?\.netlify\/functions\/images\//i.test(trimmedPath)) {
+          return trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
         }
 
         const imagesIndex = trimmedPath.toLowerCase().lastIndexOf("images/");
@@ -3547,6 +3782,16 @@
       });
       elements.signoutButton.addEventListener("click", signOutGoogleAccount);
       elements.cardForm.addEventListener("submit", handleFormSubmit);
+      elements.imageInput.addEventListener("input", () => {
+        setRoadmapImageUploadStatus("");
+        syncRoadmapImagePreview();
+      });
+      elements.imageFileInput.addEventListener("change", async () => {
+        const file = elements.imageFileInput.files?.[0];
+        if (file) {
+          await uploadRoadmapImage(file);
+        }
+      });
       elements.resetFormButton.addEventListener("click", resetForm);
       elements.addBulletButton.addEventListener("click", () => addBulletInput());
       elements.statusInputs.forEach((input) => {
