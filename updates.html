@@ -49,6 +49,14 @@
         overflow: hidden;
       }
 
+      /* The admin panel is a full-screen surface. Stop painting the public page
+         underneath it while it is open so fast scrolling cannot expose stale
+         compositor frames from the update page. */
+      body.admin-open .page-shell {
+        visibility: hidden;
+        pointer-events: none;
+      }
+
       button,
       input,
       textarea {
@@ -895,17 +903,24 @@
         height: 100vh;
         padding: 28px;
         border-left: 0;
-        background:
-          linear-gradient(180deg, rgba(15, 15, 15, 0.98), rgba(0, 0, 0, 0.98)),
-          rgba(0, 0, 0, 0.96);
-        transform: translateX(100%);
+        background: linear-gradient(180deg, #0f0f0f 0%, #050505 54%, #000000 100%);
+        transform: translate3d(100%, 0, 0);
         transition: transform 220ms ease;
         overflow: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        will-change: transform;
+        isolation: isolate;
+        contain: paint;
         z-index: 30;
       }
 
       .admin-panel.is-open {
-        transform: translateX(0);
+        transform: translate3d(0, 0, 0);
       }
 
       .admin-panel-shell,
@@ -1761,6 +1776,9 @@
         publicSelectedUpdateId: null,
         publicRouteNotFoundSlug: "",
         publicRoutingReady: false,
+        adminPanelOpen: false,
+        adminRouteRequested: false,
+        adminReturnUrl: "",
         sidebarMode: "update",
         hasAdminAccess: false,
         authAccount: null,
@@ -2483,6 +2501,7 @@
         const pathParts = rawPath.split("/").filter(Boolean);
         const normalizedParts = pathParts.map((part) => part.toLowerCase());
         const normalizedPath = normalizedParts.join("/");
+        const isAdminPanelRoute = normalizedPath === "updates/adminpanel";
         const isArchiveRoute = normalizedPath === "updates/archive";
         const isLegacyArchiveRoute =
           (normalizedPath === "updates" || normalizedPath === "updates.html") &&
@@ -2504,6 +2523,19 @@
         updatesState.publicSelectedUpdateId = null;
         updatesState.publicArchiveSelectedUpdateId = null;
         updatesState.publicRouteNotFoundSlug = "";
+        updatesState.adminRouteRequested = isAdminPanelRoute;
+
+        if (isAdminPanelRoute) {
+          updatesState.publicArchiveOpen = false;
+          if (updatesState.hasAdminAccess) {
+            openAdminPanel({ fromRoute: true });
+          }
+          return;
+        }
+
+        if (updatesState.adminPanelOpen) {
+          closeAdminPanel({ restoreUrl: false });
+        }
 
         if (isArchiveRoute || isLegacyArchiveRoute) {
           updatesState.publicArchiveOpen = true;
@@ -3223,12 +3255,16 @@
 
       function renderAll() {
         const selectedPublicUpdate = getSelectedPublicUpdate();
-        if (selectedPublicUpdate) {
-          setPublicHistoryUrl(getUpdateUrl(selectedPublicUpdate), true);
-        } else if (updatesState.publicArchiveOpen) {
-          setPublicHistoryUrl("/updates/archive", true);
-        } else if (!updatesState.publicRouteNotFoundSlug) {
-          setPublicHistoryUrl(getCurrentUpdatesHomeUrl(), true);
+        if (updatesState.adminPanelOpen) {
+          setPublicHistoryUrl("/updates/adminpanel", true);
+        } else if (!updatesState.adminRouteRequested) {
+          if (selectedPublicUpdate) {
+            setPublicHistoryUrl(getUpdateUrl(selectedPublicUpdate), true);
+          } else if (updatesState.publicArchiveOpen) {
+            setPublicHistoryUrl("/updates/archive", true);
+          } else if (!updatesState.publicRouteNotFoundSlug) {
+            setPublicHistoryUrl(getCurrentUpdatesHomeUrl(), true);
+          }
         }
 
         renderPublicRows();
@@ -3437,6 +3473,12 @@
         elements.adminPanelButton.hidden = !updatesState.hasAdminAccess;
         syncAccountMenu();
 
+        if (updatesState.adminRouteRequested && updatesState.hasAdminAccess) {
+          openAdminPanel({ fromRoute: true });
+        } else if (!updatesState.hasAdminAccess && updatesState.adminPanelOpen) {
+          closeAdminPanel({ restoreUrl: false });
+        }
+
         if (hasUsableAdminSession) {
           elements.accountPill.textContent = `Admin account: ${currentAccount}`;
           return;
@@ -3451,22 +3493,41 @@
         closeAdminPanel();
       }
 
-      function openAdminPanel() {
+      function openAdminPanel({ fromRoute = false } = {}) {
         if (!updatesState.hasAdminAccess) {
           return;
         }
 
+        if (!updatesState.adminPanelOpen && !fromRoute) {
+          const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+          updatesState.adminReturnUrl = currentPath === "/updates/adminpanel"
+            ? ""
+            : currentPath;
+        }
+
+        updatesState.adminPanelOpen = true;
+        updatesState.adminRouteRequested = true;
         document.body.classList.add("admin-open");
         elements.adminPanel.classList.add("is-open");
         elements.panelBackdrop.classList.add("is-open");
         elements.adminPanel.setAttribute("aria-hidden", "false");
+        setPublicHistoryUrl("/updates/adminpanel", true);
       }
 
-      function closeAdminPanel() {
+      function closeAdminPanel({ restoreUrl = true } = {}) {
+        const wasOpen = updatesState.adminPanelOpen;
+        updatesState.adminPanelOpen = false;
+        updatesState.adminRouteRequested = false;
         document.body.classList.remove("admin-open");
         elements.adminPanel.classList.remove("is-open");
         elements.panelBackdrop.classList.remove("is-open");
         elements.adminPanel.setAttribute("aria-hidden", "true");
+
+        if (wasOpen && restoreUrl) {
+          const returnUrl = updatesState.adminReturnUrl || getCurrentUpdatesHomeUrl();
+          updatesState.adminReturnUrl = "";
+          setPublicHistoryUrl(returnUrl, true);
+        }
       }
 
       function syncOptionalField(toggle, field, input) {
@@ -4828,6 +4889,7 @@
       window.addEventListener("popstate", () => {
         syncPublicViewFromLocation();
         renderPublicRows();
+        renderAdminRows();
         hydrateUpdateImages();
       });
 

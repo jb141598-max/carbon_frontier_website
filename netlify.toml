@@ -15,6 +15,13 @@
   to = "/updates.html"
   status = 200
 
+# Updates admin panel route. Keep this before /updates/:slug so it is
+# treated as the admin surface instead of as an update permalink.
+[[redirects]]
+  from = "/updates/adminpanel"
+  to = "/updates.html"
+  status = 200
+
 # Permanent update detail/current-home pages for both current and archived
 # updates, for example: /updates/solar-panel-fix
 [[redirects]]
