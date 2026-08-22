@@ -1477,7 +1477,7 @@
       <div class="content">
         <header class="topbar">
           <nav class="topbar-nav" aria-label="Primary navigation">
-            <a class="nav-button" href="index.html">Roadmap</a>
+            <a class="nav-button" href="/index.html">Roadmap</a>
           </nav>
           <div class="topbar-actions">
             <div class="account-entry" id="account-entry">
@@ -1519,7 +1519,7 @@
         <main>
           <section class="branding-hero" aria-label="Carbon Frontier branding">
             <div class="branding-hero-inner">
-              <img class="brand-logo" src="images/logo.png" alt="Carbon Frontier logo" loading="eager" />
+              <img class="brand-logo" src="/images/logo.png" alt="Carbon Frontier logo" loading="eager" />
               <p class="brand-tagline">Build, Manage, Unlock, Expand.</p>
             </div>
           </section>
@@ -1757,6 +1757,7 @@
         publicArchiveSelectedUpdateId: null,
         publicSelectedUpdateId: null,
         publicRouteNotFoundSlug: "",
+        publicRoutingReady: false,
         sidebarMode: "update",
         hasAdminAccess: false,
         authAccount: null,
@@ -2430,6 +2431,11 @@
         return `/${encodeURIComponent(getUpdateSlug(update))}`;
       }
 
+      function getCurrentUpdatesHomeUrl() {
+        const topCurrentUpdate = getCurrentUpdates()[0] || null;
+        return topCurrentUpdate ? getUpdateUrl(topCurrentUpdate) : "/updates";
+      }
+
       function getSelectedPublicUpdate() {
         return (
           updatesState.updates.find((update) => update.id === updatesState.publicSelectedUpdateId) ||
@@ -2438,7 +2444,11 @@
       }
 
       function setPublicHistoryUrl(url, replace = false) {
-        if (window.location.protocol === "file:" || !window.history?.pushState) {
+        if (
+          !updatesState.publicRoutingReady ||
+          window.location.protocol === "file:" ||
+          !window.history?.pushState
+        ) {
           return;
         }
 
@@ -2452,6 +2462,10 @@
       function syncPublicViewFromLocation() {
         const rawPath = window.location.pathname.replace(/^\/+|\/+$/g, "");
         const normalizedPath = rawPath.toLowerCase();
+        const isArchiveRoute = normalizedPath === "updates/archive";
+        const isLegacyArchiveRoute =
+          (normalizedPath === "updates" || normalizedPath === "updates.html") &&
+          window.location.hash.toLowerCase() === "#archive";
         const isUpdatesHome =
           normalizedPath === "" ||
           normalizedPath === "updates" ||
@@ -2463,8 +2477,15 @@
         updatesState.publicArchiveSelectedUpdateId = null;
         updatesState.publicRouteNotFoundSlug = "";
 
+        if (isArchiveRoute || isLegacyArchiveRoute) {
+          updatesState.publicArchiveOpen = true;
+          setPublicHistoryUrl("/updates/archive", true);
+          return;
+        }
+
         if (isUpdatesHome) {
-          updatesState.publicArchiveOpen = window.location.hash.toLowerCase() === "#archive";
+          updatesState.publicArchiveOpen = false;
+          setPublicHistoryUrl(getCurrentUpdatesHomeUrl(), true);
           return;
         }
 
@@ -2481,6 +2502,19 @@
         );
 
         if (matchingUpdate) {
+          const topCurrentUpdate = getCurrentUpdates()[0] || null;
+          const isCurrentHomeSlug =
+            matchingUpdate.isArchived !== true && topCurrentUpdate?.id === matchingUpdate.id;
+
+          // The top current update's slug doubles as the URL for the current
+          // updates page. This keeps the public list visible while giving the
+          // page a meaningful, update-specific URL.
+          if (isCurrentHomeSlug) {
+            updatesState.publicArchiveOpen = false;
+            setPublicHistoryUrl(getUpdateUrl(matchingUpdate), true);
+            return;
+          }
+
           updatesState.publicSelectedUpdateId = matchingUpdate.id;
           updatesState.publicArchiveOpen = matchingUpdate.isArchived === true;
           return;
@@ -2515,7 +2549,10 @@
         updatesState.publicArchiveSelectedUpdateId = null;
         updatesState.publicRouteNotFoundSlug = "";
         updatesState.publicArchiveOpen = archive;
-        setPublicHistoryUrl(archive ? "/updates.html#archive" : "/updates.html", replaceUrl);
+        setPublicHistoryUrl(
+          archive ? "/updates/archive" : getCurrentUpdatesHomeUrl(),
+          replaceUrl
+        );
         renderPublicRows();
         hydrateUpdateImages();
       }
@@ -2602,10 +2639,16 @@
 
         const imagesIndex = trimmedPath.toLowerCase().lastIndexOf("images/");
         if (imagesIndex !== -1) {
-          return trimmedPath.slice(imagesIndex);
+          const localImagePath = trimmedPath.slice(imagesIndex);
+          return window.location.protocol === "file:" ? localImagePath : `/${localImagePath}`;
         }
 
-        return trimmedPath.replace(/^\.?\//, "").replace(/^carbon-frontier-website\//, "");
+        const localPath = trimmedPath
+          .replace(/^\.?\//, "")
+          .replace(/^carbon-frontier-website\//, "");
+        return window.location.protocol === "file:" || localPath.startsWith("/")
+          ? localPath
+          : `/${localPath}`;
       }
 
       function buildImageCandidates(imagePath) {
@@ -3122,6 +3165,10 @@
         const selectedPublicUpdate = getSelectedPublicUpdate();
         if (selectedPublicUpdate) {
           setPublicHistoryUrl(getUpdateUrl(selectedPublicUpdate), true);
+        } else if (updatesState.publicArchiveOpen) {
+          setPublicHistoryUrl("/updates/archive", true);
+        } else if (!updatesState.publicRouteNotFoundSlug) {
+          setPublicHistoryUrl(getCurrentUpdatesHomeUrl(), true);
         }
 
         renderPublicRows();
@@ -3244,6 +3291,7 @@
       }
 
       async function initializeUpdatesState() {
+        updatesState.publicRoutingReady = false;
         updatesState.updates = loadUpdates();
         updatesState.currentUpdateId = null;
         updatesState.storageMode = "localStorage";
@@ -3257,6 +3305,7 @@
           updatesState.currentUpdateId = null;
           updatesState.storageMode = "netlify-blobs";
           saveUpdates();
+          updatesState.publicRoutingReady = true;
           syncPublicViewFromLocation();
           syncUpdateEditor();
           renderAll();
@@ -3264,6 +3313,10 @@
         }
 
         updatesState.storageMode = window.location.protocol === "file:" ? "localStorage" : "localStorage-fallback";
+        updatesState.publicRoutingReady = true;
+        syncPublicViewFromLocation();
+        syncUpdateEditor();
+        renderAll();
       }
 
       async function persistUpdatesState(localMessage, sharedMessage) {
@@ -3684,7 +3737,7 @@
           return;
         }
 
-        previewImage.src = safePath;
+        previewImage.src = normalizeImagePath(safePath);
         previewElement.hidden = false;
       }
 

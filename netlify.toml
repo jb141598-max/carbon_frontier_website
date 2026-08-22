@@ -2,6 +2,14 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+
+# The archive index uses a clean nested URL. Keep this rule before the
+# one-segment update permalink rule below.
+[[redirects]]
+  from = "/updates/archive"
+  to = "/updates.html"
+  status = 200
+
 # Let clean update permalinks such as /license-fix-update and /9-0-1
 # load the updates application. Existing real files like /index.html and
 # /updates.html are not overridden.
