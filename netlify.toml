@@ -1,3 +1,11 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+# Let clean update permalinks such as /license-fix-update and /9-0-1
+# load the updates application. Existing real files like /index.html and
+# /updates.html are not overridden.
+[[redirects]]
+  from = "/:slug"
+  to = "/updates.html"
+  status = 200

@@ -129,6 +129,60 @@ function normalizeHeaderImageHeight(value) {
   return Math.min(900, Math.max(120, Math.round(numericValue)));
 }
 
+function slugifyUpdateValue(value, stripVersionPrefix = false) {
+  let normalizedValue = String(value || "").trim();
+  if (stripVersionPrefix) {
+    normalizedValue = normalizedValue.replace(/^v(?=\d)/i, "");
+  }
+
+  try {
+    normalizedValue = normalizedValue.normalize("NFKD");
+  } catch (error) {
+    // Continue with the original string if normalization is unavailable.
+  }
+
+  return normalizedValue
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[’']/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-")
+    .slice(0, 90);
+}
+
+function getUpdateSlugBase(update) {
+  const useHeader = update?.hasHeader === true && String(update?.header || "").trim();
+  const source = useHeader ? update.header : update?.version;
+  return slugifyUpdateValue(source, !useHeader) || "update";
+}
+
+function normalizeStoredUpdateSlug(value) {
+  return slugifyUpdateValue(value, false);
+}
+
+function ensureUniqueUpdateSlugs(updates) {
+  const usedSlugs = new Set();
+
+  return updates.map((update, index) => {
+    const baseSlug =
+      normalizeStoredUpdateSlug(update?.slug) ||
+      getUpdateSlugBase(update) ||
+      `update-${index + 1}`;
+    let slug = baseSlug;
+    let suffix = 2;
+
+    while (usedSlugs.has(slug)) {
+      slug = `${baseSlug}-${suffix}`;
+      suffix += 1;
+    }
+
+    usedSlugs.add(slug);
+    return { ...update, slug };
+  });
+}
+
 function normalizeUpdate(update, index = 0) {
   const version = String(update?.version || "").trim();
   const date = String(update?.date || "").trim();
@@ -144,6 +198,7 @@ function normalizeUpdate(update, index = 0) {
 
   return {
     id: String(update?.id || "").trim() || crypto.randomUUID(),
+    slug: normalizeStoredUpdateSlug(update?.slug),
     version: version || `Update ${index + 1}`,
     date,
     hasHeader,
@@ -157,23 +212,22 @@ function normalizeUpdate(update, index = 0) {
 }
 
 function normalizeState(payload) {
+  let updates;
+
   if (Array.isArray(payload?.updates)) {
-    return {
-      updates: payload.updates
-        .map(normalizeUpdate)
-        .filter((update) => update.version || update.rows.length > 0),
-    };
-  }
+    updates = payload.updates
+      .map(normalizeUpdate)
+      .filter((update) => update.version || update.rows.length > 0);
+  } else {
+    const legacyRows = Array.isArray(payload?.rows)
+      ? payload.rows.map(normalizeUpdateRow).filter(rowHasContent)
+      : [];
 
-  const legacyRows = Array.isArray(payload?.rows)
-    ? payload.rows.map(normalizeUpdateRow).filter(rowHasContent)
-    : [];
-
-  return {
-    updates: legacyRows.length
+    updates = legacyRows.length
       ? [
           {
             id: crypto.randomUUID(),
+            slug: "",
             version: "Update 1",
             date: "",
             hasHeader: false,
@@ -185,7 +239,11 @@ function normalizeState(payload) {
             rows: legacyRows,
           },
         ]
-      : [],
+      : [];
+  }
+
+  return {
+    updates: ensureUniqueUpdateSlugs(updates),
   };
 }
 

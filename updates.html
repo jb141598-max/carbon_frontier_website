@@ -473,6 +473,7 @@
         box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
         font: inherit;
         text-align: left;
+        text-decoration: none;
         cursor: pointer;
         transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease,
           box-shadow 180ms ease;
@@ -593,6 +594,21 @@
         line-height: 1.08;
         text-align: center;
         overflow-wrap: anywhere;
+      }
+
+      .update-permalink {
+        color: inherit;
+        text-decoration: none;
+        text-decoration-thickness: 2px;
+        text-underline-offset: 0.14em;
+      }
+
+      .update-permalink:hover,
+      .update-permalink:focus-visible {
+        color: inherit;
+        text-decoration: underline;
+        text-decoration-color: var(--cf-red);
+        outline: none;
       }
 
       .update-date-label {
@@ -1739,6 +1755,8 @@
         adminArchiveView: false,
         publicArchiveOpen: false,
         publicArchiveSelectedUpdateId: null,
+        publicSelectedUpdateId: null,
+        publicRouteNotFoundSlug: "",
         sidebarMode: "update",
         hasAdminAccess: false,
         authAccount: null,
@@ -2193,6 +2211,79 @@
         return row.hasHeader || row.images.length > 0 || row.standaloneCaptions.length > 0;
       }
 
+      function slugifyUpdateValue(value, stripVersionPrefix = false) {
+        let normalizedValue = String(value || "").trim();
+        if (stripVersionPrefix) {
+          normalizedValue = normalizedValue.replace(/^v(?=\d)/i, "");
+        }
+
+        try {
+          normalizedValue = normalizedValue.normalize("NFKD");
+        } catch (error) {
+          // Older browsers can still use the ASCII cleanup below.
+        }
+
+        return normalizedValue
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/&/g, " and ")
+          .replace(/[’']/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .replace(/-{2,}/g, "-")
+          .slice(0, 90);
+      }
+
+      function getUpdateSlugBase(update) {
+        const useHeader = update?.hasHeader === true && String(update?.header || "").trim();
+        const source = useHeader ? update.header : update?.version;
+        return slugifyUpdateValue(source, !useHeader) || "update";
+      }
+
+      function normalizeStoredUpdateSlug(value) {
+        return slugifyUpdateValue(value, false);
+      }
+
+      function ensureUniqueUpdateSlugs(updates) {
+        const usedSlugs = new Set();
+
+        return updates.map((update, index) => {
+          const baseSlug =
+            normalizeStoredUpdateSlug(update?.slug) ||
+            getUpdateSlugBase(update) ||
+            `update-${index + 1}`;
+          let slug = baseSlug;
+          let suffix = 2;
+
+          while (usedSlugs.has(slug)) {
+            slug = `${baseSlug}-${suffix}`;
+            suffix += 1;
+          }
+
+          usedSlugs.add(slug);
+          return { ...update, slug };
+        });
+      }
+
+      function createUniqueUpdateSlug(update, updateId) {
+        const baseSlug = getUpdateSlugBase(update);
+        const usedSlugs = new Set(
+          updatesState.updates
+            .filter((entry) => entry.id !== updateId)
+            .map((entry) => normalizeStoredUpdateSlug(entry.slug))
+            .filter(Boolean)
+        );
+        let slug = baseSlug;
+        let suffix = 2;
+
+        while (usedSlugs.has(slug)) {
+          slug = `${baseSlug}-${suffix}`;
+          suffix += 1;
+        }
+
+        return slug;
+      }
+
       function normalizeUpdate(update, index = 0) {
         const rows = Array.isArray(update?.rows)
           ? update.rows.map(normalizeUpdateRow).filter(rowHasContent)
@@ -2211,6 +2302,7 @@
 
         return {
           id: String(update?.id || createId()),
+          slug: normalizeStoredUpdateSlug(update?.slug),
           version: version || `Update ${index + 1}`,
           date,
           hasHeader,
@@ -2224,29 +2316,36 @@
       }
 
       function normalizeUpdatesPayload(payload) {
+        let normalizedUpdates;
+
         if (Array.isArray(payload?.updates)) {
-          return payload.updates.map(normalizeUpdate).filter((update) => update.rows.length > 0 || update.version);
+          normalizedUpdates = payload.updates
+            .map(normalizeUpdate)
+            .filter((update) => update.rows.length > 0 || update.version);
+        } else {
+          const legacyRows = Array.isArray(payload?.rows)
+            ? payload.rows.map(normalizeUpdateRow).filter(rowHasContent)
+            : Array.isArray(payload)
+              ? payload.map(normalizeUpdateRow).filter(rowHasContent)
+              : [];
+
+          normalizedUpdates = legacyRows.length
+            ? [
+                {
+                  id: createId(),
+                  slug: "",
+                  version: "Update 1",
+                  date: "",
+                  hasHeader: false,
+                  header: "",
+                  isArchived: false,
+                  rows: legacyRows,
+                },
+              ]
+            : [];
         }
 
-        const legacyRows = Array.isArray(payload?.rows)
-          ? payload.rows.map(normalizeUpdateRow).filter(rowHasContent)
-          : Array.isArray(payload)
-            ? payload.map(normalizeUpdateRow).filter(rowHasContent)
-            : [];
-
-        return legacyRows.length
-          ? [
-              {
-                id: createId(),
-                version: "Update 1",
-                date: "",
-                hasHeader: false,
-                header: "",
-                isArchived: false,
-                rows: legacyRows,
-              },
-            ]
-          : [];
+        return ensureUniqueUpdateSlugs(normalizedUpdates);
       }
 
       function updatePayloadSupportsHeaderImages(payload) {
@@ -2321,6 +2420,104 @@
 
       function getUpdateDisplayTitle(update) {
         return update.hasHeader ? update.header : update.version;
+      }
+
+      function getUpdateSlug(update) {
+        return normalizeStoredUpdateSlug(update?.slug) || createUniqueUpdateSlug(update, update?.id);
+      }
+
+      function getUpdateUrl(update) {
+        return `/${encodeURIComponent(getUpdateSlug(update))}`;
+      }
+
+      function getSelectedPublicUpdate() {
+        return (
+          updatesState.updates.find((update) => update.id === updatesState.publicSelectedUpdateId) ||
+          null
+        );
+      }
+
+      function setPublicHistoryUrl(url, replace = false) {
+        if (window.location.protocol === "file:" || !window.history?.pushState) {
+          return;
+        }
+
+        try {
+          window.history[replace ? "replaceState" : "pushState"]({}, "", url);
+        } catch (error) {
+          // Local preview environments can reject root-relative history paths.
+        }
+      }
+
+      function syncPublicViewFromLocation() {
+        const rawPath = window.location.pathname.replace(/^\/+|\/+$/g, "");
+        const normalizedPath = rawPath.toLowerCase();
+        const isUpdatesHome =
+          normalizedPath === "" ||
+          normalizedPath === "updates" ||
+          normalizedPath === "updates.html" ||
+          normalizedPath === "index" ||
+          normalizedPath === "index.html";
+
+        updatesState.publicSelectedUpdateId = null;
+        updatesState.publicArchiveSelectedUpdateId = null;
+        updatesState.publicRouteNotFoundSlug = "";
+
+        if (isUpdatesHome) {
+          updatesState.publicArchiveOpen = window.location.hash.toLowerCase() === "#archive";
+          return;
+        }
+
+        let routeSlug = rawPath;
+        try {
+          routeSlug = decodeURIComponent(routeSlug);
+        } catch (error) {
+          // Keep the raw path if it cannot be decoded.
+        }
+
+        routeSlug = normalizeStoredUpdateSlug(routeSlug);
+        const matchingUpdate = updatesState.updates.find(
+          (update) => normalizeStoredUpdateSlug(update.slug) === routeSlug
+        );
+
+        if (matchingUpdate) {
+          updatesState.publicSelectedUpdateId = matchingUpdate.id;
+          updatesState.publicArchiveOpen = matchingUpdate.isArchived === true;
+          return;
+        }
+
+        updatesState.publicArchiveOpen = false;
+        updatesState.publicRouteNotFoundSlug = routeSlug || rawPath;
+      }
+
+      function openPublicUpdate(updateId, replaceUrl = false) {
+        const update = updatesState.updates.find((entry) => entry.id === updateId);
+        if (!update) {
+          return;
+        }
+
+        updatesState.publicSelectedUpdateId = update.id;
+        updatesState.publicArchiveSelectedUpdateId = update.isArchived ? update.id : null;
+        updatesState.publicArchiveOpen = update.isArchived === true;
+        updatesState.publicRouteNotFoundSlug = "";
+        setPublicHistoryUrl(getUpdateUrl(update), replaceUrl);
+        renderPublicRows();
+        hydrateUpdateImages();
+
+        document.querySelector(".updates-section")?.scrollIntoView({
+          behavior: replaceUrl ? "auto" : "smooth",
+          block: "start",
+        });
+      }
+
+      function openPublicUpdatesHome({ archive = false, replaceUrl = false } = {}) {
+        updatesState.publicSelectedUpdateId = null;
+        updatesState.publicArchiveSelectedUpdateId = null;
+        updatesState.publicRouteNotFoundSlug = "";
+        updatesState.publicArchiveOpen = archive;
+        setPublicHistoryUrl(archive ? "/updates.html#archive" : "/updates.html", replaceUrl);
+        renderPublicRows();
+        hydrateUpdateImages();
       }
 
       function loadUpdates() {
@@ -2497,7 +2694,11 @@
             <div class="update-row-list">
               <div class="public-update-heading">
                 ${createUpdateDateMarkup(update, "update-date-label")}
-                <h2 class="update-version">${escapeHtml(getUpdateDisplayTitle(update))}</h2>
+                <h2 class="update-version"><a class="update-permalink" href="${escapeHtml(
+                  getUpdateUrl(update)
+                )}" data-open-public-update="${escapeHtml(update.id)}">${escapeHtml(
+                  getUpdateDisplayTitle(update)
+                )}</a></h2>
                 <span class="update-version-label">${escapeHtml(update.version)}</span>
               </div>
               ${headerImageMarkup}
@@ -2511,16 +2712,16 @@
         const displayTitle = getUpdateDisplayTitle(update);
 
         return `
-          <button
+          <a
             class="archive-card"
-            type="button"
-            data-open-archived-update="${escapeHtml(update.id)}"
+            href="${escapeHtml(getUpdateUrl(update))}"
+            data-open-public-update="${escapeHtml(update.id)}"
             aria-label="Open archived update ${escapeHtml(displayTitle)}"
           >
             <p class="archive-card-version">${escapeHtml(update.version)}</p>
             ${createUpdateDateMarkup(update, "archive-card-date")}
             <h2 class="archive-card-title">${escapeHtml(displayTitle)}</h2>
-          </button>
+          </a>
         `;
       }
 
@@ -2534,6 +2735,38 @@
       }
 
       function renderPublicRows() {
+        const selectedUpdate = getSelectedPublicUpdate();
+
+        if (selectedUpdate) {
+          const isArchived = selectedUpdate.isArchived === true;
+          elements.updatesHeading.textContent = isArchived ? "ARCHIVE" : "UPDATES";
+          elements.publicArchiveButton.textContent = isArchived ? "Back to Archive" : "Back to Updates";
+          elements.publicArchiveButton.setAttribute("aria-expanded", String(isArchived));
+          elements.publicArchivePanel.hidden = true;
+          elements.publicArchivePanel.innerHTML = "";
+          elements.updatesRowList.innerHTML = createPublicUpdateMarkup(selectedUpdate);
+          document.title = `${getUpdateDisplayTitle(selectedUpdate)} | Carbon Frontier Updates`;
+          return;
+        }
+
+        if (updatesState.publicRouteNotFoundSlug) {
+          elements.updatesHeading.textContent = "UPDATES";
+          elements.publicArchiveButton.textContent = "Back to Updates";
+          elements.publicArchiveButton.setAttribute("aria-expanded", "false");
+          elements.publicArchivePanel.hidden = true;
+          elements.publicArchivePanel.innerHTML = "";
+          elements.updatesRowList.innerHTML = `
+            <article class="empty-state">
+              <h2>Update not found.</h2>
+              <p>No Carbon Frontier update uses the URL /${escapeHtml(
+                updatesState.publicRouteNotFoundSlug
+              )}.</p>
+            </article>
+          `;
+          document.title = "Update Not Found | Carbon Frontier Updates";
+          return;
+        }
+
         if (updatesState.publicArchiveOpen) {
           renderPublicArchive();
           return;
@@ -2545,6 +2778,7 @@
         elements.publicArchiveButton.setAttribute("aria-expanded", "false");
         elements.publicArchivePanel.hidden = true;
         elements.publicArchivePanel.innerHTML = "";
+        document.title = "Carbon Frontier Updates";
 
         if (currentUpdates.length === 0) {
           elements.updatesRowList.innerHTML = `
@@ -2560,24 +2794,12 @@
 
       function renderPublicArchive() {
         const archivedUpdates = getArchivedUpdates();
-        const selectedUpdate = archivedUpdates.find(
-          (update) => update.id === updatesState.publicArchiveSelectedUpdateId
-        );
-
         elements.updatesHeading.textContent = "ARCHIVE";
-        elements.publicArchiveButton.textContent = selectedUpdate ? "Back to Archive" : "Updates";
+        elements.publicArchiveButton.textContent = "Updates";
         elements.publicArchiveButton.setAttribute("aria-expanded", "true");
         elements.publicArchivePanel.hidden = true;
         elements.publicArchivePanel.innerHTML = "";
-
-        if (updatesState.publicArchiveSelectedUpdateId && !selectedUpdate) {
-          updatesState.publicArchiveSelectedUpdateId = null;
-        }
-
-        if (selectedUpdate) {
-          elements.updatesRowList.innerHTML = createPublicUpdateMarkup(selectedUpdate);
-          return;
-        }
+        document.title = "Carbon Frontier Update Archive";
 
         if (archivedUpdates.length === 0) {
           elements.updatesRowList.innerHTML = `
@@ -2897,6 +3119,11 @@
       }
 
       function renderAll() {
+        const selectedPublicUpdate = getSelectedPublicUpdate();
+        if (selectedPublicUpdate) {
+          setPublicHistoryUrl(getUpdateUrl(selectedPublicUpdate), true);
+        }
+
         renderPublicRows();
         renderAdminRows();
         hydrateUpdateImages();
@@ -3020,6 +3247,7 @@
         updatesState.updates = loadUpdates();
         updatesState.currentUpdateId = null;
         updatesState.storageMode = "localStorage";
+        syncPublicViewFromLocation();
         syncUpdateEditor();
         renderAll();
 
@@ -3029,6 +3257,7 @@
           updatesState.currentUpdateId = null;
           updatesState.storageMode = "netlify-blobs";
           saveUpdates();
+          syncPublicViewFromLocation();
           syncUpdateEditor();
           renderAll();
           return;
@@ -3773,36 +4002,20 @@
         setFeedback("Adding a new row.");
       }
 
-      function openPublicArchivedUpdate(updateId) {
-        const archivedUpdate = getArchivedUpdates().find((update) => update.id === updateId);
-        if (!archivedUpdate) {
+      function togglePublicArchive() {
+        const selectedUpdate = getSelectedPublicUpdate();
+
+        if (selectedUpdate) {
+          openPublicUpdatesHome({ archive: selectedUpdate.isArchived === true });
           return;
         }
 
-        updatesState.publicArchiveOpen = true;
-        updatesState.publicArchiveSelectedUpdateId = archivedUpdate.id;
-        renderPublicRows();
-        hydrateUpdateImages();
-
-        document.querySelector(".updates-section")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }
-
-      function togglePublicArchive() {
-        if (updatesState.publicArchiveSelectedUpdateId) {
-          updatesState.publicArchiveSelectedUpdateId = null;
-          updatesState.publicArchiveOpen = true;
-        } else {
-          updatesState.publicArchiveOpen = !updatesState.publicArchiveOpen;
-          if (!updatesState.publicArchiveOpen) {
-            updatesState.publicArchiveSelectedUpdateId = null;
-          }
+        if (updatesState.publicRouteNotFoundSlug) {
+          openPublicUpdatesHome({ archive: false });
+          return;
         }
 
-        renderPublicRows();
-        hydrateUpdateImages();
+        openPublicUpdatesHome({ archive: !updatesState.publicArchiveOpen });
       }
 
       function toggleAdminArchiveList() {
@@ -3826,6 +4039,7 @@
         const nextNumber = updatesState.updates.length + 1;
         const update = {
           id: createId(),
+          slug: "",
           version: `v${nextNumber}.0.0`,
           date: "",
           hasHeader: false,
@@ -3880,7 +4094,10 @@
         elements.updateHeaderImageHeightInput.value = String(headerImageHeight);
         syncUpdateHeaderImageControls();
 
+        const slug = createUniqueUpdateSlug({ version, hasHeader, header }, update.id);
+
         return {
+          slug,
           version,
           date,
           hasHeader,
@@ -4144,12 +4361,17 @@
       elements.archiveUpdateButton.addEventListener("click", toggleSelectedUpdateArchive);
       elements.publicArchiveButton.addEventListener("click", togglePublicArchive);
       elements.updatesRowList.addEventListener("click", (event) => {
-        const archiveCard = event.target.closest("[data-open-archived-update]");
-        if (!archiveCard || !elements.updatesRowList.contains(archiveCard)) {
+        const updateLink = event.target.closest("[data-open-public-update]");
+        if (!updateLink || !elements.updatesRowList.contains(updateLink)) {
           return;
         }
 
-        openPublicArchivedUpdate(archiveCard.dataset.openArchivedUpdate);
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+          return;
+        }
+
+        event.preventDefault();
+        openPublicUpdate(updateLink.dataset.openPublicUpdate);
       });
       elements.showUpdatesListButton.addEventListener("click", deselectUpdate);
       elements.adminArchiveListButton.addEventListener("click", toggleAdminArchiveList);
@@ -4457,6 +4679,12 @@
           closeAccountMenu();
           closeAdminPanel();
         }
+      });
+
+      window.addEventListener("popstate", () => {
+        syncPublicViewFromLocation();
+        renderPublicRows();
+        hydrateUpdateImages();
       });
 
       updatesState.authAccount = loadAuthSession();
