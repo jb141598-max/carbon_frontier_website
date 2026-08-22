@@ -192,6 +192,7 @@ function normalizeUpdate(update, index = 0) {
   const hasHeaderImage = update?.hasHeaderImage === true && headerImagePath.length > 0;
   const headerImageHeight = normalizeHeaderImageHeight(update?.headerImageHeight);
   const isArchived = update?.isArchived === true;
+  const isHidden = update?.isHidden === true;
   const rows = Array.isArray(update?.rows)
     ? update.rows.map(normalizeUpdateRow).filter(rowHasContent)
     : [];
@@ -207,6 +208,7 @@ function normalizeUpdate(update, index = 0) {
     headerImagePath,
     headerImageHeight,
     isArchived,
+    isHidden,
     rows,
   };
 }
@@ -236,6 +238,7 @@ function normalizeState(payload) {
             headerImagePath: "",
             headerImageHeight: 320,
             isArchived: false,
+            isHidden: false,
             rows: legacyRows,
           },
         ]

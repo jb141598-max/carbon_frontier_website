@@ -1715,6 +1715,9 @@
                 <button class="subtle-button" id="show-updates-list-button" type="button" hidden>
                   Back to All Updates
                 </button>
+                <button class="subtle-button" id="toggle-update-visibility-button" type="button" hidden>
+                  Hide Update
+                </button>
               </div>
             </div>
             <div class="admin-row-list" id="admin-row-list"></div>
@@ -1834,6 +1837,7 @@
         adminPreviewHeading: document.getElementById("admin-preview-heading"),
         adminPreviewCopy: document.getElementById("admin-preview-copy"),
         showUpdatesListButton: document.getElementById("show-updates-list-button"),
+        toggleUpdateVisibilityButton: document.getElementById("toggle-update-visibility-button"),
         adminListFooter: document.getElementById("admin-list-footer"),
         adminArchiveListButton: document.getElementById("admin-archive-list-button"),
       };
@@ -2300,6 +2304,7 @@
           ? Math.min(900, Math.max(120, Math.round(requestedHeaderImageHeight)))
           : 320;
         const isArchived = update?.isArchived === true;
+        const isHidden = update?.isHidden === true;
 
         return {
           id: String(update?.id || createId()),
@@ -2312,6 +2317,7 @@
           headerImagePath,
           headerImageHeight,
           isArchived,
+          isHidden,
           rows,
         };
       }
@@ -2340,6 +2346,7 @@
                   hasHeader: false,
                   header: "",
                   isArchived: false,
+                  isHidden: false,
                   rows: legacyRows,
                 },
               ]
@@ -2415,6 +2422,14 @@
         return updatesState.updates.filter((update) => update.isArchived === true);
       }
 
+      function getPublicCurrentUpdates() {
+        return getCurrentUpdates().filter((update) => update.isHidden !== true);
+      }
+
+      function getPublicArchivedUpdates() {
+        return getArchivedUpdates().filter((update) => update.isHidden !== true);
+      }
+
       function getVisibleAdminUpdates() {
         return updatesState.adminArchiveView ? getArchivedUpdates() : getCurrentUpdates();
       }
@@ -2433,14 +2448,17 @@
       }
 
       function getCurrentUpdatesHomeUrl() {
-        const topCurrentUpdate = getCurrentUpdates()[0] || null;
+        const topCurrentUpdate = getPublicCurrentUpdates()[0] || null;
         return topCurrentUpdate ? getUpdateUrl(topCurrentUpdate) : "/updates";
       }
 
       function getSelectedPublicUpdate() {
         return (
-          updatesState.updates.find((update) => update.id === updatesState.publicSelectedUpdateId) ||
-          null
+          updatesState.updates.find(
+            (update) =>
+              update.id === updatesState.publicSelectedUpdateId &&
+              update.isHidden !== true
+          ) || null
         );
       }
 
@@ -2524,7 +2542,13 @@
         );
 
         if (matchingUpdate) {
-          const topCurrentUpdate = getCurrentUpdates()[0] || null;
+          if (matchingUpdate.isHidden === true) {
+            updatesState.publicArchiveOpen = false;
+            updatesState.publicRouteNotFoundSlug = routeSlug || rawPath;
+            return;
+          }
+
+          const topCurrentUpdate = getPublicCurrentUpdates()[0] || null;
           const isCurrentHomeSlug =
             matchingUpdate.isArchived !== true && topCurrentUpdate?.id === matchingUpdate.id;
 
@@ -2555,7 +2579,7 @@
 
       function openPublicUpdate(updateId, replaceUrl = false) {
         const update = updatesState.updates.find((entry) => entry.id === updateId);
-        if (!update) {
+        if (!update || update.isHidden === true) {
           return;
         }
 
@@ -2638,7 +2662,8 @@
       function getAdminUpdateMetaText(update) {
         const rowLabel = `${update.rows.length} row${update.rows.length === 1 ? "" : "s"}`;
         const formattedDate = formatUpdateDate(update.date);
-        return [update.version, formattedDate, rowLabel].filter(Boolean).join(" - ");
+        const visibilityLabel = update.isHidden === true ? "Hidden" : "Shown";
+        return [update.version, formattedDate, rowLabel, visibilityLabel].filter(Boolean).join(" - ");
       }
 
       function normalizeImagePath(imagePath) {
@@ -2844,7 +2869,7 @@
           return;
         }
 
-        const currentUpdates = getCurrentUpdates();
+        const currentUpdates = getPublicCurrentUpdates();
         elements.updatesHeading.textContent = "UPDATES";
         elements.publicArchiveButton.textContent = "Archive";
         elements.publicArchiveButton.setAttribute("aria-expanded", "false");
@@ -2865,7 +2890,7 @@
       }
 
       function renderPublicArchive() {
-        const archivedUpdates = getArchivedUpdates();
+        const archivedUpdates = getPublicArchivedUpdates();
         elements.updatesHeading.textContent = "ARCHIVE";
         elements.publicArchiveButton.textContent = "Updates";
         elements.publicArchiveButton.setAttribute("aria-expanded", "true");
@@ -2905,6 +2930,7 @@
           elements.adminPreviewHeading.textContent = "Current updates";
           elements.adminPreviewCopy.textContent = "Add an update to start building this page.";
           elements.showUpdatesListButton.hidden = true;
+          elements.toggleUpdateVisibilityButton.hidden = true;
           elements.adminListFooter.hidden = true;
           elements.adminRowList.innerHTML = `
             <div class="empty-state">
@@ -2921,6 +2947,7 @@
             ? "These archived updates stay here forever. Drag to reorder, or choose one to edit it."
             : "Drag updates to rearrange the live order, or choose one to edit its rows.";
           elements.showUpdatesListButton.hidden = true;
+          elements.toggleUpdateVisibilityButton.hidden = true;
           elements.adminListFooter.hidden = false;
           elements.adminArchiveListButton.textContent = updatesState.adminArchiveView
             ? "Current Updates"
@@ -2974,6 +3001,10 @@
         elements.showUpdatesListButton.textContent = activeUpdate.isArchived
           ? "Back to Archive"
           : "Back to All Updates";
+        elements.toggleUpdateVisibilityButton.hidden = false;
+        elements.toggleUpdateVisibilityButton.textContent = activeUpdate.isHidden === true
+          ? "Show Update"
+          : "Hide Update";
         elements.adminListFooter.hidden = true;
         elements.adminRowList.innerHTML = activeUpdate.rows.length
           ? activeUpdate.rows
@@ -4130,6 +4161,7 @@
           headerImagePath: "",
           headerImageHeight: 320,
           isArchived: false,
+          isHidden: true,
           rows: [],
         };
 
@@ -4143,7 +4175,7 @@
         syncUpdateEditor();
         saveUpdates();
         renderAll();
-        setFeedback("Update draft ready. Add rows or click Save Update to publish it.");
+        setFeedback("Update draft ready and hidden by default. Add rows, then click Show Update when it is ready for visitors.");
       }
 
       function getUpdateMetaFromForm(update) {
@@ -4354,6 +4386,35 @@
         await persistUpdatesState("All rows cleared locally.", "All rows cleared from shared updates.");
       }
 
+      async function toggleSelectedUpdateVisibility() {
+        const update = getActiveUpdate();
+        if (!update) {
+          setFeedback("Choose an update before changing its visibility.", true);
+          return;
+        }
+
+        const nextHiddenState = update.isHidden !== true;
+        updatesState.updates = updatesState.updates.map((entry) =>
+          entry.id === update.id ? { ...entry, isHidden: nextHiddenState } : entry
+        );
+
+        if (nextHiddenState && updatesState.publicSelectedUpdateId === update.id) {
+          updatesState.publicSelectedUpdateId = null;
+          updatesState.publicArchiveSelectedUpdateId = null;
+          updatesState.publicRouteNotFoundSlug = "";
+          updatesState.publicArchiveOpen = update.isArchived === true;
+        }
+
+        syncUpdateEditor();
+        renderAll();
+        await persistUpdatesState(
+          nextHiddenState ? "Update hidden locally." : "Update shown locally.",
+          nextHiddenState
+            ? "Update hidden from visitors."
+            : "Update is now visible to visitors."
+        );
+      }
+
       async function toggleSelectedUpdateArchive() {
         const update = getActiveUpdate();
         if (!update) {
@@ -4441,6 +4502,7 @@
       elements.updateForm.addEventListener("submit", handleUpdateSubmit);
       elements.saveUpdateButton.addEventListener("click", saveSelectedUpdateMeta);
       elements.archiveUpdateButton.addEventListener("click", toggleSelectedUpdateArchive);
+      elements.toggleUpdateVisibilityButton.addEventListener("click", toggleSelectedUpdateVisibility);
       elements.publicArchiveButton.addEventListener("click", togglePublicArchive);
       elements.updatesRowList.addEventListener("click", (event) => {
         const updateLink = event.target.closest("[data-open-public-update]");
