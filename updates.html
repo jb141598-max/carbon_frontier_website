@@ -2429,9 +2429,7 @@
 
       function getUpdateUrl(update) {
         const slug = encodeURIComponent(getUpdateSlug(update));
-        return update?.isArchived === true
-          ? `/updates/archive/${slug}`
-          : `/updates/${slug}`;
+        return `/updates/${slug}`;
       }
 
       function getCurrentUpdatesHomeUrl() {
@@ -2544,9 +2542,9 @@
             : null;
           updatesState.publicArchiveOpen = matchingUpdate.isArchived === true;
 
-          // Current updates live under /updates/<slug>, while archived updates
-          // live under /updates/archive/<slug>. The saved slug itself stays the
-          // same when archive status changes.
+          // Every update keeps the same permanent URL at /updates/<slug>,
+          // whether it is current or archived. Older /updates/archive/<slug>
+          // links are accepted above and canonicalized back to this URL.
           setPublicHistoryUrl(getUpdateUrl(matchingUpdate), true);
           return;
         }

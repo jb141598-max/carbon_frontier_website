@@ -2,8 +2,8 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Archived update detail pages, for example:
-# /updates/archive/license-bug-fix
+# Backward compatibility for the old archived-update detail format.
+# The browser canonicalizes /updates/archive/<slug> to /updates/<slug>.
 [[redirects]]
   from = "/updates/archive/:slug"
   to = "/updates.html"
@@ -15,16 +15,15 @@
   to = "/updates.html"
   status = 200
 
-# Current update detail/current-home pages, for example:
-# /updates/solar-panel-fix
+# Permanent update detail/current-home pages for both current and archived
+# updates, for example: /updates/solar-panel-fix
 [[redirects]]
   from = "/updates/:slug"
   to = "/updates.html"
   status = 200
 
 # Backward compatibility for the previous one-segment permalink format.
-# The browser canonicalizes these to /updates/<slug> or
-# /updates/archive/<slug> after loading the update state.
+# The browser canonicalizes these to /updates/<slug> after loading the update state.
 [[redirects]]
   from = "/:slug"
   to = "/updates.html"
