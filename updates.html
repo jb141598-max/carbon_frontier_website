@@ -2428,7 +2428,10 @@
       }
 
       function getUpdateUrl(update) {
-        return `/${encodeURIComponent(getUpdateSlug(update))}`;
+        const slug = encodeURIComponent(getUpdateSlug(update));
+        return update?.isArchived === true
+          ? `/updates/archive/${slug}`
+          : `/updates/${slug}`;
       }
 
       function getCurrentUpdatesHomeUrl() {
@@ -2461,7 +2464,9 @@
 
       function syncPublicViewFromLocation() {
         const rawPath = window.location.pathname.replace(/^\/+|\/+$/g, "");
-        const normalizedPath = rawPath.toLowerCase();
+        const pathParts = rawPath.split("/").filter(Boolean);
+        const normalizedParts = pathParts.map((part) => part.toLowerCase());
+        const normalizedPath = normalizedParts.join("/");
         const isArchiveRoute = normalizedPath === "updates/archive";
         const isLegacyArchiveRoute =
           (normalizedPath === "updates" || normalizedPath === "updates.html") &&
@@ -2469,9 +2474,16 @@
         const isUpdatesHome =
           normalizedPath === "" ||
           normalizedPath === "updates" ||
-          normalizedPath === "updates.html" ||
-          normalizedPath === "index" ||
-          normalizedPath === "index.html";
+          normalizedPath === "updates.html";
+        const isCurrentUpdateRoute =
+          normalizedParts.length === 2 && normalizedParts[0] === "updates";
+        const isArchivedUpdateRoute =
+          normalizedParts.length === 3 &&
+          normalizedParts[0] === "updates" &&
+          normalizedParts[1] === "archive";
+        const isLegacyRootUpdateRoute =
+          normalizedParts.length === 1 &&
+          !["updates", "updates.html", "index", "index.html"].includes(normalizedParts[0]);
 
         updatesState.publicSelectedUpdateId = null;
         updatesState.publicArchiveSelectedUpdateId = null;
@@ -2489,11 +2501,23 @@
           return;
         }
 
-        let routeSlug = rawPath;
+        let routeSlug = "";
+        if (isArchivedUpdateRoute) {
+          routeSlug = pathParts[2] || "";
+        } else if (isCurrentUpdateRoute) {
+          routeSlug = pathParts[1] || "";
+        } else if (isLegacyRootUpdateRoute) {
+          routeSlug = pathParts[0] || "";
+        } else {
+          updatesState.publicArchiveOpen = false;
+          updatesState.publicRouteNotFoundSlug = rawPath;
+          return;
+        }
+
         try {
           routeSlug = decodeURIComponent(routeSlug);
         } catch (error) {
-          // Keep the raw path if it cannot be decoded.
+          // Keep the raw slug if it cannot be decoded.
         }
 
         routeSlug = normalizeStoredUpdateSlug(routeSlug);
@@ -2506,9 +2530,8 @@
           const isCurrentHomeSlug =
             matchingUpdate.isArchived !== true && topCurrentUpdate?.id === matchingUpdate.id;
 
-          // The top current update's slug doubles as the URL for the current
-          // updates page. This keeps the public list visible while giving the
-          // page a meaningful, update-specific URL.
+          // The top current update is the current Updates page itself. Any
+          // stale or legacy URL is canonicalized to /updates/<slug>.
           if (isCurrentHomeSlug) {
             updatesState.publicArchiveOpen = false;
             setPublicHistoryUrl(getUpdateUrl(matchingUpdate), true);
@@ -2516,7 +2539,15 @@
           }
 
           updatesState.publicSelectedUpdateId = matchingUpdate.id;
+          updatesState.publicArchiveSelectedUpdateId = matchingUpdate.isArchived
+            ? matchingUpdate.id
+            : null;
           updatesState.publicArchiveOpen = matchingUpdate.isArchived === true;
+
+          // Current updates live under /updates/<slug>, while archived updates
+          // live under /updates/archive/<slug>. The saved slug itself stays the
+          // same when archive status changes.
+          setPublicHistoryUrl(getUpdateUrl(matchingUpdate), true);
           return;
         }
 

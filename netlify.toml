@@ -2,17 +2,29 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Archived update detail pages, for example:
+# /updates/archive/license-bug-fix
+[[redirects]]
+  from = "/updates/archive/:slug"
+  to = "/updates.html"
+  status = 200
 
-# The archive index uses a clean nested URL. Keep this rule before the
-# one-segment update permalink rule below.
+# Archive index.
 [[redirects]]
   from = "/updates/archive"
   to = "/updates.html"
   status = 200
 
-# Let clean update permalinks such as /license-fix-update and /9-0-1
-# load the updates application. Existing real files like /index.html and
-# /updates.html are not overridden.
+# Current update detail/current-home pages, for example:
+# /updates/solar-panel-fix
+[[redirects]]
+  from = "/updates/:slug"
+  to = "/updates.html"
+  status = 200
+
+# Backward compatibility for the previous one-segment permalink format.
+# The browser canonicalizes these to /updates/<slug> or
+# /updates/archive/<slug> after loading the update state.
 [[redirects]]
   from = "/:slug"
   to = "/updates.html"
