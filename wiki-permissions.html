@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Carbon Frontier Wiki</title>
+    <title>Carbon Frontier Wiki Permissions</title>
     <meta
       name="google-signin-client_id"
       content="609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com"
@@ -726,6 +726,7 @@
       <div class="content">
         <header class="topbar">
           <nav class="topbar-nav" aria-label="Primary navigation">
+            <a class="nav-button" href="/wiki">Wiki</a>
             <a class="nav-button" href="/index.html">Roadmap</a>
             <a class="nav-button" href="/updates">Updates</a>
           </nav>
@@ -763,21 +764,21 @@
                 <p class="auth-note" id="auth-note"></p>
               </div>
             </div>
-            <a class="primary-button" id="access-panel-button" href="/wiki/permissions" hidden>
-              Permissions
+            <a class="primary-button" id="access-panel-button" href="/wiki" hidden>
+              Wiki Front Page
             </a>
           </div>
         </header>
 
         <main>
           <section class="loading-card" id="loading-view">
-            <h1>Wiki</h1>
-            <p>Checking the current wiki visibility and your access.</p>
+            <h1>Permissions</h1>
+            <p>Checking whether your account can manage wiki permissions.</p>
           </section>
 
           <section class="unavailable-card" id="unavailable-view" hidden>
             <div class="unavailable-mark" aria-hidden="true">×</div>
-            <h1>Wiki not available</h1>
+            <h1 id="unavailable-heading">Permissions not available</h1>
             <p id="unavailable-copy">
               The Carbon Frontier wiki is currently private.
             </p>
@@ -786,8 +787,8 @@
           <div id="wiki-view" hidden>
             <div class="page-heading-row">
               <div class="page-heading">
-                <p class="eyebrow">Carbon Frontier Knowledge Base</p>
-                <h1>Wiki</h1>
+                <p class="eyebrow">Carbon Frontier Wiki Administration</p>
+                <h1>Permissions</h1>
               </div>
               <div class="status-badges">
                 <span class="status-badge" id="visibility-badge">Private</span>
@@ -796,55 +797,46 @@
               </div>
             </div>
 
-            <section class="intro-panel">
+            <section class="intro-panel" hidden>
               <div class="intro-grid">
                 <div>
-                  <p class="eyebrow">Wiki Front Page</p>
+                  <p class="eyebrow">Account and permissions foundation</p>
                   <p class="intro-copy">
-                    Welcome to the Carbon Frontier wiki. This front page will become the starting
-                    point for game guides, machines, materials, power systems, tutorials, and
-                    community-maintained information.
+                    The secure wiki access layer is ready. Owners can appoint admins, owners and
+                    admins can assign wiki editors, and every permission is checked by the server
+                    before private content or editing tools are unlocked.
                   </p>
                 </div>
                 <div class="foundation-state">
-                  <strong id="viewer-access-title">Front page placeholder</strong>
-                  <span id="viewer-access-copy">Page editing will be connected during a later build step.</span>
-                  <button
-                    class="secondary-button"
-                    id="edit-front-page-button"
-                    type="button"
-                    style="margin-top: 14px"
-                    disabled
-                  >
-                    Edit Front Page — Coming Soon
-                  </button>
+                  <strong id="viewer-access-title">Read access active</strong>
+                  <span id="viewer-access-copy">Your account can access this wiki.</span>
                 </div>
               </div>
             </section>
 
-            <section class="wiki-grid" aria-label="Future wiki sections">
+            <section class="wiki-grid" aria-label="Wiki foundation features" hidden>
               <article class="wiki-card">
-                <span class="card-number">01 / GUIDES</span>
-                <h3>Getting started</h3>
+                <span class="card-number">01 / ACCESS</span>
+                <h3>Private means assigned only</h3>
                 <p>
-                  Beginner tutorials, controls, building basics, progression help, and the first
-                  steps toward creating a successful industrial world.
+                  Owners, admins, and assigned wiki editors can always read and edit a private
+                  wiki. Unassigned visitors receive no private page content.
                 </p>
               </article>
               <article class="wiki-card">
-                <span class="card-number">02 / DATABASE</span>
-                <h3>Machines and materials</h3>
+                <span class="card-number">02 / ROLES</span>
+                <h3>Protected role hierarchy</h3>
                 <p>
-                  Detailed pages for machines, recipes, resources, licenses, power production,
-                  logistics, and every important statistic.
+                  Owners appoint admins. Owners and admins appoint wiki editors. Admins cannot
+                  promote another admin or alter an owner.
                 </p>
               </article>
               <article class="wiki-card">
-                <span class="card-number">03 / ACTIVITY</span>
-                <h3>Recent changes</h3>
+                <span class="card-number">03 / ANALYTICS</span>
+                <h3>Assigned staff stay visible</h3>
                 <p>
-                  Once page editing is added, this area will show recently updated articles and
-                  make it easy to review what changed.
+                  The assigned-editor analytics scope includes owners, admins, and wiki editors,
+                  even when an assigned person has zero edits.
                 </p>
               </article>
             </section>
@@ -859,9 +851,9 @@
                     the public.
                   </p>
                 </div>
-                <button class="secondary-button" id="close-access-panel" type="button">
-                  Close
-                </button>
+                <a class="secondary-button" id="close-access-panel" href="/wiki">
+                  Back to Wiki
+                </a>
               </div>
 
               <form id="settings-form">
@@ -957,7 +949,7 @@
         access: null,
         remoteEndpoint: "",
         accountMenuOpen: false,
-        accessPanelOpen: false,
+        accessPanelOpen: true,
         googleInitialized: false,
         pendingRemoveEmail: "",
       };
@@ -978,6 +970,7 @@
         accessPanelButton: document.getElementById("access-panel-button"),
         loadingView: document.getElementById("loading-view"),
         unavailableView: document.getElementById("unavailable-view"),
+        unavailableHeading: document.getElementById("unavailable-heading"),
         unavailableCopy: document.getElementById("unavailable-copy"),
         wikiView: document.getElementById("wiki-view"),
         visibilityBadge: document.getElementById("visibility-badge"),
@@ -1381,16 +1374,19 @@
         syncAccountMenu();
         maybeRenderGoogleButton();
 
-        if (!access || !viewer?.canView) {
+        if (!access || !viewer?.canManageEditors) {
           elements.wikiView.hidden = true;
           elements.unavailableView.hidden = false;
           elements.accessPanelButton.hidden = true;
+          elements.unavailableHeading.textContent = "Permissions not available";
           elements.accountPill.textContent = viewer?.authenticated
-            ? "No wiki access"
-            : "Wiki is private";
+            ? "No permission access"
+            : "Sign in required";
           elements.unavailableCopy.textContent = viewer?.authenticated
-            ? "This signed-in email has not been assigned access to the private Carbon Frontier wiki."
-            : "The Carbon Frontier wiki is currently private. Assigned owners, admins, and wiki editors can sign in from the account menu.";
+            ? viewer.canView
+              ? "Only wiki owners and admins can open the permissions page."
+              : "This signed-in email does not have access to the private Carbon Frontier wiki."
+            : "Sign in with an assigned owner or admin account to manage wiki permissions.";
           return;
         }
 
@@ -1415,11 +1411,13 @@
         }
 
         elements.viewerAccessTitle.textContent = viewer.canEdit
-          ? "Editing permission active"
-          : "Read-only access";
-        elements.viewerAccessCopy.textContent = viewer.canEdit
-          ? "Your account will be able to edit this front page once the page editor is connected."
-          : "This front page can currently be viewed, but your account does not have editing permission.";
+          ? "Read and edit access active"
+          : "Read access active";
+        elements.viewerAccessCopy.textContent = viewer.role
+          ? `Your ${roleLabel(viewer.role)} account keeps access even while the wiki is private.`
+          : viewer.canEdit
+            ? "The public wiki currently allows verified accounts to edit."
+            : "The public wiki is available to read.";
 
         if (viewer.canManageEditors) {
           elements.visibilitySelect.value = settings.visibility;
@@ -1432,13 +1430,14 @@
           renderMembers();
         }
 
-        elements.accessPanel.hidden = !wikiState.accessPanelOpen || !viewer.canManageEditors;
+        elements.accessPanel.hidden = false;
       }
 
       function renderLoadError(error) {
         elements.loadingView.hidden = true;
         elements.wikiView.hidden = true;
         elements.unavailableView.hidden = false;
+        elements.unavailableHeading.textContent = "Permissions unavailable";
         elements.unavailableCopy.textContent =
           error instanceof Error
             ? error.message
@@ -1507,17 +1506,10 @@
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           closeAccountMenu();
-          wikiState.accessPanelOpen = false;
-          renderWikiAccess();
         }
       });
 
       elements.signoutButton.addEventListener("click", signOut);
-
-      elements.closeAccessPanel.addEventListener("click", () => {
-        wikiState.accessPanelOpen = false;
-        renderWikiAccess();
-      });
 
       elements.visibilitySelect.addEventListener("change", syncPrivacyControls);
 

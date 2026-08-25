@@ -9,6 +9,18 @@
   to = "/wiki.html"
   status = 200
 
+# Wiki permission management has its own page and URL. Keep these before the
+# general wiki wildcard used for future article routes.
+[[redirects]]
+  from = "/wiki/permissions"
+  to = "/wiki-permissions.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/permissions/"
+  to = "/wiki-permissions.html"
+  status = 200
+
 [[redirects]]
   from = "/wiki/*"
   to = "/wiki.html"
