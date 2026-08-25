@@ -2,6 +2,18 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Native Carbon Frontier wiki. These routes must stay above the broad
+# Updates permalink fallbacks below.
+[[redirects]]
+  from = "/wiki"
+  to = "/wiki.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/*"
+  to = "/wiki.html"
+  status = 200
+
 # Backward compatibility for the old archived-update detail format.
 # The browser canonicalizes /updates/archive/<slug> to /updates/<slug>.
 [[redirects]]

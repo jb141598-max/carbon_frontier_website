@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Carbon Frontier Wiki</title>
+    <meta
+      name="google-signin-client_id"
+      content="609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+      :root {
+        --cf-red: #df2531;
+        --cf-red-45: rgba(223, 37, 49, 0.45);
+        --cf-red-65: rgba(223, 37, 49, 0.65);
+        --cf-orange: #f08c2b;
+        --cf-green: #2fb86a;
+        --cf-white: #ffffff;
+        --cf-muted: rgba(255, 255, 255, 0.7);
+        --cf-soft: rgba(255, 255, 255, 0.48);
+        --cf-panel: rgba(255, 255, 255, 0.045);
+        --cf-panel-strong: rgba(255, 255, 255, 0.075);
+        --cf-border: rgba(255, 255, 255, 0.12);
+        --cf-shadow: 0 24px 68px rgba(0, 0, 0, 0.44);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+      }
+
+      body {
+        min-height: 100vh;
+        color: var(--cf-white);
+        font-family: "Play", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(223, 37, 49, 0.24), transparent 31%),
+          radial-gradient(circle at 88% 10%, rgba(223, 37, 49, 0.15), transparent 25%),
+          linear-gradient(180deg, #080808 0%, #000000 46%, #050505 100%);
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      button:disabled,
+      select:disabled,
+      input:disabled {
+        cursor: not-allowed;
+        opacity: 0.52;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      .page-shell {
+        position: relative;
+        min-height: 100vh;
+        padding: 28px;
+        overflow: hidden;
+      }
+
+      .page-shell::before {
+        position: absolute;
+        inset: 0;
+        content: "";
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+        background-size: 96px 96px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.84), transparent 84%);
+      }
+
+      .content {
+        position: relative;
+        z-index: 1;
+        width: min(1240px, 100%);
+        margin: 0 auto;
+      }
+
+      .topbar,
+      .topbar-nav,
+      .topbar-actions,
+      .account-entry,
+      .account-menu-header,
+      .account-menu-actions,
+      .page-heading-row,
+      .section-heading-row,
+      .member-actions,
+      .form-actions {
+        display: flex;
+        align-items: center;
+      }
+
+      .topbar {
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 34px;
+      }
+
+      .topbar-nav,
+      .topbar-actions,
+      .account-entry,
+      .account-menu-actions,
+      .member-actions,
+      .form-actions {
+        gap: 10px;
+      }
+
+      .account-entry {
+        position: relative;
+      }
+
+      .nav-button,
+      .primary-button,
+      .secondary-button,
+      .danger-button,
+      .account-menu-button,
+      .account-pill {
+        min-height: 44px;
+        border: 1px solid var(--cf-border);
+        border-radius: 999px;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.04);
+        transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+      }
+
+      .nav-button,
+      .primary-button,
+      .secondary-button,
+      .danger-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 11px 16px;
+        font-size: 0.84rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-decoration: none;
+        text-transform: uppercase;
+      }
+
+      .nav-button:hover,
+      .nav-button:focus-visible,
+      .secondary-button:hover,
+      .secondary-button:focus-visible,
+      .account-menu-button:hover,
+      .account-entry.is-open .account-menu-button {
+        border-color: rgba(223, 37, 49, 0.68);
+        background: rgba(223, 37, 49, 0.16);
+        outline: none;
+        transform: translateY(-1px);
+      }
+
+      .primary-button {
+        border-color: rgba(223, 37, 49, 0.9);
+        background: var(--cf-red-45);
+      }
+
+      .primary-button:hover,
+      .primary-button:focus-visible {
+        background: var(--cf-red-65);
+        outline: none;
+        transform: translateY(-1px);
+      }
+
+      .danger-button {
+        border-color: rgba(223, 37, 49, 0.42);
+        color: #ff9ba2;
+      }
+
+      .danger-button.is-armed {
+        color: var(--cf-white);
+        border-color: rgba(223, 37, 49, 0.94);
+        background: rgba(223, 37, 49, 0.54);
+      }
+
+      .account-menu-button {
+        display: grid;
+        width: 46px;
+        height: 46px;
+        padding: 0;
+        place-items: center;
+      }
+
+      .account-avatar,
+      .account-menu-avatar {
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        color: var(--cf-white);
+        background:
+          linear-gradient(135deg, rgba(223, 37, 49, 0.92), rgba(223, 37, 49, 0.42)),
+          #181818;
+        background-position: center;
+        background-size: cover;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        overflow: hidden;
+      }
+
+      .account-avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 0.72rem;
+      }
+
+      .account-menu-avatar {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 auto;
+      }
+
+      .account-pill {
+        max-width: min(40vw, 310px);
+        padding: 10px 14px;
+        color: var(--cf-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .account-menu-panel {
+        position: absolute;
+        top: calc(100% + 12px);
+        right: 0;
+        z-index: 30;
+        width: min(330px, calc(100vw - 36px));
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+        border: 1px solid var(--cf-border);
+        border-radius: 24px;
+        background: linear-gradient(180deg, rgba(24, 24, 24, 0.98), rgba(6, 6, 6, 0.99));
+        box-shadow: var(--cf-shadow);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px) scale(0.985);
+        transition: opacity 160ms ease, transform 160ms ease;
+      }
+
+      .account-entry.is-open .account-menu-panel {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+      }
+
+      .account-menu-header {
+        gap: 12px;
+      }
+
+      .account-menu-title,
+      .account-menu-email,
+      .account-menu-copy,
+      .auth-note,
+      .eyebrow,
+      .section-copy,
+      .feedback,
+      .member-meta,
+      .empty-copy {
+        margin: 0;
+      }
+
+      .account-menu-title {
+        font-weight: 700;
+      }
+
+      .account-menu-email,
+      .account-menu-copy,
+      .auth-note,
+      .section-copy,
+      .member-meta,
+      .empty-copy {
+        color: var(--cf-muted);
+        font-size: 0.86rem;
+        line-height: 1.55;
+      }
+
+      .account-menu-email {
+        margin-top: 4px;
+        word-break: break-word;
+      }
+
+      .google-signin-slot {
+        min-height: 42px;
+        display: grid;
+        justify-content: start;
+      }
+
+      .loading-card,
+      .unavailable-card,
+      .intro-panel,
+      .wiki-card,
+      .access-panel,
+      .settings-card,
+      .member-card,
+      .empty-state {
+        border: 1px solid var(--cf-border);
+        background: var(--cf-panel);
+        box-shadow: var(--cf-shadow);
+      }
+
+      .loading-card,
+      .unavailable-card {
+        width: min(760px, 100%);
+        margin: 10vh auto 0;
+        padding: clamp(30px, 6vw, 58px);
+        border-radius: 32px;
+        text-align: center;
+      }
+
+      .unavailable-mark {
+        width: 64px;
+        height: 64px;
+        display: grid;
+        margin: 0 auto 20px;
+        place-items: center;
+        border: 1px solid rgba(223, 37, 49, 0.54);
+        border-radius: 20px;
+        color: #ffabb0;
+        background: rgba(223, 37, 49, 0.12);
+        font-size: 1.8rem;
+        font-weight: 700;
+      }
+
+      .loading-card h1,
+      .unavailable-card h1,
+      .page-heading h1,
+      .section-heading h2,
+      .wiki-card h3,
+      .settings-card h3 {
+        margin: 0;
+      }
+
+      .unavailable-card h1,
+      .loading-card h1 {
+        font-size: clamp(2rem, 7vw, 3.8rem);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .unavailable-card p,
+      .loading-card p {
+        max-width: 580px;
+        margin: 16px auto 0;
+        color: var(--cf-muted);
+        line-height: 1.7;
+      }
+
+      .page-heading-row {
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 22px;
+      }
+
+      .page-heading h1 {
+        margin-top: 6px;
+        font-size: clamp(2.5rem, 7vw, 5.6rem);
+        letter-spacing: 0.04em;
+        line-height: 0.95;
+        text-transform: uppercase;
+      }
+
+      .eyebrow {
+        color: #ff9ba2;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .status-badges {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .status-badge,
+      .role-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 30px;
+        padding: 6px 10px;
+        border: 1px solid var(--cf-border);
+        border-radius: 999px;
+        color: var(--cf-muted);
+        background: rgba(255, 255, 255, 0.035);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .status-badge.is-private,
+      .role-badge[data-role="owner"] {
+        color: #ffb1b6;
+        border-color: rgba(223, 37, 49, 0.54);
+        background: rgba(223, 37, 49, 0.12);
+      }
+
+      .status-badge.is-public,
+      .role-badge[data-role="wiki_editor"] {
+        color: #96e8b9;
+        border-color: rgba(47, 184, 106, 0.5);
+        background: rgba(47, 184, 106, 0.12);
+      }
+
+      .role-badge[data-role="admin"] {
+        color: #ffc27f;
+        border-color: rgba(240, 140, 43, 0.52);
+        background: rgba(240, 140, 43, 0.12);
+      }
+
+      .intro-panel {
+        padding: clamp(24px, 5vw, 42px);
+        border-radius: 32px;
+        background:
+          linear-gradient(135deg, rgba(223, 37, 49, 0.12), transparent 52%),
+          var(--cf-panel);
+      }
+
+      .intro-grid,
+      .wiki-grid,
+      .settings-grid,
+      .member-form {
+        display: grid;
+      }
+
+      .intro-grid {
+        grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.7fr);
+        gap: 26px;
+        align-items: end;
+      }
+
+      .intro-copy {
+        max-width: 760px;
+        color: var(--cf-muted);
+        font-size: clamp(1rem, 2vw, 1.12rem);
+        line-height: 1.75;
+      }
+
+      .foundation-state {
+        padding: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 22px;
+        background: rgba(0, 0, 0, 0.26);
+      }
+
+      .foundation-state strong,
+      .foundation-state span {
+        display: block;
+      }
+
+      .foundation-state strong {
+        font-size: 1.08rem;
+      }
+
+      .foundation-state span {
+        margin-top: 7px;
+        color: var(--cf-muted);
+        font-size: 0.86rem;
+        line-height: 1.5;
+      }
+
+      .wiki-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .wiki-card {
+        min-height: 190px;
+        padding: 22px;
+        border-radius: 24px;
+        box-shadow: none;
+      }
+
+      .wiki-card h3 {
+        margin-top: 12px;
+        font-size: 1.18rem;
+      }
+
+      .wiki-card p {
+        margin: 10px 0 0;
+        color: var(--cf-muted);
+        font-size: 0.9rem;
+        line-height: 1.62;
+      }
+
+      .card-number {
+        color: #ff9ba2;
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+      }
+
+      .access-panel {
+        margin-top: 28px;
+        padding: clamp(22px, 4vw, 34px);
+        border-radius: 30px;
+      }
+
+      .section-heading-row {
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 22px;
+      }
+
+      .section-heading h2 {
+        margin-top: 5px;
+        font-size: clamp(1.55rem, 4vw, 2.5rem);
+      }
+
+      .section-copy {
+        max-width: 620px;
+        margin-top: 8px;
+      }
+
+      .settings-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .settings-card {
+        display: grid;
+        gap: 16px;
+        padding: 20px;
+        border-radius: 24px;
+        box-shadow: none;
+      }
+
+      .settings-card h3 {
+        font-size: 1.05rem;
+      }
+
+      .field-label,
+      .field-note {
+        display: block;
+      }
+
+      .field-label {
+        margin-bottom: 8px;
+        color: var(--cf-muted);
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .field-note {
+        margin-top: 8px;
+        color: var(--cf-soft);
+        font-size: 0.78rem;
+        line-height: 1.48;
+      }
+
+      input,
+      select {
+        width: 100%;
+        min-height: 46px;
+        padding: 11px 13px;
+        border: 1px solid var(--cf-border);
+        border-radius: 14px;
+        color: var(--cf-white);
+        background: #0e0e0e;
+        outline: none;
+      }
+
+      input:focus,
+      select:focus {
+        border-color: rgba(223, 37, 49, 0.78);
+        box-shadow: 0 0 0 3px rgba(223, 37, 49, 0.12);
+      }
+
+      .member-form {
+        grid-template-columns: minmax(0, 1.5fr) minmax(180px, 0.65fr) auto;
+        gap: 10px;
+        align-items: end;
+        margin: 24px 0 16px;
+      }
+
+      .member-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .member-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 16px;
+        align-items: center;
+        padding: 16px 18px;
+        border-radius: 20px;
+        box-shadow: none;
+      }
+
+      .member-email {
+        margin: 0;
+        font-weight: 700;
+        word-break: break-word;
+      }
+
+      .member-meta {
+        margin-top: 5px;
+      }
+
+      .empty-state {
+        padding: 22px;
+        border-style: dashed;
+        border-radius: 20px;
+        box-shadow: none;
+      }
+
+      .feedback {
+        min-height: 22px;
+        margin-top: 14px;
+        color: #9ce8bc;
+        font-size: 0.86rem;
+        line-height: 1.5;
+      }
+
+      .feedback.is-error {
+        color: #ff9ba2;
+      }
+
+      .analytics-rule {
+        margin-top: 16px;
+        padding: 18px;
+        border: 1px solid rgba(240, 140, 43, 0.24);
+        border-radius: 20px;
+        background: rgba(240, 140, 43, 0.06);
+        color: var(--cf-muted);
+        font-size: 0.86rem;
+        line-height: 1.62;
+      }
+
+      .analytics-rule strong {
+        color: #ffc27f;
+      }
+
+      @media (max-width: 900px) {
+        .intro-grid,
+        .settings-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .wiki-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .member-form {
+          grid-template-columns: 1fr;
+        }
+
+        .member-form .primary-button {
+          width: 100%;
+        }
+      }
+
+      @media (max-width: 700px) {
+        .page-shell {
+          padding: 18px;
+        }
+
+        .topbar,
+        .page-heading-row,
+        .section-heading-row,
+        .member-card {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .topbar {
+          display: grid;
+        }
+
+        .topbar-actions {
+          justify-content: space-between;
+        }
+
+        .topbar-nav {
+          overflow-x: auto;
+        }
+
+        .account-pill {
+          max-width: 52vw;
+        }
+
+        .status-badges {
+          justify-content: flex-start;
+        }
+
+        .member-card {
+          display: flex;
+        }
+
+        .member-actions {
+          flex-wrap: wrap;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="content">
+        <header class="topbar">
+          <nav class="topbar-nav" aria-label="Primary navigation">
+            <a class="nav-button" href="/index.html">Roadmap</a>
+            <a class="nav-button" href="/updates">Updates</a>
+          </nav>
+
+          <div class="topbar-actions">
+            <div class="account-entry" id="account-entry">
+              <button
+                class="account-menu-button"
+                id="account-menu-button"
+                type="button"
+                aria-label="Open account menu"
+                aria-expanded="false"
+                aria-controls="account-menu"
+              >
+                <span class="account-avatar" id="account-avatar">CF</span>
+              </button>
+              <div class="account-pill" id="account-pill">Checking wiki access...</div>
+              <div class="account-menu-panel" id="account-menu" aria-hidden="true">
+                <div class="account-menu-header">
+                  <div class="account-menu-avatar" id="account-menu-avatar">CF</div>
+                  <div>
+                    <p class="account-menu-title" id="account-menu-title">Account</p>
+                    <p class="account-menu-email" id="account-menu-email">Not signed in</p>
+                  </div>
+                </div>
+                <p class="account-menu-copy" id="account-menu-copy">
+                  Sign in to check whether this email has wiki access.
+                </p>
+                <div class="google-signin-slot" id="google-signin-slot"></div>
+                <div class="account-menu-actions">
+                  <button class="secondary-button" id="signout-button" type="button" hidden>
+                    Sign Out
+                  </button>
+                </div>
+                <p class="auth-note" id="auth-note"></p>
+              </div>
+            </div>
+            <button class="primary-button" id="access-panel-button" type="button" hidden>
+              Wiki Access
+            </button>
+          </div>
+        </header>
+
+        <main>
+          <section class="loading-card" id="loading-view">
+            <h1>Wiki</h1>
+            <p>Checking the current wiki visibility and your access.</p>
+          </section>
+
+          <section class="unavailable-card" id="unavailable-view" hidden>
+            <div class="unavailable-mark" aria-hidden="true">×</div>
+            <h1>Wiki not available</h1>
+            <p id="unavailable-copy">
+              The Carbon Frontier wiki is currently private.
+            </p>
+          </section>
+
+          <div id="wiki-view" hidden>
+            <div class="page-heading-row">
+              <div class="page-heading">
+                <p class="eyebrow">Carbon Frontier Knowledge Base</p>
+                <h1>Wiki</h1>
+              </div>
+              <div class="status-badges">
+                <span class="status-badge" id="visibility-badge">Private</span>
+                <span class="status-badge" id="editing-badge">Restricted editing</span>
+                <span class="role-badge" id="viewer-role-badge" hidden></span>
+              </div>
+            </div>
+
+            <section class="intro-panel">
+              <div class="intro-grid">
+                <div>
+                  <p class="eyebrow">Account and permissions foundation</p>
+                  <p class="intro-copy">
+                    The secure wiki access layer is ready. Owners can appoint admins, owners and
+                    admins can assign wiki editors, and every permission is checked by the server
+                    before private content or editing tools are unlocked.
+                  </p>
+                </div>
+                <div class="foundation-state">
+                  <strong id="viewer-access-title">Read access active</strong>
+                  <span id="viewer-access-copy">Your account can access this wiki.</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="wiki-grid" aria-label="Wiki foundation features">
+              <article class="wiki-card">
+                <span class="card-number">01 / ACCESS</span>
+                <h3>Private means assigned only</h3>
+                <p>
+                  Owners, admins, and assigned wiki editors can always read and edit a private
+                  wiki. Unassigned visitors receive no private page content.
+                </p>
+              </article>
+              <article class="wiki-card">
+                <span class="card-number">02 / ROLES</span>
+                <h3>Protected role hierarchy</h3>
+                <p>
+                  Owners appoint admins. Owners and admins appoint wiki editors. Admins cannot
+                  promote another admin or alter an owner.
+                </p>
+              </article>
+              <article class="wiki-card">
+                <span class="card-number">03 / ANALYTICS</span>
+                <h3>Assigned staff stay visible</h3>
+                <p>
+                  The assigned-editor analytics scope includes owners, admins, and wiki editors,
+                  even when an assigned person has zero edits.
+                </p>
+              </article>
+            </section>
+
+            <section class="access-panel" id="access-panel" hidden>
+              <div class="section-heading-row">
+                <div class="section-heading">
+                  <p class="eyebrow">Wiki Administration</p>
+                  <h2>Access and privacy</h2>
+                  <p class="section-copy">
+                    Manage assigned staff and control whether the wiki can be viewed or edited by
+                    the public.
+                  </p>
+                </div>
+                <button class="secondary-button" id="close-access-panel" type="button">
+                  Close
+                </button>
+              </div>
+
+              <form id="settings-form">
+                <div class="settings-grid">
+                  <div class="settings-card">
+                    <h3>Who can view?</h3>
+                    <label>
+                      <span class="field-label">Wiki visibility</span>
+                      <select id="visibility-select">
+                        <option value="private">Private</option>
+                        <option value="public">Public</option>
+                      </select>
+                      <span class="field-note">
+                        Private access is limited to owners, admins, and assigned wiki editors.
+                      </span>
+                    </label>
+                  </div>
+
+                  <div class="settings-card">
+                    <h3>Who can edit?</h3>
+                    <label>
+                      <span class="field-label">Editing permission</span>
+                      <select id="editing-select">
+                        <option value="restricted">Assigned staff only</option>
+                        <option value="open">Everyone with a verified email</option>
+                      </select>
+                      <span class="field-note" id="editing-note">
+                        Public editing is automatically disabled while the wiki is private.
+                      </span>
+                    </label>
+                  </div>
+                </div>
+                <div class="form-actions" style="margin-top: 14px">
+                  <button class="primary-button" id="save-settings-button" type="submit">
+                    Save Settings
+                  </button>
+                </div>
+              </form>
+
+              <form class="member-form" id="member-form">
+                <label>
+                  <span class="field-label">Email address</span>
+                  <input
+                    id="member-email-input"
+                    type="email"
+                    autocomplete="email"
+                    placeholder="editor@example.com"
+                    required
+                  />
+                </label>
+                <label>
+                  <span class="field-label">Wiki role</span>
+                  <select id="member-role-select">
+                    <option value="wiki_editor">Wiki Editor</option>
+                    <option value="admin" id="admin-role-option">Admin</option>
+                  </select>
+                </label>
+                <button class="primary-button" id="save-member-button" type="submit">
+                  Add Email
+                </button>
+              </form>
+
+              <div class="member-list" id="member-list"></div>
+              <p class="feedback" id="access-feedback" aria-live="polite"></p>
+
+              <div class="analytics-rule">
+                <strong>Analytics rule saved:</strong> when the wiki is public with open editing,
+                analytics default to everyone who actually edited. The “Assigned Wiki Editors”
+                filter includes owners, admins, and wiki editors—including assigned people with
+                zero edits. Unassigned people with zero edits are excluded.
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
+      const WIKI_ACCESS_ENDPOINTS = [
+        "/api/wiki-access",
+        "/.netlify/functions/wiki-access",
+      ];
+      const ROLE_LABELS = {
+        owner: "Owner",
+        admin: "Admin",
+        wiki_editor: "Wiki Editor",
+      };
+
+      const wikiState = {
+        account: null,
+        idToken: "",
+        access: null,
+        remoteEndpoint: "",
+        accountMenuOpen: false,
+        accessPanelOpen: false,
+        googleInitialized: false,
+        pendingRemoveEmail: "",
+      };
+
+      const elements = {
+        accountEntry: document.getElementById("account-entry"),
+        accountMenuButton: document.getElementById("account-menu-button"),
+        accountAvatar: document.getElementById("account-avatar"),
+        accountPill: document.getElementById("account-pill"),
+        accountMenu: document.getElementById("account-menu"),
+        accountMenuAvatar: document.getElementById("account-menu-avatar"),
+        accountMenuTitle: document.getElementById("account-menu-title"),
+        accountMenuEmail: document.getElementById("account-menu-email"),
+        accountMenuCopy: document.getElementById("account-menu-copy"),
+        googleSigninSlot: document.getElementById("google-signin-slot"),
+        signoutButton: document.getElementById("signout-button"),
+        authNote: document.getElementById("auth-note"),
+        accessPanelButton: document.getElementById("access-panel-button"),
+        loadingView: document.getElementById("loading-view"),
+        unavailableView: document.getElementById("unavailable-view"),
+        unavailableCopy: document.getElementById("unavailable-copy"),
+        wikiView: document.getElementById("wiki-view"),
+        visibilityBadge: document.getElementById("visibility-badge"),
+        editingBadge: document.getElementById("editing-badge"),
+        viewerRoleBadge: document.getElementById("viewer-role-badge"),
+        viewerAccessTitle: document.getElementById("viewer-access-title"),
+        viewerAccessCopy: document.getElementById("viewer-access-copy"),
+        accessPanel: document.getElementById("access-panel"),
+        closeAccessPanel: document.getElementById("close-access-panel"),
+        settingsForm: document.getElementById("settings-form"),
+        visibilitySelect: document.getElementById("visibility-select"),
+        editingSelect: document.getElementById("editing-select"),
+        editingNote: document.getElementById("editing-note"),
+        saveSettingsButton: document.getElementById("save-settings-button"),
+        memberForm: document.getElementById("member-form"),
+        memberEmailInput: document.getElementById("member-email-input"),
+        memberRoleSelect: document.getElementById("member-role-select"),
+        adminRoleOption: document.getElementById("admin-role-option"),
+        saveMemberButton: document.getElementById("save-member-button"),
+        memberList: document.getElementById("member-list"),
+        accessFeedback: document.getElementById("access-feedback"),
+      };
+
+      function normalizeEmail(value) {
+        return String(value || "").trim().toLowerCase();
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function getConfiguredGoogleClientId() {
+        return String(
+          window.CARBON_FRONTIER_GOOGLE_CLIENT_ID ||
+            document.querySelector('meta[name="google-signin-client_id"]')?.content ||
+            ""
+        )
+          .trim()
+          .replace(/^['"]+|['"]+$/g, "");
+      }
+
+      function decodeJwtPayload(token) {
+        const parts = String(token || "").split(".");
+        if (parts.length < 2) {
+          return null;
+        }
+
+        try {
+          const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+          const padded = `${base64}${"=".repeat((4 - (base64.length % 4)) % 4)}`;
+          const json = atob(padded);
+          const utf8 = decodeURIComponent(
+            Array.from(json)
+              .map((character) =>
+                `%${character.charCodeAt(0).toString(16).padStart(2, "0")}`
+              )
+              .join("")
+          );
+          return JSON.parse(utf8);
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function isGoogleIdTokenUsable(idToken) {
+        const payload = decodeJwtPayload(idToken);
+        const clientId = getConfiguredGoogleClientId();
+        if (!payload?.email || payload.email_verified === false) {
+          return false;
+        }
+        if (clientId && payload.aud && payload.aud !== clientId) {
+          return false;
+        }
+        return !payload.exp || Number(payload.exp) * 1000 > Date.now() + 15_000;
+      }
+
+      function loadAuthSession() {
+        try {
+          const session = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null");
+          if (!session?.email || !isGoogleIdTokenUsable(session?.idToken)) {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+            return null;
+          }
+          return {
+            email: normalizeEmail(session.email),
+            name: String(session.name || "").trim(),
+            picture: String(session.picture || "").trim(),
+            idToken: String(session.idToken || "").trim(),
+          };
+        } catch (error) {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+          return null;
+        }
+      }
+
+      function saveAuthSession(account) {
+        if (!account?.email) {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+          return;
+        }
+        localStorage.setItem(
+          AUTH_STORAGE_KEY,
+          JSON.stringify({
+            email: normalizeEmail(account.email),
+            name: String(account.name || "").trim(),
+            picture: String(account.picture || "").trim(),
+            idToken: String(account.idToken || "").trim(),
+          })
+        );
+      }
+
+      function getInitials(account) {
+        const source = account?.name || account?.email || "CF";
+        return source
+          .split(/[\s@._-]+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0])
+          .join("")
+          .toUpperCase();
+      }
+
+      function setAvatar(element, account) {
+        element.textContent = getInitials(account);
+        element.style.backgroundImage = account?.picture
+          ? `url("${String(account.picture).replaceAll('"', "%22")}")`
+          : "";
+      }
+
+      function roleLabel(role) {
+        return ROLE_LABELS[role] || "Signed in";
+      }
+
+      function openAccountMenu() {
+        wikiState.accountMenuOpen = true;
+        elements.accountEntry.classList.add("is-open");
+        elements.accountMenuButton.setAttribute("aria-expanded", "true");
+        elements.accountMenu.setAttribute("aria-hidden", "false");
+        maybeRenderGoogleButton();
+      }
+
+      function closeAccountMenu() {
+        wikiState.accountMenuOpen = false;
+        elements.accountEntry.classList.remove("is-open");
+        elements.accountMenuButton.setAttribute("aria-expanded", "false");
+        elements.accountMenu.setAttribute("aria-hidden", "true");
+      }
+
+      function syncAccountMenu() {
+        const account = wikiState.account;
+        const viewer = wikiState.access?.viewer;
+        setAvatar(elements.accountAvatar, account);
+        setAvatar(elements.accountMenuAvatar, account);
+
+        if (account?.email) {
+          elements.accountMenuTitle.textContent = account.name || "Signed in with Google";
+          elements.accountMenuEmail.textContent = account.email;
+          elements.signoutButton.hidden = false;
+          elements.googleSigninSlot.hidden = true;
+          if (viewer?.role) {
+            elements.accountMenuCopy.textContent = `Wiki role: ${roleLabel(viewer.role)}.`;
+            elements.authNote.textContent = viewer.canEdit
+              ? "This assigned account can view and edit the wiki."
+              : "This account is signed in.";
+          } else if (viewer?.canEdit) {
+            elements.accountMenuCopy.textContent = "Public contributor access is active.";
+            elements.authNote.textContent = "A verified email is required before editing.";
+          } else {
+            elements.accountMenuCopy.textContent =
+              "This email is signed in but has not been assigned a wiki role.";
+            elements.authNote.textContent = viewer?.canView
+              ? "Public reading is available."
+              : "The private wiki is unavailable to this account.";
+          }
+        } else {
+          elements.accountMenuTitle.textContent = "Wiki account";
+          elements.accountMenuEmail.textContent = "Not signed in";
+          elements.accountMenuCopy.textContent =
+            "Sign in with Google to check whether your email has wiki access.";
+          elements.authNote.textContent =
+            "Editing always requires a verified email account.";
+          elements.signoutButton.hidden = true;
+          elements.googleSigninSlot.hidden = false;
+        }
+      }
+
+      function handleGoogleCredential(response) {
+        const payload = decodeJwtPayload(response?.credential);
+        if (!payload?.email || payload.email_verified === false) {
+          elements.authNote.textContent = "Google sign-in did not return a verified email.";
+          return;
+        }
+
+        const account = {
+          email: normalizeEmail(payload.email),
+          name: String(payload.name || "").trim(),
+          picture: String(payload.picture || "").trim(),
+          idToken: String(response.credential || "").trim(),
+        };
+        wikiState.account = account;
+        wikiState.idToken = account.idToken;
+        saveAuthSession(account);
+        closeAccountMenu();
+        loadWikiAccess();
+      }
+
+      function maybeRenderGoogleButton() {
+        if (elements.googleSigninSlot.hidden || !window.google?.accounts?.id) {
+          return;
+        }
+        const clientId = getConfiguredGoogleClientId();
+        if (!clientId) {
+          elements.authNote.textContent = "Google sign-in needs a client ID before it can run.";
+          return;
+        }
+        if (!wikiState.googleInitialized) {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleCredential,
+            auto_select: false,
+            cancel_on_tap_outside: true,
+            use_fedcm_for_prompt: true,
+          });
+          wikiState.googleInitialized = true;
+        }
+        elements.googleSigninSlot.innerHTML = "";
+        window.google.accounts.id.renderButton(elements.googleSigninSlot, {
+          theme: "outline",
+          size: "large",
+          shape: "pill",
+          text: "signin_with",
+          logo_alignment: "left",
+          width: 270,
+        });
+      }
+
+      function waitForGoogle(attempt = 0) {
+        if (window.google?.accounts?.id) {
+          maybeRenderGoogleButton();
+          return;
+        }
+        if (attempt < 40) {
+          window.setTimeout(() => waitForGoogle(attempt + 1), 250);
+        }
+      }
+
+      function signOut() {
+        wikiState.account = null;
+        wikiState.idToken = "";
+        wikiState.access = null;
+        wikiState.accessPanelOpen = false;
+        saveAuthSession(null);
+        window.google?.accounts?.id?.disableAutoSelect?.();
+        closeAccountMenu();
+        loadWikiAccess();
+      }
+
+      async function fetchAccess(endpoint, options = {}) {
+        const headers = new Headers(options.headers || {});
+        if (isGoogleIdTokenUsable(wikiState.idToken)) {
+          headers.set("authorization", `Bearer ${wikiState.idToken}`);
+        }
+        if (options.body) {
+          headers.set("content-type", "application/json");
+        }
+        return fetch(endpoint, { ...options, headers });
+      }
+
+      function endpointsToTry() {
+        return wikiState.remoteEndpoint
+          ? [
+              wikiState.remoteEndpoint,
+              ...WIKI_ACCESS_ENDPOINTS.filter(
+                (endpoint) => endpoint !== wikiState.remoteEndpoint
+              ),
+            ]
+          : WIKI_ACCESS_ENDPOINTS;
+      }
+
+      async function requestWikiAccess(options = {}) {
+        let lastError = new Error("The wiki access service is unavailable.");
+
+        for (const endpoint of endpointsToTry()) {
+          try {
+            const includeMembers = options.includeMembers ? "?includeMembers=1" : "";
+            const response = await fetchAccess(`${endpoint}${includeMembers}`, options.fetch || {});
+            const payload = await response.json().catch(() => null);
+
+            if (response.status === 404) {
+              lastError = new Error(`Wiki access function not found at ${endpoint}.`);
+              continue;
+            }
+            if (!response.ok) {
+              const error = new Error(payload?.error || `Wiki access request failed (${response.status}).`);
+              error.status = response.status;
+              throw error;
+            }
+
+            wikiState.remoteEndpoint = endpoint;
+            return payload;
+          } catch (error) {
+            lastError = error;
+            if (error?.status && error.status !== 404) {
+              throw error;
+            }
+          }
+        }
+
+        throw lastError;
+      }
+
+      function setFeedback(message, isError = false) {
+        elements.accessFeedback.textContent = message || "";
+        elements.accessFeedback.classList.toggle("is-error", Boolean(isError));
+      }
+
+      function syncPrivacyControls() {
+        const isPrivate = elements.visibilitySelect.value === "private";
+        if (isPrivate) {
+          elements.editingSelect.value = "restricted";
+        }
+        elements.editingSelect.disabled = isPrivate;
+        elements.editingNote.textContent = isPrivate
+          ? "Public editing is automatically disabled while the wiki is private."
+          : "Open editing still requires the person to sign in with a verified email.";
+      }
+
+      function createMemberMarkup(member) {
+        const viewerRole = wikiState.access?.viewer?.role;
+        const canRemove =
+          member.role !== "owner" &&
+          (viewerRole === "owner" ||
+            (viewerRole === "admin" && member.role === "wiki_editor"));
+        const assignedDate = member.assignedAt
+          ? new Date(member.assignedAt).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+          : "Unknown date";
+        const isArmed = wikiState.pendingRemoveEmail === member.email;
+
+        return `
+          <article class="member-card">
+            <div>
+              <p class="member-email">${escapeHtml(member.email)}</p>
+              <p class="member-meta">Assigned ${escapeHtml(assignedDate)}</p>
+            </div>
+            <div class="member-actions">
+              <span class="role-badge" data-role="${escapeHtml(member.role)}">
+                ${escapeHtml(roleLabel(member.role))}
+              </span>
+              ${
+                canRemove
+                  ? `<button
+                      class="danger-button${isArmed ? " is-armed" : ""}"
+                      type="button"
+                      data-remove-email="${escapeHtml(member.email)}"
+                    >${isArmed ? "Confirm Remove" : "Remove"}</button>`
+                  : ""
+              }
+            </div>
+          </article>
+        `;
+      }
+
+      function renderMembers() {
+        const members = Array.isArray(wikiState.access?.members)
+          ? wikiState.access.members
+          : [];
+        elements.memberList.innerHTML = members.length
+          ? members.map(createMemberMarkup).join("")
+          : `<div class="empty-state"><p class="empty-copy">No assigned wiki members yet.</p></div>`;
+
+        elements.memberList.querySelectorAll("[data-remove-email]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const email = normalizeEmail(button.dataset.removeEmail);
+            if (wikiState.pendingRemoveEmail !== email) {
+              wikiState.pendingRemoveEmail = email;
+              renderMembers();
+              setFeedback(`Click Confirm Remove to remove ${email}.`);
+              return;
+            }
+            wikiState.pendingRemoveEmail = "";
+            await mutateWikiAccess({ action: "remove_member", email }, "Wiki member removed.");
+          });
+        });
+      }
+
+      function renderWikiAccess() {
+        const access = wikiState.access;
+        const viewer = access?.viewer;
+        const settings = access?.settings;
+
+        elements.loadingView.hidden = true;
+        syncAccountMenu();
+        maybeRenderGoogleButton();
+
+        if (!access || !viewer?.canView) {
+          elements.wikiView.hidden = true;
+          elements.unavailableView.hidden = false;
+          elements.accessPanelButton.hidden = true;
+          elements.accountPill.textContent = viewer?.authenticated
+            ? "No wiki access"
+            : "Wiki is private";
+          elements.unavailableCopy.textContent = viewer?.authenticated
+            ? "This signed-in email has not been assigned access to the private Carbon Frontier wiki."
+            : "The Carbon Frontier wiki is currently private. Assigned owners, admins, and wiki editors can sign in from the account menu.";
+          return;
+        }
+
+        elements.unavailableView.hidden = true;
+        elements.wikiView.hidden = false;
+        elements.accessPanelButton.hidden = !viewer.canManageEditors;
+        elements.accountPill.textContent = viewer.role
+          ? `${roleLabel(viewer.role)} access`
+          : viewer.canEdit
+            ? "Public contributor"
+            : "Public reader";
+
+        elements.visibilityBadge.textContent = settings.visibility === "public" ? "Public" : "Private";
+        elements.visibilityBadge.className = `status-badge is-${settings.visibility}`;
+        elements.editingBadge.textContent =
+          settings.editingMode === "open" ? "Open editing" : "Restricted editing";
+
+        elements.viewerRoleBadge.hidden = !viewer.role;
+        if (viewer.role) {
+          elements.viewerRoleBadge.textContent = roleLabel(viewer.role);
+          elements.viewerRoleBadge.dataset.role = viewer.role;
+        }
+
+        elements.viewerAccessTitle.textContent = viewer.canEdit
+          ? "Read and edit access active"
+          : "Read access active";
+        elements.viewerAccessCopy.textContent = viewer.role
+          ? `Your ${roleLabel(viewer.role)} account keeps access even while the wiki is private.`
+          : viewer.canEdit
+            ? "The public wiki currently allows verified accounts to edit."
+            : "The public wiki is available to read.";
+
+        if (viewer.canManageEditors) {
+          elements.visibilitySelect.value = settings.visibility;
+          elements.editingSelect.value = settings.editingMode;
+          syncPrivacyControls();
+          elements.adminRoleOption.hidden = !viewer.canManageAdmins;
+          if (!viewer.canManageAdmins && elements.memberRoleSelect.value === "admin") {
+            elements.memberRoleSelect.value = "wiki_editor";
+          }
+          renderMembers();
+        }
+
+        elements.accessPanel.hidden = !wikiState.accessPanelOpen || !viewer.canManageEditors;
+      }
+
+      function renderLoadError(error) {
+        elements.loadingView.hidden = true;
+        elements.wikiView.hidden = true;
+        elements.unavailableView.hidden = false;
+        elements.unavailableCopy.textContent =
+          error instanceof Error
+            ? error.message
+            : "The wiki access service could not be reached.";
+        elements.accountPill.textContent = "Wiki unavailable";
+        syncAccountMenu();
+      }
+
+      async function loadWikiAccess() {
+        elements.loadingView.hidden = false;
+        elements.unavailableView.hidden = true;
+        elements.wikiView.hidden = true;
+
+        try {
+          const includeMembers = Boolean(wikiState.account?.email);
+          wikiState.access = await requestWikiAccess({ includeMembers });
+          renderWikiAccess();
+        } catch (error) {
+          if (error?.status === 401 && wikiState.account) {
+            wikiState.account = null;
+            wikiState.idToken = "";
+            saveAuthSession(null);
+            try {
+              wikiState.access = await requestWikiAccess();
+              renderWikiAccess();
+              elements.authNote.textContent = "Your session expired. Sign in again.";
+              return;
+            } catch (retryError) {
+              renderLoadError(retryError);
+              return;
+            }
+          }
+          renderLoadError(error);
+        }
+      }
+
+      async function mutateWikiAccess(body, successMessage) {
+        setFeedback("Saving...");
+        elements.saveMemberButton.disabled = true;
+        elements.saveSettingsButton.disabled = true;
+        try {
+          wikiState.access = await requestWikiAccess({
+            includeMembers: true,
+            fetch: {
+              method: "POST",
+              body: JSON.stringify(body),
+            },
+          });
+          renderWikiAccess();
+          setFeedback(successMessage);
+        } catch (error) {
+          setFeedback(error instanceof Error ? error.message : "The change could not be saved.", true);
+        } finally {
+          elements.saveMemberButton.disabled = false;
+          elements.saveSettingsButton.disabled = false;
+        }
+      }
+
+      elements.accountMenuButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        wikiState.accountMenuOpen ? closeAccountMenu() : openAccountMenu();
+      });
+
+      elements.accountMenu.addEventListener("click", (event) => event.stopPropagation());
+      document.addEventListener("click", closeAccountMenu);
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+          closeAccountMenu();
+          wikiState.accessPanelOpen = false;
+          renderWikiAccess();
+        }
+      });
+
+      elements.signoutButton.addEventListener("click", signOut);
+
+      elements.accessPanelButton.addEventListener("click", async () => {
+        wikiState.accessPanelOpen = true;
+        setFeedback("");
+        try {
+          wikiState.access = await requestWikiAccess({ includeMembers: true });
+        } catch (error) {
+          setFeedback(error instanceof Error ? error.message : "Could not load wiki members.", true);
+        }
+        renderWikiAccess();
+        elements.accessPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+
+      elements.closeAccessPanel.addEventListener("click", () => {
+        wikiState.accessPanelOpen = false;
+        renderWikiAccess();
+      });
+
+      elements.visibilitySelect.addEventListener("change", syncPrivacyControls);
+
+      elements.settingsForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await mutateWikiAccess(
+          {
+            action: "update_settings",
+            visibility: elements.visibilitySelect.value,
+            editingMode: elements.editingSelect.value,
+          },
+          "Wiki privacy settings saved."
+        );
+      });
+
+      elements.memberForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const email = normalizeEmail(elements.memberEmailInput.value);
+        const role = elements.memberRoleSelect.value;
+        await mutateWikiAccess(
+          { action: "upsert_member", email, role },
+          `${roleLabel(role)} access saved for ${email}.`
+        );
+        if (!elements.accessFeedback.classList.contains("is-error")) {
+          elements.memberEmailInput.value = "";
+        }
+      });
+
+      wikiState.account = loadAuthSession();
+      wikiState.idToken = wikiState.account?.idToken || "";
+      syncAccountMenu();
+      waitForGoogle();
+      loadWikiAccess();
+    </script>
+  </body>
+</html>
