@@ -726,9 +726,9 @@
       <div class="content">
         <header class="topbar">
           <nav class="topbar-nav" aria-label="Primary navigation">
-            <a class="nav-button" href="/wiki">Wiki</a>
-            <a class="nav-button" href="/index.html">Roadmap</a>
-            <a class="nav-button" href="/updates">Updates</a>
+            <a class="nav-button" href="wiki.html">Wiki</a>
+            <a class="nav-button" href="index.html">Roadmap</a>
+            <a class="nav-button" href="updates.html">Updates</a>
           </nav>
 
           <div class="topbar-actions">
@@ -764,7 +764,7 @@
                 <p class="auth-note" id="auth-note"></p>
               </div>
             </div>
-            <a class="primary-button" id="access-panel-button" href="/wiki" hidden>
+            <a class="primary-button" id="access-panel-button" href="wiki.html" hidden>
               Wiki Front Page
             </a>
           </div>
@@ -851,7 +851,7 @@
                     the public.
                   </p>
                 </div>
-                <a class="secondary-button" id="close-access-panel" href="/wiki">
+                <a class="secondary-button" id="close-access-panel" href="wiki.html">
                   Back to Wiki
                 </a>
               </div>
@@ -942,6 +942,29 @@
         admin: "Admin",
         wiki_editor: "Wiki Editor",
       };
+      const CURSOR_TEST_ACCOUNT = {
+        email: "jb141598@gmail.com",
+        name: "Cursor Testing Owner",
+        picture: "",
+        idToken: "",
+      };
+
+      function isCursorTestingEnvironment() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        const referrer = document.referrer.toLowerCase();
+        const hostname = window.location.hostname.toLowerCase();
+        return (
+          window.location.protocol === "file:" ||
+          hostname === "localhost" ||
+          hostname === "127.0.0.1" ||
+          hostname.includes("cursor") ||
+          hostname.includes("vscode-webview") ||
+          userAgent.includes("cursor") ||
+          userAgent.includes("electron") ||
+          referrer.includes("cursor") ||
+          referrer.includes("vscode")
+        );
+      }
 
       const wikiState = {
         account: null,
@@ -952,6 +975,22 @@
         accessPanelOpen: true,
         googleInitialized: false,
         pendingRemoveEmail: "",
+        cursorTesting: isCursorTestingEnvironment(),
+        cursorSettings: { visibility: "private", editingMode: "restricted" },
+        cursorMembers: [
+          {
+            email: "jb141598@gmail.com",
+            role: "owner",
+            assignedAt: new Date().toISOString(),
+            assignedBy: "system",
+          },
+          {
+            email: "jb14296@gmail.com",
+            role: "owner",
+            assignedAt: new Date().toISOString(),
+            assignedBy: "system",
+          },
+        ],
       };
 
       const elements = {
@@ -1072,6 +1111,9 @@
       }
 
       function saveAuthSession(account) {
+        if (wikiState.cursorTesting) {
+          return;
+        }
         if (!account?.email) {
           localStorage.removeItem(AUTH_STORAGE_KEY);
           return;
@@ -1133,13 +1175,16 @@
         if (account?.email) {
           elements.accountMenuTitle.textContent = account.name || "Signed in with Google";
           elements.accountMenuEmail.textContent = account.email;
-          elements.signoutButton.hidden = false;
+          elements.signoutButton.hidden = wikiState.cursorTesting;
           elements.googleSigninSlot.hidden = true;
           if (viewer?.role) {
             elements.accountMenuCopy.textContent = `Wiki role: ${roleLabel(viewer.role)}.`;
             elements.authNote.textContent = viewer.canEdit
               ? "This assigned account can view and edit the wiki."
               : "This account is signed in.";
+            if (wikiState.cursorTesting) {
+              elements.authNote.textContent = "Local Cursor owner override is active.";
+            }
           } else if (viewer?.canEdit) {
             elements.accountMenuCopy.textContent = "Public contributor access is active.";
             elements.authNote.textContent = "A verified email is required before editing.";
@@ -1183,6 +1228,10 @@
       }
 
       function maybeRenderGoogleButton() {
+        if (wikiState.cursorTesting) {
+          elements.googleSigninSlot.hidden = true;
+          return;
+        }
         if (elements.googleSigninSlot.hidden || !window.google?.accounts?.id) {
           return;
         }
@@ -1213,6 +1262,9 @@
       }
 
       function waitForGoogle(attempt = 0) {
+        if (wikiState.cursorTesting) {
+          return;
+        }
         if (window.google?.accounts?.id) {
           maybeRenderGoogleButton();
           return;
@@ -1223,6 +1275,10 @@
       }
 
       function signOut() {
+        if (wikiState.cursorTesting) {
+          closeAccountMenu();
+          return;
+        }
         wikiState.account = null;
         wikiState.idToken = "";
         wikiState.access = null;
@@ -1255,7 +1311,80 @@
           : WIKI_ACCESS_ENDPOINTS;
       }
 
+      function cursorAccessPayload(includeMembers = false) {
+        const payload = {
+          ok: true,
+          settings: { ...wikiState.cursorSettings },
+          viewer: {
+            authenticated: true,
+            email: CURSOR_TEST_ACCOUNT.email,
+            name: CURSOR_TEST_ACCOUNT.name,
+            picture: null,
+            role: "owner",
+            isAssignedStaff: true,
+            canView: true,
+            canEdit: true,
+            canManageAdmins: true,
+            canManageEditors: true,
+            canManageSettings: true,
+          },
+          analytics: {
+            defaultScope:
+              wikiState.cursorSettings.visibility === "public" &&
+              wikiState.cursorSettings.editingMode === "open"
+                ? "all_editors"
+                : "assigned_staff",
+            assignedStaffRoles: ["owner", "admin", "wiki_editor"],
+            includeZeroEditAssignedStaff: true,
+            excludeZeroEditUnassignedUsers: true,
+          },
+          updatedAt: new Date().toISOString(),
+          updatedBy: CURSOR_TEST_ACCOUNT.email,
+        };
+        if (includeMembers) {
+          payload.members = [...wikiState.cursorMembers];
+          payload.auditLog = [];
+        }
+        return payload;
+      }
+
+      function mutateCursorAccess(options = {}) {
+        if (!options.fetch?.body) {
+          return cursorAccessPayload(options.includeMembers);
+        }
+        const body = JSON.parse(options.fetch.body);
+        if (body.action === "update_settings") {
+          const visibility = body.visibility === "public" ? "public" : "private";
+          wikiState.cursorSettings = {
+            visibility,
+            editingMode:
+              visibility === "public" && body.editingMode === "open"
+                ? "open"
+                : "restricted",
+          };
+        } else if (body.action === "upsert_member") {
+          const email = normalizeEmail(body.email);
+          wikiState.cursorMembers = wikiState.cursorMembers.filter(
+            (member) => member.email !== email
+          );
+          wikiState.cursorMembers.push({
+            email,
+            role: body.role === "admin" ? "admin" : "wiki_editor",
+            assignedAt: new Date().toISOString(),
+            assignedBy: CURSOR_TEST_ACCOUNT.email,
+          });
+        } else if (body.action === "remove_member") {
+          wikiState.cursorMembers = wikiState.cursorMembers.filter(
+            (member) => member.email !== normalizeEmail(body.email) || member.role === "owner"
+          );
+        }
+        return cursorAccessPayload(true);
+      }
+
       async function requestWikiAccess(options = {}) {
+        if (wikiState.cursorTesting) {
+          return mutateCursorAccess(options);
+        }
         let lastError = new Error("The wiki access service is unavailable.");
 
         for (const endpoint of endpointsToTry()) {
@@ -1538,7 +1667,7 @@
         }
       });
 
-      wikiState.account = loadAuthSession();
+      wikiState.account = wikiState.cursorTesting ? CURSOR_TEST_ACCOUNT : loadAuthSession();
       wikiState.idToken = wikiState.account?.idToken || "";
       syncAccountMenu();
       waitForGoogle();

@@ -1,7 +1,11 @@
 {
   "name": "carbon-frontier-website",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "dependencies": {
+    "@netlify/database": "^2.0.0",
     "@netlify/blobs": "^10.0.11",
     "google-auth-library": "^10.3.0"
   }

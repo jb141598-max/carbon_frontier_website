@@ -726,8 +726,8 @@
       <div class="content">
         <header class="topbar">
           <nav class="topbar-nav" aria-label="Primary navigation">
-            <a class="nav-button" href="/index.html">Roadmap</a>
-            <a class="nav-button" href="/updates">Updates</a>
+            <a class="nav-button" href="index.html">Roadmap</a>
+            <a class="nav-button" href="updates.html">Updates</a>
           </nav>
 
           <div class="topbar-actions">
@@ -763,7 +763,7 @@
                 <p class="auth-note" id="auth-note"></p>
               </div>
             </div>
-            <a class="primary-button" id="access-panel-button" href="/wiki/permissions" hidden>
+            <a class="primary-button" id="access-panel-button" href="wiki-permissions.html" hidden>
               Permissions
             </a>
           </div>
@@ -799,16 +799,16 @@
             <section class="intro-panel">
               <div class="intro-grid">
                 <div>
-                  <p class="eyebrow">Wiki Front Page</p>
-                  <p class="intro-copy">
-                    Welcome to the Carbon Frontier wiki. This front page will become the starting
-                    point for game guides, machines, materials, power systems, tutorials, and
-                    community-maintained information.
+                  <p class="eyebrow">Database-backed Front Page</p>
+                  <p class="intro-copy" id="front-page-content">
+                    Loading the saved front page from the wiki database...
                   </p>
                 </div>
                 <div class="foundation-state">
                   <strong id="viewer-access-title">Front page placeholder</strong>
-                  <span id="viewer-access-copy">Page editing will be connected during a later build step.</span>
+                  <span id="viewer-access-copy">Checking your page access.</span>
+                  <span id="front-page-record-status">Loading revision information.</span>
+                  <span id="front-page-editing-status">Normal editing: enabled by default.</span>
                   <button
                     class="secondary-button"
                     id="edit-front-page-button"
@@ -816,7 +816,7 @@
                     style="margin-top: 14px"
                     disabled
                   >
-                    Edit Front Page — Coming Soon
+                    Page Editor — Step 3
                   </button>
                 </div>
               </div>
@@ -945,11 +945,38 @@
         "/api/wiki-access",
         "/.netlify/functions/wiki-access",
       ];
+      const WIKI_PAGE_ENDPOINTS = [
+        "/api/wiki/pages",
+        "/.netlify/functions/wiki-pages",
+      ];
       const ROLE_LABELS = {
         owner: "Owner",
         admin: "Admin",
         wiki_editor: "Wiki Editor",
       };
+      const CURSOR_TEST_ACCOUNT = {
+        email: "jb141598@gmail.com",
+        name: "Cursor Testing Owner",
+        picture: "",
+        idToken: "",
+      };
+
+      function isCursorTestingEnvironment() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        const referrer = document.referrer.toLowerCase();
+        const hostname = window.location.hostname.toLowerCase();
+        return (
+          window.location.protocol === "file:" ||
+          hostname === "localhost" ||
+          hostname === "127.0.0.1" ||
+          hostname.includes("cursor") ||
+          hostname.includes("vscode-webview") ||
+          userAgent.includes("cursor") ||
+          userAgent.includes("electron") ||
+          referrer.includes("cursor") ||
+          referrer.includes("vscode")
+        );
+      }
 
       const wikiState = {
         account: null,
@@ -960,6 +987,23 @@
         accessPanelOpen: false,
         googleInitialized: false,
         pendingRemoveEmail: "",
+        cursorTesting: isCursorTestingEnvironment(),
+        cursorSettings: { visibility: "private", editingMode: "restricted" },
+        cursorMembers: [
+          {
+            email: "jb141598@gmail.com",
+            role: "owner",
+            assignedAt: new Date().toISOString(),
+            assignedBy: "system",
+          },
+          {
+            email: "jb14296@gmail.com",
+            role: "owner",
+            assignedAt: new Date().toISOString(),
+            assignedBy: "system",
+          },
+        ],
+        frontPage: null,
       };
 
       const elements = {
@@ -985,6 +1029,10 @@
         viewerRoleBadge: document.getElementById("viewer-role-badge"),
         viewerAccessTitle: document.getElementById("viewer-access-title"),
         viewerAccessCopy: document.getElementById("viewer-access-copy"),
+        frontPageContent: document.getElementById("front-page-content"),
+        frontPageRecordStatus: document.getElementById("front-page-record-status"),
+        frontPageEditingStatus: document.getElementById("front-page-editing-status"),
+        editFrontPageButton: document.getElementById("edit-front-page-button"),
         accessPanel: document.getElementById("access-panel"),
         closeAccessPanel: document.getElementById("close-access-panel"),
         settingsForm: document.getElementById("settings-form"),
@@ -1079,6 +1127,9 @@
       }
 
       function saveAuthSession(account) {
+        if (wikiState.cursorTesting) {
+          return;
+        }
         if (!account?.email) {
           localStorage.removeItem(AUTH_STORAGE_KEY);
           return;
@@ -1140,13 +1191,16 @@
         if (account?.email) {
           elements.accountMenuTitle.textContent = account.name || "Signed in with Google";
           elements.accountMenuEmail.textContent = account.email;
-          elements.signoutButton.hidden = false;
+          elements.signoutButton.hidden = wikiState.cursorTesting;
           elements.googleSigninSlot.hidden = true;
           if (viewer?.role) {
             elements.accountMenuCopy.textContent = `Wiki role: ${roleLabel(viewer.role)}.`;
             elements.authNote.textContent = viewer.canEdit
               ? "This assigned account can view and edit the wiki."
               : "This account is signed in.";
+            if (wikiState.cursorTesting) {
+              elements.authNote.textContent = "Local Cursor owner override is active.";
+            }
           } else if (viewer?.canEdit) {
             elements.accountMenuCopy.textContent = "Public contributor access is active.";
             elements.authNote.textContent = "A verified email is required before editing.";
@@ -1190,6 +1244,10 @@
       }
 
       function maybeRenderGoogleButton() {
+        if (wikiState.cursorTesting) {
+          elements.googleSigninSlot.hidden = true;
+          return;
+        }
         if (elements.googleSigninSlot.hidden || !window.google?.accounts?.id) {
           return;
         }
@@ -1220,6 +1278,9 @@
       }
 
       function waitForGoogle(attempt = 0) {
+        if (wikiState.cursorTesting) {
+          return;
+        }
         if (window.google?.accounts?.id) {
           maybeRenderGoogleButton();
           return;
@@ -1230,6 +1291,10 @@
       }
 
       function signOut() {
+        if (wikiState.cursorTesting) {
+          closeAccountMenu();
+          return;
+        }
         wikiState.account = null;
         wikiState.idToken = "";
         wikiState.access = null;
@@ -1262,7 +1327,80 @@
           : WIKI_ACCESS_ENDPOINTS;
       }
 
+      function cursorAccessPayload(includeMembers = false) {
+        const payload = {
+          ok: true,
+          settings: { ...wikiState.cursorSettings },
+          viewer: {
+            authenticated: true,
+            email: CURSOR_TEST_ACCOUNT.email,
+            name: CURSOR_TEST_ACCOUNT.name,
+            picture: null,
+            role: "owner",
+            isAssignedStaff: true,
+            canView: true,
+            canEdit: true,
+            canManageAdmins: true,
+            canManageEditors: true,
+            canManageSettings: true,
+          },
+          analytics: {
+            defaultScope:
+              wikiState.cursorSettings.visibility === "public" &&
+              wikiState.cursorSettings.editingMode === "open"
+                ? "all_editors"
+                : "assigned_staff",
+            assignedStaffRoles: ["owner", "admin", "wiki_editor"],
+            includeZeroEditAssignedStaff: true,
+            excludeZeroEditUnassignedUsers: true,
+          },
+          updatedAt: new Date().toISOString(),
+          updatedBy: CURSOR_TEST_ACCOUNT.email,
+        };
+        if (includeMembers) {
+          payload.members = [...wikiState.cursorMembers];
+          payload.auditLog = [];
+        }
+        return payload;
+      }
+
+      function mutateCursorAccess(options = {}) {
+        if (!options.fetch?.body) {
+          return cursorAccessPayload(options.includeMembers);
+        }
+        const body = JSON.parse(options.fetch.body);
+        if (body.action === "update_settings") {
+          const visibility = body.visibility === "public" ? "public" : "private";
+          wikiState.cursorSettings = {
+            visibility,
+            editingMode:
+              visibility === "public" && body.editingMode === "open"
+                ? "open"
+                : "restricted",
+          };
+        } else if (body.action === "upsert_member") {
+          const email = normalizeEmail(body.email);
+          wikiState.cursorMembers = wikiState.cursorMembers.filter(
+            (member) => member.email !== email
+          );
+          wikiState.cursorMembers.push({
+            email,
+            role: body.role === "admin" ? "admin" : "wiki_editor",
+            assignedAt: new Date().toISOString(),
+            assignedBy: CURSOR_TEST_ACCOUNT.email,
+          });
+        } else if (body.action === "remove_member") {
+          wikiState.cursorMembers = wikiState.cursorMembers.filter(
+            (member) => member.email !== normalizeEmail(body.email) || member.role === "owner"
+          );
+        }
+        return cursorAccessPayload(true);
+      }
+
       async function requestWikiAccess(options = {}) {
+        if (wikiState.cursorTesting) {
+          return mutateCursorAccess(options);
+        }
         let lastError = new Error("The wiki access service is unavailable.");
 
         for (const endpoint of endpointsToTry()) {
@@ -1292,6 +1430,121 @@
         }
 
         throw lastError;
+      }
+
+      function cursorFrontPagePayload() {
+        const createdAt = new Date().toISOString();
+        return {
+          ok: true,
+          page: {
+            id: "page-front-page",
+            slug: "front-page",
+            title: "Carbon Frontier Wiki",
+            allowNormalEdits: true,
+            createdAt,
+            updatedAt: createdAt,
+            createdBy: "system",
+            updatedBy: "system",
+            currentRevision: {
+              id: "revision-front-page-1",
+              number: 1,
+              content: {
+                type: "document",
+                version: 1,
+                blocks: [
+                  {
+                    id: "front-page-intro",
+                    type: "paragraph",
+                    text: "Welcome to the Carbon Frontier wiki. This Cursor preview is using the Step 2 database-shaped front page record.",
+                  },
+                ],
+              },
+              editSummary: "Create the wiki front page",
+              authorEmail: "system",
+              authorName: "Carbon Frontier",
+              authorRole: "owner",
+              createdAt,
+            },
+            permissions: {
+              canEdit: true,
+              canChangePageSettings: true,
+            },
+          },
+        };
+      }
+
+      async function requestWikiPage(slug) {
+        if (wikiState.cursorTesting) {
+          return cursorFrontPagePayload();
+        }
+
+        let lastError = new Error("The wiki page service is unavailable.");
+        for (const baseEndpoint of WIKI_PAGE_ENDPOINTS) {
+          const endpoint = baseEndpoint.startsWith("/api/")
+            ? `${baseEndpoint}/${encodeURIComponent(slug)}`
+            : `${baseEndpoint}?slug=${encodeURIComponent(slug)}`;
+          try {
+            const response = await fetchAccess(endpoint);
+            const payload = await response.json().catch(() => null);
+            if (response.status === 404 && !payload?.page) {
+              lastError = new Error(payload?.error || "The front page was not found.");
+              continue;
+            }
+            if (!response.ok) {
+              const error = new Error(payload?.error || `Wiki page request failed (${response.status}).`);
+              error.status = response.status;
+              throw error;
+            }
+            return payload;
+          } catch (error) {
+            lastError = error;
+            if (error?.status && error.status !== 404) {
+              throw error;
+            }
+          }
+        }
+        throw lastError;
+      }
+
+      function getFrontPageText(content) {
+        const blocks = Array.isArray(content?.blocks) ? content.blocks : [];
+        const paragraph = blocks.find(
+          (block) => block?.type === "paragraph" && String(block?.text || "").trim()
+        );
+        return paragraph?.text || "The Carbon Frontier wiki front page is ready for content.";
+      }
+
+      function renderFrontPage() {
+        const page = wikiState.frontPage;
+        if (!page) {
+          return;
+        }
+        elements.frontPageContent.textContent = getFrontPageText(page.currentRevision?.content);
+        elements.frontPageRecordStatus.textContent = page.currentRevision
+          ? `Database revision ${page.currentRevision.number} · saved ${new Date(
+              page.currentRevision.createdAt
+            ).toLocaleString()}`
+          : "No saved revision is available yet.";
+        elements.frontPageEditingStatus.textContent = page.allowNormalEdits
+          ? "Normal editing: enabled for this page (the default)."
+          : "Normal editing: disabled for this page by assigned wiki staff.";
+        elements.editFrontPageButton.title = page.permissions?.canEdit
+          ? "The editing interface will be added in Step 3."
+          : "Your account does not have permission to edit this page.";
+      }
+
+      async function loadFrontPage() {
+        elements.frontPageRecordStatus.textContent = "Loading revision information.";
+        try {
+          const payload = await requestWikiPage("front-page");
+          wikiState.frontPage = payload.page;
+          renderFrontPage();
+        } catch (error) {
+          elements.frontPageContent.textContent =
+            "The wiki front page could not be loaded from the database.";
+          elements.frontPageRecordStatus.textContent =
+            error instanceof Error ? error.message : "The front page service is unavailable.";
+        }
       }
 
       function setFeedback(message, isError = false) {
@@ -1456,6 +1709,9 @@
           const includeMembers = Boolean(wikiState.account?.email);
           wikiState.access = await requestWikiAccess({ includeMembers });
           renderWikiAccess();
+          if (wikiState.access?.viewer?.canView) {
+            await loadFrontPage();
+          }
         } catch (error) {
           if (error?.status === 401 && wikiState.account) {
             wikiState.account = null;
@@ -1464,6 +1720,9 @@
             try {
               wikiState.access = await requestWikiAccess();
               renderWikiAccess();
+              if (wikiState.access?.viewer?.canView) {
+                await loadFrontPage();
+              }
               elements.authNote.textContent = "Your session expired. Sign in again.";
               return;
             } catch (retryError) {
@@ -1546,7 +1805,7 @@
         }
       });
 
-      wikiState.account = loadAuthSession();
+      wikiState.account = wikiState.cursorTesting ? CURSOR_TEST_ACCOUNT : loadAuthSession();
       wikiState.idToken = wikiState.account?.idToken || "";
       syncAccountMenu();
       waitForGoogle();
