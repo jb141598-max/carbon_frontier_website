@@ -931,6 +931,7 @@
       </div>
     </div>
 
+    <script src="testing-sync.js"></script>
     <script>
       const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
       const WIKI_ACCESS_ENDPOINTS = [
@@ -1032,6 +1033,33 @@
         memberList: document.getElementById("member-list"),
         accessFeedback: document.getElementById("access-feedback"),
       };
+
+      function hydrateCursorWikiFromTestingSnapshot() {
+        if (!wikiState.cursorTesting) {
+          return;
+        }
+        const wikiSnapshot = window.CarbonFrontierTestingSync?.getSection("wiki");
+        if (!wikiSnapshot?.available) {
+          return;
+        }
+
+        wikiState.cursorSettings = {
+          visibility: wikiSnapshot.settings?.visibility === "public" ? "public" : "private",
+          editingMode:
+            wikiSnapshot.settings?.visibility === "public" &&
+            wikiSnapshot.settings?.editingMode === "open"
+              ? "open"
+              : "restricted",
+        };
+        if (Array.isArray(wikiSnapshot.members)) {
+          wikiState.cursorMembers = wikiSnapshot.members.map((member) => ({
+            email: normalizeEmail(member.email),
+            role: ROLE_LABELS[member.role] ? member.role : "wiki_editor",
+            assignedAt: member.assignedAt || null,
+            assignedBy: normalizeEmail(member.assignedBy) || "system",
+          }));
+        }
+      }
 
       function normalizeEmail(value) {
         return String(value || "").trim().toLowerCase();
@@ -1667,6 +1695,12 @@
         }
       });
 
+      window.addEventListener("carbon-frontier-testing-snapshot-updated", () => {
+        hydrateCursorWikiFromTestingSnapshot();
+        loadWikiAccess();
+      });
+
+      hydrateCursorWikiFromTestingSnapshot();
       wikiState.account = wikiState.cursorTesting ? CURSOR_TEST_ACCOUNT : loadAuthSession();
       wikiState.idToken = wikiState.account?.idToken || "";
       syncAccountMenu();

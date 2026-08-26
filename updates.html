@@ -1745,6 +1745,7 @@
       </div>
     </aside>
 
+    <script src="testing-sync.js"></script>
     <script>
       const ADMIN_ACCOUNTS = ["jb141598@gmail.com", "jb14296@gmail.com"];
       const UPDATE_STORAGE_KEY = "carbon-frontier-update-rows-v1";
@@ -2717,11 +2718,13 @@
         }
 
         if (/^\/?api\/images\//i.test(trimmedPath)) {
-          return trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+          const path = trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+          return window.CarbonFrontierTestingSync?.resolveAssetUrl(path) || path;
         }
 
         if (/^\/?\.netlify\/functions\/images\//i.test(trimmedPath)) {
-          return trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+          const path = trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+          return window.CarbonFrontierTestingSync?.resolveAssetUrl(path) || path;
         }
 
         const imagesIndex = trimmedPath.toLowerCase().lastIndexOf("images/");
@@ -3279,6 +3282,22 @@
       }
 
       async function loadSharedUpdatesState() {
+        const testingUpdates = window.CarbonFrontierTestingSync?.getSection("updates");
+        if (
+          window.CarbonFrontierTestingSync?.isTestingEnvironment() &&
+          testingUpdates
+        ) {
+          updatesState.remoteEndpoint = "";
+          const normalizedUpdates = normalizeUpdatesPayload(testingUpdates);
+          return {
+            ok: true,
+            exists: Boolean(testingUpdates.exists),
+            updates: normalizedUpdates,
+            supportsHeaderImages: true,
+            source: "testing-copy",
+          };
+        }
+
         for (const endpoint of REMOTE_UPDATES_ENDPOINTS) {
           try {
             const response = await fetch(endpoint, {
@@ -3400,7 +3419,7 @@
         if (sharedState.ok) {
           updatesState.updates = sharedState.updates;
           updatesState.currentUpdateId = null;
-          updatesState.storageMode = "netlify-blobs";
+          updatesState.storageMode = sharedState.source || "netlify-blobs";
           saveUpdates();
           updatesState.publicRoutingReady = true;
           syncPublicViewFromLocation();
@@ -3418,6 +3437,15 @@
 
       async function persistUpdatesState(localMessage, sharedMessage) {
         saveUpdates();
+
+        if (window.CarbonFrontierTestingSync?.isTestingEnvironment()) {
+          updatesState.storageMode = "testing-copy";
+          setFeedback(
+            "Saved to this local Cursor testing copy only. The live website was not changed."
+          );
+          renderAll();
+          return;
+        }
 
         const canSaveShared =
           ADMIN_ACCOUNTS.includes(getCurrentAccount()) && isGoogleIdTokenUsable(updatesState.authIdToken);
@@ -4892,6 +4920,10 @@
         renderPublicRows();
         renderAdminRows();
         hydrateUpdateImages();
+      });
+
+      window.addEventListener("carbon-frontier-testing-snapshot-updated", () => {
+        initializeUpdatesState();
       });
 
       updatesState.authAccount = loadAuthSession();

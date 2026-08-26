@@ -1,0 +1,38 @@
+CARBON FRONTIER WIKI — STEP 2
+
+Upload the complete contents of this folder to the website project while
+preserving the netlify/functions and netlify/database/migrations folders.
+
+What this build adds
+- All Wiki navigation uses real relative .html filenames for Cursor testing.
+- wiki.html is the wiki front page.
+- wiki-permissions.html is the separate Permissions page.
+- Cursor/local previews act as the owner and use in-memory test data.
+- Netlify Database stores wiki settings, members, pages, revisions, categories,
+  redirects, media metadata, and the audit log.
+- The database starts with both protected owners and a saved front-page revision.
+- New pages default to allowing normal contributors to edit them.
+- Assigned wiki editors, admins, and owners can edit even when normal editing is
+  disabled for a page.
+- Revision saves require the revision that the editor started from. A stale save
+  receives a 409 revision_conflict response instead of overwriting newer work.
+
+Step 2 intentionally does not include the visual page editor. The page/revision
+API and permission rules are ready for that interface in Step 3.
+
+Netlify deployment
+- package.json includes @netlify/database.
+- netlify.toml selects Node 22 because @netlify/database 2 requires Node 22.12+
+  (Netlify resolves the major version to the newest available Node 22 release).
+- Netlify detects SQL migrations in netlify/database/migrations and applies them
+  before publishing the deploy.
+- Keep the existing GOOGLE_CLIENT_ID environment variable if one is configured.
+- Optional additional protected owners can be listed in WIKI_OWNER_EMAILS.
+
+API foundation
+- GET /api/wiki/pages/front-page
+- GET /api/wiki/pages
+- GET /api/wiki/pages/:slug?history=1
+- POST /api/wiki/pages (create a page)
+- PUT /api/wiki/pages/:slug (save a conflict-safe revision)
+- PATCH /api/wiki/pages/:slug with action update_page_settings

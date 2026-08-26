@@ -1,0 +1,47 @@
+CARBON FRONTIER — CURSOR LIVE DATA TESTING
+
+WHAT THIS ADDS
+
+Every page now gets a small “CURSOR LIVE TESTING” toolbar when opened in
+Cursor, on localhost, or as a local file. The toolbar downloads a read-only
+copy of the current Roadmap, Updates, and Wiki data from the live Netlify site.
+
+Edits made in Cursor stay in the local browser only. The testing system cannot
+save changes back to the live site.
+
+
+ONE-TIME NETLIFY SETUP (REQUIRED)
+
+1. Add/replace the included files in the website repository.
+2. In Netlify, open the site's environment variables.
+3. Add an environment variable named:
+
+   CURSOR_TESTING_SYNC_KEY
+
+4. Give it a long private random value (at least 32 characters). Do not put
+   this value into any HTML or JavaScript file.
+5. Deploy the website once after adding the variable and these files.
+
+
+CONNECT CURSOR
+
+1. Open index.html, updates.html, wiki.html, or wiki-permissions.html in the
+   Cursor preview.
+2. In the “CURSOR LIVE TESTING” box, click Set Connection.
+3. Enter the live site address, such as https://your-site.netlify.app.
+4. Enter the exact CURSOR_TESTING_SYNC_KEY value from Netlify.
+5. Click Refresh Live Data whenever you want a new testing copy.
+
+The website address is remembered in local browser storage. The private key is
+kept only in session storage, so Cursor may ask for it again after the preview
+browser is closed.
+
+
+DO I HAVE TO DEPLOY EVERY TIME?
+
+No. One deployment is required to install the read-only sync endpoint. After
+that, normal Roadmap, Updates, and Wiki content changes do not need another
+deployment for testing. Click Refresh Live Data in Cursor to download them.
+
+Deploy again only when website code, Functions, database migrations, or this
+testing system changes.

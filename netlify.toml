@@ -1,3 +1,8 @@
+[build.environment]
+  # @netlify/database 2 requires Node 22.12 or newer. Netlify resolves "22"
+  # to the newest available Node 22 release for builds and Functions.
+  NODE_VERSION = "22"
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"

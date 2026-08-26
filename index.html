@@ -2084,6 +2084,7 @@
       </div>
     </aside>
 
+    <script src="testing-sync.js"></script>
     <script>
       const ADMIN_ACCOUNTS = ["jb141598@gmail.com", "jb14296@gmail.com"];
       const CARD_STATUSES = ["PLANNED", "IN PROGRESS", "FINISHED"];
@@ -2589,6 +2590,13 @@
       }
 
       function updateStorageUI() {
+        if (roadmapState.storageMode === "testing-copy") {
+          elements.storageMode.textContent = "Testing Copy";
+          elements.storageDetail.textContent =
+            "This is a read-only copy downloaded from the live site. Changes you make here stay only in Cursor.";
+          return;
+        }
+
         if (roadmapState.storageMode === "netlify-blobs") {
           elements.storageMode.textContent = "Shared";
           elements.storageDetail.textContent =
@@ -2609,6 +2617,25 @@
       }
 
       async function loadSharedRoadmapState() {
+        const testingRoadmap = window.CarbonFrontierTestingSync?.getSection("roadmap");
+        if (
+          window.CarbonFrontierTestingSync?.isTestingEnvironment() &&
+          testingRoadmap
+        ) {
+          roadmapState.remoteEndpoint = "";
+          return {
+            ok: true,
+            exists: Boolean(testingRoadmap.exists),
+            cards: Array.isArray(testingRoadmap.cards)
+              ? testingRoadmap.cards
+                  .map(normalizeCard)
+                  .filter((card) => card.title && card.description)
+              : [],
+            orderMode: testingRoadmap.orderMode === "manual" ? "manual" : "date",
+            source: "testing-copy",
+          };
+        }
+
         for (const endpoint of REMOTE_ROADMAP_ENDPOINTS) {
           try {
             const response = await fetch(endpoint, {
@@ -2714,6 +2741,15 @@
         saveOrderMode();
         saveCards();
 
+        if (window.CarbonFrontierTestingSync?.isTestingEnvironment()) {
+          roadmapState.storageMode = "testing-copy";
+          updateStorageUI();
+          setFeedback(
+            "Saved to this local Cursor testing copy only. The live website was not changed."
+          );
+          return true;
+        }
+
         const isSharedCapable = window.location.protocol.startsWith("http");
         if (!isSharedCapable) {
           roadmapState.storageMode = "localStorage";
@@ -2779,6 +2815,16 @@
         const localCards = loadCards();
         const localOrderMode = loadOrderMode();
         const sharedState = await loadSharedRoadmapState();
+
+        if (sharedState.source === "testing-copy") {
+          roadmapState.cards = sortCards(sharedState.cards);
+          roadmapState.orderMode = sharedState.orderMode;
+          roadmapState.storageMode = "testing-copy";
+          saveCards();
+          saveOrderMode();
+          updateStorageUI();
+          return;
+        }
 
         if (sharedState.ok) {
           const canSeedRemote =
@@ -3494,11 +3540,13 @@
         }
 
         if (/^\/?api\/images\//i.test(trimmedPath)) {
-          return trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+          const path = trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+          return window.CarbonFrontierTestingSync?.resolveAssetUrl(path) || path;
         }
 
         if (/^\/?\.netlify\/functions\/images\//i.test(trimmedPath)) {
-          return trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+          const path = trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
+          return window.CarbonFrontierTestingSync?.resolveAssetUrl(path) || path;
         }
 
         const imagesIndex = trimmedPath.toLowerCase().lastIndexOf("images/");
@@ -4062,6 +4110,13 @@
           closeAccountMenu();
           closeAdminPanel();
         }
+      });
+
+      window.addEventListener("carbon-frontier-testing-snapshot-updated", async () => {
+        await initializeRoadmapState();
+        updateAdminUI();
+        resetForm();
+        renderAll();
       });
 
       (async () => {
