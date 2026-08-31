@@ -1,0 +1,55 @@
+CARBON FRONTIER WIKI — STEP 4
+
+Merge the complete contents of this folder into the website project while
+preserving the netlify/functions and netlify/database/migrations folders.
+
+LAYOUT UPDATE
+
+- The Find a Page sidebar has been removed.
+- Wiki search now sits in the top navigation row near the left side.
+- Focusing the search field opens matching page results, and keyboard arrow
+  keys plus Enter can be used to navigate them.
+- The article now uses the full content width.
+- New Page remains available beside search for accounts allowed to create pages.
+
+GOOGLE DOCS-STYLE EDITING
+
+- Edit Page changes the article itself into a contenteditable document.
+- A document toolbar appears immediately above the article header.
+- The toolbar supports undo, redo, normal text, headings, note boxes, bold,
+  italic, underline, links, bulleted lists, and numbered lists.
+- The title is edited directly in the article header.
+- The toolbar contains the page-level Public Edits setting for assigned staff,
+  an edit summary field, Cancel, and Save.
+- Command+S on macOS or Ctrl+S elsewhere saves a new revision.
+- Pasted text is inserted as plain text to prevent unsafe HTML from entering
+  wiki pages.
+- Saved inline formatting is sanitized before display.
+
+REVISION HISTORY — NEXT STEP IMPLEMENTED
+
+- Every article now has a History button.
+- History lists up to the latest 200 revision records on the normal website.
+- Selecting a revision loads it beside the current revision for comparison.
+- The comparison reports how many content blocks differ and compares word counts.
+- Page titles are now stored with each revision and restored with the content.
+- Owners, Admins, and Wiki Editors can restore an older revision.
+- Restoration requires a second confirmation click and creates a brand-new
+  revision, so no newer history is deleted.
+- Restore requests use the current revision as a conflict guard.
+- Public page and history responses no longer expose editor email addresses.
+
+CURSOR / LIVE PREVIEW TESTING
+
+- Cursor editing, history, comparison, and restores remain local-only.
+- Local revisions persist in that preview browser.
+- Refresh Live Data can now download up to the latest 25 full revisions per
+  page for safe history testing without allowing production writes.
+
+NETLIFY DEPLOYMENT
+
+A new Netlify deployment is required because wiki.html, wiki-editor.js,
+wiki-pages.mjs, testing-snapshot.mjs, testing-sync.js, and the database schema
+changed. Netlify will automatically apply the included
+202608300002_add_wiki_revision_titles.sql migration. No new environment
+variable is required. Keep CURSOR_TESTING_SYNC_KEY configured.

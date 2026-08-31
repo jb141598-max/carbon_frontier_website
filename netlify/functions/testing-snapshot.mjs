@@ -115,7 +115,7 @@ async function loadWikiSnapshot() {
   const db = getDatabase();
   const client = await db.pool.connect();
   try {
-    const [settingsResult, membersResult, pagesResult] = await Promise.all([
+    const [settingsResult, membersResult, pagesResult, revisionsResult] = await Promise.all([
       client.query(
         `SELECT visibility, editing_mode, updated_at, updated_by_email
          FROM wiki_settings
@@ -138,6 +138,7 @@ async function loadWikiSnapshot() {
            p.updated_at,
            r.id AS revision_id,
            r.revision_number,
+           r.page_title AS revision_title,
            r.content_json,
            r.edit_summary,
            r.author_email,
@@ -149,9 +150,52 @@ async function loadWikiSnapshot() {
          WHERE p.is_deleted = FALSE
          ORDER BY p.updated_at DESC`
       ),
+      client.query(
+        `WITH ranked_revisions AS (
+           SELECT
+             r.id,
+             r.page_id,
+             r.revision_number,
+             r.page_title,
+             r.content_json,
+             r.edit_summary,
+             r.author_email,
+             r.author_name,
+             r.author_role,
+             r.created_at,
+             ROW_NUMBER() OVER (
+               PARTITION BY r.page_id
+               ORDER BY r.revision_number DESC
+             ) AS page_rank
+           FROM wiki_revisions r
+           INNER JOIN wiki_pages p ON p.id = r.page_id
+           WHERE p.is_deleted = FALSE
+         )
+         SELECT id, page_id, revision_number, page_title, content_json, edit_summary,
+                author_email, author_name, author_role, created_at
+         FROM ranked_revisions
+         WHERE page_rank <= 25
+         ORDER BY page_id, revision_number ASC`
+      ),
     ]);
 
     const settings = settingsResult.rows[0] || {};
+    const revisionsByPage = new Map();
+    revisionsResult.rows.forEach((revision) => {
+      const history = revisionsByPage.get(revision.page_id) || [];
+      history.push({
+        id: revision.id,
+        number: Number(revision.revision_number),
+        title: revision.page_title,
+        content: revision.content_json,
+        editSummary: revision.edit_summary,
+        authorEmail: revision.author_email,
+        authorName: revision.author_name || null,
+        authorRole: revision.author_role || "contributor",
+        createdAt: isoDate(revision.created_at),
+      });
+      revisionsByPage.set(revision.page_id, history);
+    });
     return {
       available: true,
       settings: {
@@ -179,6 +223,7 @@ async function loadWikiSnapshot() {
           ? {
               id: page.revision_id,
               number: Number(page.revision_number),
+              title: page.revision_title || page.title,
               content: page.content_json,
               editSummary: page.edit_summary,
               authorEmail: page.author_email,
@@ -187,6 +232,7 @@ async function loadWikiSnapshot() {
               createdAt: isoDate(page.revision_created_at),
             }
           : null,
+        localRevisions: revisionsByPage.get(page.id) || [],
       })),
     };
   } finally {
@@ -233,7 +279,7 @@ export default async function handler(request) {
 
     return json(
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         generatedAt: new Date().toISOString(),
         sourceOrigin: new URL(request.url).origin,
         roadmap,

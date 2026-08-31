@@ -9,6 +9,10 @@ copy of the current Roadmap, Updates, and Wiki data from the live Netlify site.
 Edits made in Cursor stay in the local browser only. The testing system cannot
 save changes back to the live site.
 
+Wiki pages, edits, revision history, and restorations created during testing are
+kept in that preview browser's local storage. They remain local even after
+Refresh Live Data and are layered over the newest downloaded live copy.
+
 
 ONE-TIME NETLIFY SETUP (REQUIRED)
 
@@ -28,13 +32,19 @@ CONNECT CURSOR
 1. Open index.html, updates.html, wiki.html, or wiki-permissions.html in the
    Cursor preview.
 2. In the “CURSOR LIVE TESTING” box, click Set Connection.
-3. Enter the live site address, such as https://your-site.netlify.app.
-4. Enter the exact CURSOR_TESTING_SYNC_KEY value from Netlify.
-5. Click Refresh Live Data whenever you want a new testing copy.
+3. Two input boxes will expand directly inside the panel. Command+V, right-click
+   Paste, and the dedicated Paste button beside each field are supported.
+4. Enter the live site address, such as https://your-site.netlify.app.
+5. Enter the exact CURSOR_TESTING_SYNC_KEY value from Netlify.
+6. Click Connect & Download. Use Refresh Live Data whenever you want a new copy.
 
 The website address is remembered in local browser storage. The private key is
 kept only in session storage, so Cursor may ask for it again after the preview
 browser is closed.
+
+Use the X in the testing panel to hide it. The Roadmap and Updates admin panels
+each include a Live Testing button that shows it again. Its hidden state is
+remembered while you move between local preview pages.
 
 
 DO I HAVE TO DEPLOY EVERY TIME?

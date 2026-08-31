@@ -5,7 +5,6 @@ import {
   insertAuditEntry,
   json,
   loadAccessState,
-  normalizeEmail,
   verifyGoogleRequest,
   verifyMutationOrigin,
 } from "./_shared/wiki-security.mjs";
@@ -70,15 +69,13 @@ function pageFromRow(row, viewer) {
     allowNormalEdits: row.allow_normal_edits,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
-    createdBy: normalizeEmail(row.created_by_email),
-    updatedBy: normalizeEmail(row.updated_by_email),
     currentRevision: row.revision_id
       ? {
           id: row.revision_id,
           number: Number(row.revision_number),
+          title: row.revision_title || row.title,
           content: row.content_json,
           editSummary: row.edit_summary,
-          authorEmail: normalizeEmail(row.author_email),
           authorName: row.author_name || null,
           authorRole: row.author_role || "contributor",
           createdAt: new Date(row.revision_created_at).toISOString(),
@@ -87,6 +84,7 @@ function pageFromRow(row, viewer) {
     permissions: {
       canEdit: canEditThisPage,
       canChangePageSettings: viewer.isAssignedStaff,
+      canRestoreRevisions: viewer.isAssignedStaff,
     },
   };
 }
@@ -103,15 +101,13 @@ async function selectPage(client, slug, { lock = false } = {}) {
        p.slug,
        p.title,
        p.allow_normal_edits,
-       p.created_by_email,
-       p.updated_by_email,
        p.created_at,
        p.updated_at,
        r.id AS revision_id,
        r.revision_number,
+       r.page_title AS revision_title,
        r.content_json,
        r.edit_summary,
-       r.author_email,
        r.author_name,
        r.author_role,
        r.created_at AS revision_created_at
@@ -134,22 +130,44 @@ async function handleGet(request, account) {
 
     const slug = requestedSlug(request);
     if (!slug) {
+      const search = String(new URL(request.url).searchParams.get("q") || "")
+        .trim()
+        .slice(0, 80);
+      const searchPattern = `%${search.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
       const result = await client.query(
-        `SELECT id, slug, title, allow_normal_edits, updated_at, updated_by_email
-         FROM wiki_pages
-         WHERE is_deleted = FALSE
-         ORDER BY updated_at DESC, title ASC
-         LIMIT 250`
+        `SELECT
+           p.id,
+           p.slug,
+           p.title,
+           p.allow_normal_edits,
+           p.updated_at,
+           r.revision_number,
+           r.edit_summary,
+           r.author_name
+         FROM wiki_pages p
+         LEFT JOIN wiki_revisions r ON r.id = p.current_revision_id
+         WHERE p.is_deleted = FALSE
+           AND ($1 = '' OR p.title ILIKE $2 ESCAPE '\\' OR p.slug ILIKE $2 ESCAPE '\\')
+         ORDER BY p.updated_at DESC, p.title ASC
+         LIMIT 250`,
+        [search, searchPattern]
       );
       return json({
         ok: true,
+        query: search,
+        permissions: {
+          canCreate: viewer.canEdit,
+          isAssignedStaff: viewer.isAssignedStaff,
+        },
         pages: result.rows.map((row) => ({
           id: row.id,
           slug: row.slug,
           title: row.title,
           allowNormalEdits: row.allow_normal_edits,
           updatedAt: new Date(row.updated_at).toISOString(),
-          updatedBy: normalizeEmail(row.updated_by_email),
+          revisionNumber: row.revision_number ? Number(row.revision_number) : null,
+          editSummary: row.edit_summary || "",
+          authorName: row.author_name || null,
         })),
       });
     }
@@ -162,9 +180,10 @@ async function handleGet(request, account) {
       return json({ error: "Wiki page not found." }, 404);
     }
 
-    if (new URL(request.url).searchParams.get("history") === "1") {
+    const pageUrl = new URL(request.url);
+    if (pageUrl.searchParams.get("history") === "1") {
       const revisions = await client.query(
-        `SELECT id, revision_number, edit_summary, author_email, author_name,
+        `SELECT id, revision_number, page_title, edit_summary, author_name,
                 author_role, created_at
          FROM wiki_revisions
          WHERE page_id = $1
@@ -178,12 +197,46 @@ async function handleGet(request, account) {
         revisions: revisions.rows.map((row) => ({
           id: row.id,
           number: Number(row.revision_number),
+          title: row.page_title,
           editSummary: row.edit_summary,
-          authorEmail: normalizeEmail(row.author_email),
           authorName: row.author_name || null,
           authorRole: row.author_role || "contributor",
           createdAt: new Date(row.created_at).toISOString(),
+          isCurrent: row.id === pageRow.revision_id,
         })),
+      });
+    }
+
+    if (pageUrl.searchParams.has("revision")) {
+      const revisionNumber = Number(pageUrl.searchParams.get("revision"));
+      if (!Number.isSafeInteger(revisionNumber) || revisionNumber < 1) {
+        return json({ error: "That revision number is invalid." }, 400);
+      }
+      const revisionResult = await client.query(
+        `SELECT id, revision_number, page_title, content_json, edit_summary,
+                author_name, author_role, created_at
+         FROM wiki_revisions
+         WHERE page_id = $1 AND revision_number = $2`,
+        [pageRow.id, revisionNumber]
+      );
+      const revision = revisionResult.rows[0];
+      if (!revision) {
+        return json({ error: "Wiki revision not found." }, 404);
+      }
+      return json({
+        ok: true,
+        page: pageFromRow(pageRow, viewer),
+        revision: {
+          id: revision.id,
+          number: Number(revision.revision_number),
+          title: revision.page_title,
+          content: revision.content_json,
+          editSummary: revision.edit_summary,
+          authorName: revision.author_name || null,
+          authorRole: revision.author_role || "contributor",
+          createdAt: new Date(revision.created_at).toISOString(),
+          isCurrent: revision.id === pageRow.revision_id,
+        },
       });
     }
 
@@ -229,12 +282,13 @@ async function handleCreate(request, account, body) {
     );
     await client.query(
       `INSERT INTO wiki_revisions (
-         id, page_id, revision_number, content_json, edit_summary,
+         id, page_id, revision_number, page_title, content_json, edit_summary,
          author_email, author_name, author_role
-       ) VALUES ($1, $2, 1, $3::jsonb, $4, $5, $6, $7)`,
+       ) VALUES ($1, $2, 1, $3, $4::jsonb, $5, $6, $7, $8)`,
       [
         revisionId,
         pageId,
+        title,
         contentResult.serialized,
         editSummary,
         account.email,
@@ -313,6 +367,90 @@ async function handlePageMutation(request, account, body, slug) {
       return json({ ok: true, page: pageFromRow(updated, viewer) });
     }
 
+    if (body?.action === "restore_revision") {
+      if (!viewer.isAssignedStaff) {
+        return json({ error: "Only assigned wiki staff can restore revisions." }, 403);
+      }
+      const baseRevisionId = String(body?.baseRevisionId || "").trim();
+      if (!baseRevisionId || baseRevisionId !== pageRow.revision_id) {
+        return json(
+          {
+            error: "This page changed after the history was opened. Reload before restoring.",
+            code: "revision_conflict",
+            currentRevisionId: pageRow.revision_id,
+            currentRevisionNumber: Number(pageRow.revision_number),
+          },
+          409
+        );
+      }
+      const restoreRevisionId = String(body?.revisionId || "").trim();
+      const restoreResult = await client.query(
+        `SELECT id, revision_number, page_title, content_json
+         FROM wiki_revisions
+         WHERE id = $1 AND page_id = $2`,
+        [restoreRevisionId, pageRow.id]
+      );
+      const restoreRevision = restoreResult.rows[0];
+      if (!restoreRevision) {
+        return json({ error: "The revision selected for restoration was not found." }, 404);
+      }
+      if (restoreRevision.id === pageRow.revision_id) {
+        return json({ error: "That revision is already the current version." }, 400);
+      }
+
+      const revisionId = crypto.randomUUID();
+      const revisionNumber = Number(pageRow.revision_number) + 1;
+      const restoredNumber = Number(restoreRevision.revision_number);
+      const authorRole = findRole(state, account.email) || "wiki_editor";
+      const editSummary = String(
+        body?.editSummary || `Restore revision ${restoredNumber}`
+      )
+        .trim()
+        .slice(0, 300);
+      await client.query(
+        `INSERT INTO wiki_revisions (
+           id, page_id, revision_number, page_title, content_json, edit_summary,
+           author_email, author_name, author_role
+         ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)`,
+        [
+          revisionId,
+          pageRow.id,
+          revisionNumber,
+          restoreRevision.page_title,
+          JSON.stringify(restoreRevision.content_json),
+          editSummary,
+          account.email,
+          account.name || null,
+          authorRole,
+        ]
+      );
+      await client.query(
+        `UPDATE wiki_pages
+         SET title = $1,
+             current_revision_id = $2,
+             updated_at = NOW(),
+             updated_by_email = $3
+         WHERE id = $4`,
+        [restoreRevision.page_title, revisionId, account.email, pageRow.id]
+      );
+      await insertAuditEntry(client, {
+        action: "page_revision_restored",
+        actorEmail: account.email,
+        pageId: pageRow.id,
+        details: {
+          restoredRevisionId: restoreRevision.id,
+          restoredRevisionNumber: restoredNumber,
+          newRevisionId: revisionId,
+          newRevisionNumber: revisionNumber,
+        },
+      });
+      await client.query("COMMIT");
+      committed = true;
+
+      const restored = await selectPage(client, slug);
+      return json({ ok: true, page: pageFromRow(restored, viewer) });
+    }
+
     const canEditThisPage =
       viewer.isAssignedStaff || (viewer.canEdit && pageRow.allow_normal_edits === true);
     if (!canEditThisPage) {
@@ -350,13 +488,14 @@ async function handlePageMutation(request, account, body, slug) {
     const authorRole = findRole(state, account.email) || "contributor";
     await client.query(
       `INSERT INTO wiki_revisions (
-         id, page_id, revision_number, content_json, edit_summary,
+         id, page_id, revision_number, page_title, content_json, edit_summary,
          author_email, author_name, author_role
-       ) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)`,
+       ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)`,
       [
         revisionId,
         pageRow.id,
         revisionNumber,
+        title,
         contentResult.serialized,
         editSummary,
         account.email,

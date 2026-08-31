@@ -1,0 +1,47 @@
+CARBON FRONTIER WIKI — STEP 3
+
+Merge the complete contents of this folder into the website project while
+preserving the netlify/functions and netlify/database/migrations folders.
+
+WHAT THIS BUILD ADDS
+
+- A real database-backed wiki article reader.
+- A searchable All Pages sidebar with recent revision information.
+- A New Page form for every account currently allowed to edit the wiki.
+- Automatic page-address creation from the title.
+- New pages allow normal contributors to edit by default.
+- A block editor for paragraphs, headings, bulleted lists, numbered lists,
+  and note boxes.
+- Add, remove, reorder, and preview content blocks before saving.
+- Page title editing and an optional edit summary.
+- Assigned Owners, Admins, and Wiki Editors can switch normal contributor
+  editing on or off for each page.
+- Email addresses on the Permissions page are hidden behind click-to-reveal
+  spoiler buttons and can be hidden again with a second click.
+- Every save creates a permanent database revision.
+- Outdated saves still receive revision_conflict instead of overwriting a
+  newer revision.
+- Article URLs use /wiki/<page-address> on Netlify and
+  wiki.html?page=<page-address> in Cursor/Live Preview.
+
+CURSOR TESTING
+
+Cursor/Live Preview continues to act as the Owner. Pages imported with Refresh
+Live Data appear in the reader. Pages and revisions created in the preview are
+saved only to that browser's local storage and never write to Netlify.
+
+NETLIFY DEPLOYMENT
+
+A new Netlify deployment is required to publish this editor on the normal
+website. No new environment variable or SQL migration is required if Step 2
+was already deployed. Keep CURSOR_TESTING_SYNC_KEY configured for live-data
+testing.
+
+FILES MOST IMPORTANT TO STEP 3
+
+- wiki.html
+- wiki-editor.js
+- netlify/functions/wiki-pages.mjs
+
+The ZIP also includes every prior foundation/testing file so it can be merged
+as one complete package.

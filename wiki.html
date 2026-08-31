@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
     <title>Carbon Frontier Wiki</title>
     <meta
       name="google-signin-client_id"
@@ -53,7 +54,8 @@
 
       button,
       input,
-      select {
+      select,
+      textarea {
         font: inherit;
       }
 
@@ -63,7 +65,8 @@
 
       button:disabled,
       select:disabled,
-      input:disabled {
+      input:disabled,
+      textarea:disabled {
         cursor: not-allowed;
         opacity: 0.52;
       }
@@ -576,7 +579,8 @@
       }
 
       input,
-      select {
+      select,
+      textarea {
         width: 100%;
         min-height: 46px;
         padding: 11px 13px;
@@ -588,9 +592,14 @@
       }
 
       input:focus,
-      select:focus {
+      select:focus,
+      textarea:focus {
         border-color: rgba(223, 37, 49, 0.78);
         box-shadow: 0 0 0 3px rgba(223, 37, 49, 0.12);
+      }
+
+      textarea {
+        resize: vertical;
       }
 
       .member-form {
@@ -659,6 +668,630 @@
         color: #ffc27f;
       }
 
+      .wiki-workspace {
+        display: block;
+        margin-top: 24px;
+      }
+
+      .article-surface,
+      .dialog-card {
+        border: 1px solid var(--cf-border);
+        background: rgba(8, 8, 8, 0.9);
+        box-shadow: var(--cf-shadow);
+      }
+
+      .wiki-list-state {
+        color: var(--cf-soft);
+        font-size: 0.73rem;
+        line-height: 1.4;
+      }
+
+      .wiki-list-state {
+        padding: 22px 18px;
+      }
+
+      .article-surface {
+        min-height: 560px;
+        overflow: hidden;
+        border-radius: 28px;
+      }
+
+      .article-toolbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 22px clamp(20px, 4vw, 34px);
+        border-bottom: 1px solid var(--cf-border);
+      }
+
+      .article-breadcrumb {
+        margin: 0 0 7px;
+        color: #ff9ba2;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      .article-title {
+        margin: 0;
+        font-size: clamp(1.75rem, 4vw, 3.1rem);
+        line-height: 1.05;
+      }
+
+      .article-meta {
+        margin: 9px 0 0;
+        color: var(--cf-soft);
+        font-size: 0.78rem;
+        line-height: 1.5;
+      }
+
+      .article-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .article-content {
+        padding: clamp(24px, 5vw, 48px);
+      }
+
+      .article-content > :first-child {
+        margin-top: 0;
+      }
+
+      .article-content h2,
+      .article-content h3 {
+        margin: 1.5em 0 0.55em;
+        line-height: 1.15;
+      }
+
+      .article-content h2 {
+        font-size: clamp(1.35rem, 3vw, 2rem);
+      }
+
+      .article-content h3 {
+        font-size: clamp(1.08rem, 2.3vw, 1.45rem);
+      }
+
+      .article-content p,
+      .article-content li {
+        color: rgba(255, 255, 255, 0.82);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 0.98rem;
+        line-height: 1.78;
+      }
+
+      .article-content ul,
+      .article-content ol {
+        padding-left: 1.4rem;
+      }
+
+      .article-callout,
+      .article-content blockquote {
+        margin: 22px 0;
+        padding: 16px 18px;
+        border: 1px solid rgba(240, 140, 43, 0.28);
+        border-left: 4px solid var(--cf-orange);
+        border-radius: 14px;
+        color: #ffe1bf;
+        background: rgba(240, 140, 43, 0.08);
+        line-height: 1.65;
+      }
+
+      .article-empty {
+        padding: 54px 24px;
+        color: var(--cf-muted);
+        text-align: center;
+      }
+
+      .wiki-feedback {
+        min-height: 22px;
+        margin: 12px 2px 0;
+        color: #9ce8bc;
+        font-size: 0.84rem;
+      }
+
+      .wiki-feedback.is-error {
+        color: #ff9ba2;
+      }
+
+      .wiki-dialog {
+        position: fixed;
+        z-index: 60;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 22px;
+        background: rgba(0, 0, 0, 0.78);
+        backdrop-filter: blur(10px);
+      }
+
+      .dialog-card,
+      .editor-shell {
+        width: min(680px, 100%);
+        max-height: calc(100vh - 44px);
+        overflow-y: auto;
+        border-radius: 28px;
+      }
+
+      .editor-shell {
+        width: min(1000px, 100%);
+      }
+
+      .dialog-header,
+      .editor-header,
+      .editor-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--cf-border);
+      }
+
+      .editor-footer {
+        align-items: end;
+        border-top: 1px solid var(--cf-border);
+        border-bottom: 0;
+      }
+
+      .dialog-header h2,
+      .editor-header h2 {
+        margin: 0;
+      }
+
+      .icon-button {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        min-width: 42px;
+        height: 42px;
+        border: 1px solid var(--cf-border);
+        border-radius: 50%;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.045);
+      }
+
+      .dialog-body,
+      .editor-body {
+        display: grid;
+        gap: 16px;
+        padding: 24px;
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .editor-top-fields {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: end;
+      }
+
+      .check-field {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 46px;
+        padding: 10px 13px;
+        border: 1px solid var(--cf-border);
+        border-radius: 14px;
+        color: var(--cf-muted);
+        font-size: 0.82rem;
+      }
+
+      .check-field input {
+        width: 18px;
+        min-height: 18px;
+        accent-color: var(--cf-red);
+      }
+
+      .block-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .block-editor-row {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1fr) auto;
+        gap: 9px;
+        align-items: start;
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .block-editor-row textarea {
+        min-height: 88px;
+      }
+
+      .block-row-actions {
+        display: grid;
+        grid-template-columns: repeat(2, 36px);
+        gap: 6px;
+      }
+
+      .block-row-actions button {
+        width: 36px;
+        height: 36px;
+        border: 1px solid var(--cf-border);
+        border-radius: 10px;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .block-row-actions .delete-block {
+        grid-column: span 2;
+        width: 78px;
+        color: #ff9ba2;
+      }
+
+      .editor-footer-field {
+        flex: 1;
+      }
+
+      .editor-footer-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .reader-loading {
+        padding: 70px 24px;
+        color: var(--cf-muted);
+        text-align: center;
+      }
+
+      .wiki-topbar-tools {
+        display: flex;
+        align-items: center;
+        flex: 1;
+        gap: 10px;
+        min-width: 240px;
+        max-width: 620px;
+        margin: 0 auto 0 18px;
+      }
+
+      .wiki-top-search {
+        position: relative;
+        flex: 1;
+        min-width: 180px;
+      }
+
+      .wiki-top-search input {
+        min-height: 44px;
+        padding: 10px 16px 10px 42px;
+        border-radius: 999px;
+        background: rgba(10, 10, 10, 0.94);
+      }
+
+      .wiki-top-search-icon {
+        position: absolute;
+        z-index: 2;
+        top: 50%;
+        left: 16px;
+        color: var(--cf-soft);
+        transform: translateY(-50%);
+        pointer-events: none;
+      }
+
+      .wiki-search-results {
+        position: absolute;
+        z-index: 45;
+        top: calc(100% + 9px);
+        left: 0;
+        right: 0;
+        max-height: min(440px, 58vh);
+        overflow-y: auto;
+        border: 1px solid var(--cf-border);
+        border-radius: 18px;
+        background: rgba(8, 8, 8, 0.99);
+        box-shadow: var(--cf-shadow);
+      }
+
+      .wiki-search-result {
+        display: grid;
+        gap: 4px;
+        width: 100%;
+        padding: 13px 16px;
+        border: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        color: var(--cf-white);
+        text-align: left;
+        background: transparent;
+      }
+
+      .wiki-search-result:last-child {
+        border-bottom: 0;
+      }
+
+      .wiki-search-result:hover,
+      .wiki-search-result:focus-visible,
+      .wiki-search-result.is-active {
+        background: rgba(223, 37, 49, 0.14);
+        outline: none;
+      }
+
+      .wiki-search-result strong {
+        font-size: 0.88rem;
+      }
+
+      .wiki-search-result span {
+        color: var(--cf-soft);
+        font-size: 0.72rem;
+      }
+
+      .document-toolbar {
+        position: sticky;
+        z-index: 20;
+        top: 10px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 7px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--cf-border);
+        background: rgba(22, 22, 22, 0.98);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+      }
+
+      .toolbar-group {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .toolbar-divider {
+        width: 1px;
+        height: 28px;
+        margin: 0 2px;
+        background: rgba(255, 255, 255, 0.13);
+      }
+
+      .toolbar-spacer {
+        flex: 1;
+      }
+
+      .toolbar-button,
+      .toolbar-select {
+        min-height: 36px;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        color: var(--cf-white);
+        background: transparent;
+      }
+
+      .toolbar-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 36px;
+        padding: 7px 10px;
+        font-size: 0.78rem;
+      }
+
+      .toolbar-button:hover,
+      .toolbar-button:focus-visible,
+      .toolbar-button.is-active {
+        border-color: rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.1);
+        outline: none;
+      }
+
+      .toolbar-select {
+        width: auto;
+        min-width: 132px;
+        padding: 6px 30px 6px 10px;
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+
+      .toolbar-summary {
+        width: min(210px, 30vw);
+        min-height: 36px;
+        padding: 7px 10px;
+        border-radius: 9px;
+      }
+
+      .toolbar-permission {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 36px;
+        padding: 6px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 9px;
+        color: var(--cf-muted);
+        font-size: 0.72rem;
+        white-space: nowrap;
+      }
+
+      .toolbar-permission input {
+        width: 16px;
+        min-height: 16px;
+        accent-color: var(--cf-red);
+      }
+
+      .toolbar-save {
+        border-color: rgba(223, 37, 49, 0.8);
+        background: rgba(223, 37, 49, 0.38);
+      }
+
+      .toolbar-cancel {
+        color: var(--cf-muted);
+      }
+
+      .toolbar-link-popover {
+        position: absolute;
+        z-index: 30;
+        top: calc(100% + 8px);
+        left: 50%;
+        display: flex;
+        gap: 7px;
+        width: min(520px, calc(100% - 24px));
+        padding: 10px;
+        border: 1px solid var(--cf-border);
+        border-radius: 14px;
+        background: #121212;
+        box-shadow: var(--cf-shadow);
+        transform: translateX(-50%);
+      }
+
+      .toolbar-link-popover input {
+        flex: 1;
+        min-height: 36px;
+      }
+
+      .article-title-input {
+        width: min(740px, 100%);
+        min-height: 54px;
+        padding: 2px 0;
+        border: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 0;
+        color: var(--cf-white);
+        font-size: clamp(1.75rem, 4vw, 3.1rem);
+        font-weight: 700;
+        line-height: 1.05;
+        background: transparent;
+      }
+
+      .article-title-input:focus {
+        border-color: var(--cf-red);
+        box-shadow: none;
+      }
+
+      .article-surface.is-editing .article-content {
+        min-height: 500px;
+        margin: clamp(18px, 3vw, 32px);
+        padding: clamp(24px, 4vw, 42px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .article-content[contenteditable="true"]:focus {
+        border-color: rgba(223, 37, 49, 0.64);
+        box-shadow: 0 0 0 3px rgba(223, 37, 49, 0.1);
+        outline: none;
+      }
+
+      .article-content a {
+        color: #ff929a;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .history-shell {
+        width: min(1180px, 100%);
+        max-height: calc(100vh - 44px);
+        overflow: hidden;
+        border: 1px solid var(--cf-border);
+        border-radius: 28px;
+        background: #080808;
+        box-shadow: var(--cf-shadow);
+      }
+
+      .history-body {
+        display: grid;
+        grid-template-columns: minmax(230px, 0.32fr) minmax(0, 1fr);
+        min-height: 560px;
+        max-height: calc(100vh - 142px);
+      }
+
+      .history-list {
+        overflow-y: auto;
+        border-right: 1px solid var(--cf-border);
+      }
+
+      .history-revision-button {
+        display: grid;
+        gap: 5px;
+        width: 100%;
+        padding: 15px 18px;
+        border: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        color: var(--cf-white);
+        text-align: left;
+        background: transparent;
+      }
+
+      .history-revision-button:hover,
+      .history-revision-button:focus-visible,
+      .history-revision-button.is-selected {
+        background: rgba(223, 37, 49, 0.13);
+        outline: none;
+      }
+
+      .history-revision-button strong {
+        font-size: 0.86rem;
+      }
+
+      .history-revision-button span {
+        color: var(--cf-soft);
+        font-size: 0.72rem;
+        line-height: 1.45;
+      }
+
+      .history-comparison {
+        overflow-y: auto;
+        padding: 22px;
+      }
+
+      .history-comparison-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .history-comparison-header h3 {
+        margin: 5px 0 0;
+        font-size: 1.35rem;
+      }
+
+      .history-diff-summary {
+        min-height: 22px;
+        margin: 14px 0;
+        color: #ffc27f;
+        font-size: 0.82rem;
+      }
+
+      .revision-compare-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .revision-preview {
+        min-width: 0;
+        border: 1px solid var(--cf-border);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .revision-preview > .field-label {
+        padding: 13px 15px 0;
+      }
+
+      .article-content.compact {
+        max-height: 430px;
+        overflow-y: auto;
+        padding: 15px;
+      }
+
+      .article-content.compact p,
+      .article-content.compact li {
+        font-size: 0.84rem;
+        line-height: 1.6;
+      }
+
       @media (max-width: 900px) {
         .intro-grid,
         .settings-grid {
@@ -675,6 +1308,28 @@
 
         .member-form .primary-button {
           width: 100%;
+        }
+
+        .topbar {
+          flex-wrap: wrap;
+        }
+
+        .wiki-topbar-tools {
+          order: 3;
+          flex-basis: 100%;
+          max-width: none;
+          margin: 0;
+        }
+
+        .history-body,
+        .revision-compare-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .history-list {
+          max-height: 220px;
+          border-right: 0;
+          border-bottom: 1px solid var(--cf-border);
         }
       }
 
@@ -718,6 +1373,62 @@
         .member-actions {
           flex-wrap: wrap;
         }
+
+        .article-toolbar,
+        .dialog-header,
+        .editor-header,
+        .editor-footer {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .article-actions,
+        .editor-footer-actions {
+          justify-content: stretch;
+        }
+
+        .article-actions > *,
+        .editor-footer-actions > * {
+          flex: 1;
+        }
+
+        .field-grid,
+        .editor-top-fields,
+        .block-editor-row {
+          grid-template-columns: 1fr;
+        }
+
+        .block-row-actions {
+          display: flex;
+        }
+
+        .wiki-topbar-tools {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+        }
+
+        .document-toolbar {
+          top: 0;
+        }
+
+        .toolbar-spacer {
+          display: none;
+        }
+
+        .toolbar-summary {
+          width: 100%;
+          flex: 1 1 100%;
+        }
+
+        .toolbar-link-popover {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .history-comparison-header {
+          align-items: stretch;
+          flex-direction: column;
+        }
       }
     </style>
   </head>
@@ -729,6 +1440,27 @@
             <a class="nav-button" href="index.html">Roadmap</a>
             <a class="nav-button" href="updates.html">Updates</a>
           </nav>
+
+          <div class="wiki-topbar-tools" id="wiki-topbar-tools" hidden>
+            <div class="wiki-top-search" id="wiki-top-search">
+              <span class="wiki-top-search-icon" aria-hidden="true">⌕</span>
+              <input
+                id="wiki-search-input"
+                type="search"
+                placeholder="Search wiki pages..."
+                autocomplete="off"
+                aria-label="Search wiki pages"
+                aria-expanded="false"
+                aria-controls="wiki-search-results"
+              />
+              <div class="wiki-search-results" id="wiki-search-results" hidden>
+                <p class="wiki-list-state">Loading wiki pages...</p>
+              </div>
+            </div>
+            <button class="primary-button" id="new-page-button" type="button" hidden>
+              + New Page
+            </button>
+          </div>
 
           <div class="topbar-actions">
             <div class="account-entry" id="account-entry">
@@ -796,7 +1528,81 @@
               </div>
             </div>
 
-            <section class="intro-panel">
+            <section class="wiki-workspace" id="wiki-workspace" aria-label="Wiki article">
+              <div>
+                <article class="article-surface" id="article-surface" aria-live="polite">
+                  <div class="document-toolbar" id="document-toolbar" hidden>
+                    <div class="toolbar-group" aria-label="History controls">
+                      <button class="toolbar-button" id="toolbar-undo" type="button" title="Undo" aria-label="Undo">↶</button>
+                      <button class="toolbar-button" id="toolbar-redo" type="button" title="Redo" aria-label="Redo">↷</button>
+                    </div>
+                    <div class="toolbar-divider" aria-hidden="true"></div>
+                    <div class="toolbar-group">
+                      <select class="toolbar-select" id="toolbar-block-style" aria-label="Text style">
+                        <option value="p">Normal text</option>
+                        <option value="h2">Heading 2</option>
+                        <option value="h3">Heading 3</option>
+                        <option value="blockquote">Note box</option>
+                      </select>
+                    </div>
+                    <div class="toolbar-group" aria-label="Text formatting">
+                      <button class="toolbar-button" id="toolbar-bold" type="button" title="Bold" aria-label="Bold"><strong>B</strong></button>
+                      <button class="toolbar-button" id="toolbar-italic" type="button" title="Italic" aria-label="Italic"><em>I</em></button>
+                      <button class="toolbar-button" id="toolbar-underline" type="button" title="Underline" aria-label="Underline"><u>U</u></button>
+                      <button class="toolbar-button" id="toolbar-link" type="button" title="Add link" aria-label="Add link">Link</button>
+                    </div>
+                    <div class="toolbar-divider" aria-hidden="true"></div>
+                    <div class="toolbar-group" aria-label="Lists">
+                      <button class="toolbar-button" id="toolbar-bullets" type="button" title="Bulleted list" aria-label="Bulleted list">• List</button>
+                      <button class="toolbar-button" id="toolbar-numbers" type="button" title="Numbered list" aria-label="Numbered list">1. List</button>
+                    </div>
+                    <div class="toolbar-spacer"></div>
+                    <label class="toolbar-permission" id="toolbar-permission-field">
+                      <input id="editor-normal-edits-input" type="checkbox" />
+                      Public edits
+                    </label>
+                    <input
+                      class="toolbar-summary"
+                      id="edit-summary-input"
+                      maxlength="300"
+                      placeholder="Edit summary..."
+                      aria-label="Edit summary"
+                    />
+                    <div class="toolbar-group">
+                      <button class="toolbar-button toolbar-cancel" id="cancel-editor-button" type="button">Cancel</button>
+                      <button class="toolbar-button toolbar-save" id="save-page-button" type="button">Save</button>
+                    </div>
+                    <div class="toolbar-link-popover" id="toolbar-link-popover" hidden>
+                      <input id="toolbar-link-url" type="url" placeholder="https://example.com" aria-label="Link address" />
+                      <button class="toolbar-button toolbar-save" id="toolbar-link-apply" type="button">Apply Link</button>
+                      <button class="toolbar-button" id="toolbar-link-cancel" type="button">Cancel</button>
+                    </div>
+                  </div>
+                  <div class="article-toolbar">
+                    <div>
+                      <p class="article-breadcrumb" id="article-breadcrumb">Wiki article</p>
+                      <h2 class="article-title" id="article-title">Loading...</h2>
+                      <input class="article-title-input" id="editor-title-input" maxlength="120" aria-label="Page title" hidden />
+                      <p class="article-meta" id="article-meta">Loading the current revision.</p>
+                    </div>
+                    <div class="article-actions">
+                      <button class="secondary-button" id="history-button" type="button" hidden>
+                        History
+                      </button>
+                      <button class="secondary-button" id="edit-page-button" type="button" hidden>
+                        Edit Page
+                      </button>
+                    </div>
+                  </div>
+                  <div class="article-content" id="article-content">
+                    <p class="reader-loading">Loading page content...</p>
+                  </div>
+                </article>
+                <p class="wiki-feedback" id="wiki-feedback" aria-live="polite"></p>
+              </div>
+            </section>
+
+            <section class="intro-panel" hidden>
               <div class="intro-grid">
                 <div>
                   <p class="eyebrow">Database-backed Front Page</p>
@@ -822,7 +1628,7 @@
               </div>
             </section>
 
-            <section class="wiki-grid" aria-label="Future wiki sections">
+            <section class="wiki-grid" aria-label="Future wiki sections" hidden>
               <article class="wiki-card">
                 <span class="card-number">01 / GUIDES</span>
                 <h3>Getting started</h3>
@@ -848,6 +1654,81 @@
                 </p>
               </article>
             </section>
+
+            <div class="wiki-dialog" id="new-page-dialog" role="dialog" aria-modal="true" aria-labelledby="new-page-title" hidden>
+              <form class="dialog-card" id="new-page-form">
+                <div class="dialog-header">
+                  <div>
+                    <p class="eyebrow">Create an article</p>
+                    <h2 id="new-page-title">New wiki page</h2>
+                  </div>
+                  <button class="icon-button" id="close-new-page-button" type="button" aria-label="Close new page form">×</button>
+                </div>
+                <div class="dialog-body">
+                  <div class="field-grid">
+                    <label>
+                      <span class="field-label">Page title</span>
+                      <input id="new-page-title-input" maxlength="120" required placeholder="Coal Power Plant" />
+                    </label>
+                    <label>
+                      <span class="field-label">Page address</span>
+                      <input id="new-page-slug-input" maxlength="100" required placeholder="coal-power-plant" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" />
+                    </label>
+                  </div>
+                  <label>
+                    <span class="field-label">Opening paragraph</span>
+                    <textarea id="new-page-intro-input" rows="5" required placeholder="Explain what this page is about..."></textarea>
+                  </label>
+                  <p class="field-note">New pages allow normal contributors to edit by default. Assigned staff can change that from the editor.</p>
+                  <p class="wiki-feedback" id="new-page-feedback" aria-live="polite"></p>
+                  <div class="form-actions">
+                    <button class="secondary-button" id="cancel-new-page-button" type="button">Cancel</button>
+                    <button class="primary-button" id="create-page-button" type="submit">Create Page</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="wiki-dialog" id="history-dialog" role="dialog" aria-modal="true" aria-labelledby="history-dialog-title" hidden>
+              <div class="history-shell">
+                <div class="dialog-header">
+                  <div>
+                    <p class="eyebrow">Revision history</p>
+                    <h2 id="history-dialog-title">Page history</h2>
+                  </div>
+                  <button class="icon-button" id="close-history-button" type="button" aria-label="Close revision history">×</button>
+                </div>
+                <div class="history-body">
+                  <aside class="history-list" id="history-list">
+                    <p class="wiki-list-state">Loading revisions...</p>
+                  </aside>
+                  <section class="history-comparison">
+                    <div class="history-comparison-header">
+                      <div>
+                        <p class="eyebrow" id="history-selection-label">Select a revision</p>
+                        <h3 id="history-selection-title">Revision comparison</h3>
+                        <p class="article-meta" id="history-selection-meta"></p>
+                      </div>
+                      <button class="primary-button" id="restore-revision-button" type="button" hidden>
+                        Restore This Revision
+                      </button>
+                    </div>
+                    <p class="history-diff-summary" id="history-diff-summary"></p>
+                    <div class="revision-compare-grid">
+                      <div class="revision-preview">
+                        <span class="field-label">Selected revision</span>
+                        <div class="article-content compact" id="selected-revision-preview"></div>
+                      </div>
+                      <div class="revision-preview">
+                        <span class="field-label">Current revision</span>
+                        <div class="article-content compact" id="current-revision-preview"></div>
+                      </div>
+                    </div>
+                    <p class="wiki-feedback" id="history-feedback" aria-live="polite"></p>
+                  </section>
+                </div>
+              </div>
+            </div>
 
             <section class="access-panel" id="access-panel" hidden>
               <div class="section-heading-row">
@@ -1689,6 +2570,9 @@
           elements.unavailableCopy.textContent = viewer?.authenticated
             ? "This signed-in email has not been assigned access to the private Carbon Frontier wiki."
             : "The Carbon Frontier wiki is currently private. Assigned owners, admins, and wiki editors can sign in from the account menu.";
+          window.dispatchEvent(
+            new CustomEvent("carbon-frontier-wiki-access-updated", { detail: { access } })
+          );
           return;
         }
 
@@ -1731,6 +2615,9 @@
         }
 
         elements.accessPanel.hidden = !wikiState.accessPanelOpen || !viewer.canManageEditors;
+        window.dispatchEvent(
+          new CustomEvent("carbon-frontier-wiki-access-updated", { detail: { access } })
+        );
       }
 
       function renderLoadError(error) {
@@ -1801,6 +2688,21 @@
         }
       }
 
+      window.CarbonFrontierWikiCore = {
+        getState() {
+          return wikiState;
+        },
+        fetchWithAuth(endpoint, options = {}) {
+          return fetchAccess(endpoint, options);
+        },
+        isTestingEnvironment() {
+          return wikiState.cursorTesting;
+        },
+        refreshAccess() {
+          return loadWikiAccess();
+        },
+      };
+
       elements.accountMenuButton.addEventListener("click", (event) => {
         event.stopPropagation();
         wikiState.accountMenuOpen ? closeAccountMenu() : openAccountMenu();
@@ -1863,5 +2765,6 @@
       waitForGoogle();
       loadWikiAccess();
     </script>
+    <script src="wiki-editor.js"></script>
   </body>
 </html>

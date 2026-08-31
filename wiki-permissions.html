@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
     <title>Carbon Frontier Wiki Permissions</title>
     <meta
       name="google-signin-client_id"
@@ -299,6 +300,66 @@
       .account-menu-email {
         margin-top: 4px;
         word-break: break-word;
+      }
+
+      .email-spoiler {
+        display: inline-grid;
+        grid-template-areas: "spoiler";
+        max-width: 100%;
+        min-height: 30px;
+        padding: 5px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 7px;
+        color: var(--cf-white);
+        background: rgba(255, 255, 255, 0.14);
+        vertical-align: middle;
+        transition: background-color 150ms ease, border-color 150ms ease;
+      }
+
+      .email-spoiler:hover,
+      .email-spoiler:focus-visible {
+        border-color: rgba(255, 255, 255, 0.24);
+        background: rgba(255, 255, 255, 0.2);
+        outline: none;
+      }
+
+      .email-spoiler-text,
+      .email-spoiler-cover {
+        grid-area: spoiler;
+        align-self: center;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .email-spoiler-text {
+        max-width: min(360px, 56vw);
+        opacity: 0;
+        user-select: none;
+      }
+
+      .email-spoiler-cover {
+        justify-self: center;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .email-spoiler.is-revealed {
+        border-color: rgba(223, 37, 49, 0.42);
+        background: rgba(223, 37, 49, 0.12);
+      }
+
+      .email-spoiler.is-revealed .email-spoiler-text {
+        opacity: 1;
+        user-select: text;
+      }
+
+      .email-spoiler.is-revealed .email-spoiler-cover {
+        opacity: 0;
+        pointer-events: none;
       }
 
       .google-signin-slot {
@@ -1074,6 +1135,34 @@
           .replaceAll("'", "&#039;");
       }
 
+      function emailSpoilerMarkup(email) {
+        return `
+          <button
+            class="email-spoiler"
+            type="button"
+            data-email-spoiler
+            aria-pressed="false"
+            aria-label="Reveal hidden email address"
+          >
+            <span class="email-spoiler-text" aria-hidden="true">${escapeHtml(email)}</span>
+            <span class="email-spoiler-cover" aria-hidden="true">Hidden email</span>
+          </button>
+        `;
+      }
+
+      function toggleEmailSpoiler(button) {
+        const revealed = !button.classList.contains("is-revealed");
+        button.classList.toggle("is-revealed", revealed);
+        button.setAttribute("aria-pressed", String(revealed));
+        button
+          .querySelector(".email-spoiler-text")
+          ?.setAttribute("aria-hidden", String(!revealed));
+        button.setAttribute(
+          "aria-label",
+          revealed ? "Hide email address" : "Reveal hidden email address"
+        );
+      }
+
       function getConfiguredGoogleClientId() {
         return String(
           window.CARBON_FRONTIER_GOOGLE_CLIENT_ID ||
@@ -1202,7 +1291,7 @@
 
         if (account?.email) {
           elements.accountMenuTitle.textContent = account.name || "Signed in with Google";
-          elements.accountMenuEmail.textContent = account.email;
+          elements.accountMenuEmail.innerHTML = emailSpoilerMarkup(account.email);
           elements.signoutButton.hidden = wikiState.cursorTesting;
           elements.googleSigninSlot.hidden = true;
           if (viewer?.role) {
@@ -1478,7 +1567,7 @@
         return `
           <article class="member-card">
             <div>
-              <p class="member-email">${escapeHtml(member.email)}</p>
+              <p class="member-email">${emailSpoilerMarkup(member.email)}</p>
               <p class="member-meta">Assigned ${escapeHtml(assignedDate)}</p>
             </div>
             <div class="member-actions">
@@ -1507,13 +1596,17 @@
           ? members.map(createMemberMarkup).join("")
           : `<div class="empty-state"><p class="empty-copy">No assigned wiki members yet.</p></div>`;
 
+        elements.memberList.querySelectorAll("[data-email-spoiler]").forEach((button) => {
+          button.addEventListener("click", () => toggleEmailSpoiler(button));
+        });
+
         elements.memberList.querySelectorAll("[data-remove-email]").forEach((button) => {
           button.addEventListener("click", async () => {
             const email = normalizeEmail(button.dataset.removeEmail);
             if (wikiState.pendingRemoveEmail !== email) {
               wikiState.pendingRemoveEmail = email;
               renderMembers();
-              setFeedback(`Click Confirm Remove to remove ${email}.`);
+              setFeedback("Click Confirm Remove to remove this account.");
               return;
             }
             wikiState.pendingRemoveEmail = "";
@@ -1659,6 +1752,12 @@
       });
 
       elements.accountMenu.addEventListener("click", (event) => event.stopPropagation());
+      elements.accountMenuEmail.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-email-spoiler]");
+        if (button) {
+          toggleEmailSpoiler(button);
+        }
+      });
       document.addEventListener("click", closeAccountMenu);
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
@@ -1688,7 +1787,7 @@
         const role = elements.memberRoleSelect.value;
         await mutateWikiAccess(
           { action: "upsert_member", email, role },
-          `${roleLabel(role)} access saved for ${email}.`
+          `${roleLabel(role)} access saved.`
         );
         if (!elements.accessFeedback.classList.contains("is-error")) {
           elements.memberEmailInput.value = "";

@@ -1203,6 +1203,14 @@
         gap: 16px;
       }
 
+      .admin-header-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
       .panel-title {
         font-size: clamp(2rem, 3vw, 3rem);
         line-height: 1;
@@ -1936,9 +1944,14 @@
               bullet points. The same card data powers both the admin view and the public roadmap.
             </p>
           </div>
-          <button class="icon-button" id="close-admin-panel" type="button" aria-label="Close admin panel">
-            ×
-          </button>
+          <div class="admin-header-actions">
+            <button class="ghost-button" type="button" data-testing-toolbar-show hidden>
+              Live Testing
+            </button>
+            <button class="icon-button" id="close-admin-panel" type="button" aria-label="Close admin panel">
+              ×
+            </button>
+          </div>
         </div>
 
         <div class="admin-layout">
