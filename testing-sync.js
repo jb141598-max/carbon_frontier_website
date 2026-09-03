@@ -292,7 +292,7 @@
       if (
         !payload ||
         typeof payload !== "object" ||
-        ![1, 2].includes(payload.schemaVersion)
+        ![1, 2, 3].includes(payload.schemaVersion)
       ) {
         throw new Error("The live site returned an unsupported testing snapshot.");
       }

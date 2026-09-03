@@ -61,12 +61,15 @@ function validateContent(value) {
 
 function pageFromRow(row, viewer) {
   const canEditThisPage =
-    viewer.isAssignedStaff || (viewer.canEdit && row.allow_normal_edits === true);
+    !row.is_deleted &&
+    (viewer.isAssignedStaff || (viewer.canEdit && row.allow_normal_edits === true));
   return {
     id: row.id,
     slug: row.slug,
     title: row.title,
     allowNormalEdits: row.allow_normal_edits,
+    isDeleted: row.is_deleted === true,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at).toISOString() : null,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
     currentRevision: row.revision_id
@@ -85,6 +88,7 @@ function pageFromRow(row, viewer) {
       canEdit: canEditThisPage,
       canChangePageSettings: viewer.isAssignedStaff,
       canRestoreRevisions: viewer.isAssignedStaff,
+      canManagePage: viewer.isAssignedStaff,
     },
   };
 }
@@ -94,13 +98,15 @@ async function loadSecurity(client, account) {
   return { state, viewer: createViewer(state, account) };
 }
 
-async function selectPage(client, slug, { lock = false } = {}) {
+async function selectPage(client, slug, { lock = false, includeDeleted = false } = {}) {
   const result = await client.query(
     `SELECT
        p.id,
        p.slug,
        p.title,
        p.allow_normal_edits,
+       p.is_deleted,
+       p.deleted_at,
        p.created_at,
        p.updated_at,
        r.id AS revision_id,
@@ -113,9 +119,37 @@ async function selectPage(client, slug, { lock = false } = {}) {
        r.created_at AS revision_created_at
      FROM wiki_pages p
      LEFT JOIN wiki_revisions r ON r.id = p.current_revision_id
-     WHERE p.slug = $1 AND p.is_deleted = FALSE
+     WHERE p.slug = $1 AND ($2 = TRUE OR p.is_deleted = FALSE)
      ${lock ? "FOR UPDATE OF p" : ""}`,
-    [slug]
+    [slug, includeDeleted]
+  );
+  return result.rows[0] || null;
+}
+
+async function selectRedirectPage(client, sourceSlug) {
+  const result = await client.query(
+    `SELECT
+       p.id,
+       p.slug,
+       p.title,
+       p.allow_normal_edits,
+       p.is_deleted,
+       p.deleted_at,
+       p.created_at,
+       p.updated_at,
+       r.id AS revision_id,
+       r.revision_number,
+       r.page_title AS revision_title,
+       r.content_json,
+       r.edit_summary,
+       r.author_name,
+       r.author_role,
+       r.created_at AS revision_created_at
+     FROM wiki_redirects d
+     INNER JOIN wiki_pages p ON p.id = d.target_page_id
+     LEFT JOIN wiki_revisions r ON r.id = p.current_revision_id
+     WHERE d.source_slug = $1 AND p.is_deleted = FALSE`,
+    [sourceSlug]
   );
   return result.rows[0] || null;
 }
@@ -128,9 +162,33 @@ async function handleGet(request, account) {
       return json({ error: "Wiki not available." }, 403);
     }
 
+    const pageUrl = new URL(request.url);
     const slug = requestedSlug(request);
     if (!slug) {
-      const search = String(new URL(request.url).searchParams.get("q") || "")
+      if (pageUrl.searchParams.get("trash") === "1") {
+        if (!viewer.isAssignedStaff) {
+          return json({ error: "Only assigned wiki staff can view the trash." }, 403);
+        }
+        const deletedResult = await client.query(
+          `SELECT p.id, p.slug, p.title, p.allow_normal_edits, p.is_deleted,
+                  p.deleted_at, p.created_at, p.updated_at,
+                  r.id AS revision_id, r.revision_number,
+                  r.page_title AS revision_title, r.content_json, r.edit_summary,
+                  r.author_name, r.author_role, r.created_at AS revision_created_at
+           FROM wiki_pages p
+           LEFT JOIN wiki_revisions r ON r.id = p.current_revision_id
+           WHERE p.is_deleted = TRUE
+           ORDER BY p.deleted_at DESC NULLS LAST, p.updated_at DESC
+           LIMIT 200`
+        );
+        return json({
+          ok: true,
+          pages: deletedResult.rows.map((row) => pageFromRow(row, viewer)),
+          permissions: { canManageTrash: true },
+        });
+      }
+
+      const search = String(pageUrl.searchParams.get("q") || "")
         .trim()
         .slice(0, 80);
       const searchPattern = `%${search.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
@@ -158,6 +216,7 @@ async function handleGet(request, account) {
         permissions: {
           canCreate: viewer.canEdit,
           isAssignedStaff: viewer.isAssignedStaff,
+          canManageTrash: viewer.isAssignedStaff,
         },
         pages: result.rows.map((row) => ({
           id: row.id,
@@ -175,12 +234,18 @@ async function handleGet(request, account) {
     if (!validateSlug(slug)) {
       return json({ error: "That wiki page address is invalid." }, 400);
     }
-    const pageRow = await selectPage(client, slug);
+    let pageRow = await selectPage(client, slug);
+    let redirect = null;
+    if (!pageRow) {
+      pageRow = await selectRedirectPage(client, slug);
+      if (pageRow) {
+        redirect = { sourceSlug: slug, targetSlug: pageRow.slug };
+      }
+    }
     if (!pageRow) {
       return json({ error: "Wiki page not found." }, 404);
     }
 
-    const pageUrl = new URL(request.url);
     if (pageUrl.searchParams.get("history") === "1") {
       const revisions = await client.query(
         `SELECT id, revision_number, page_title, edit_summary, author_name,
@@ -194,6 +259,7 @@ async function handleGet(request, account) {
       return json({
         ok: true,
         page: pageFromRow(pageRow, viewer),
+        redirect,
         revisions: revisions.rows.map((row) => ({
           id: row.id,
           number: Number(row.revision_number),
@@ -226,6 +292,7 @@ async function handleGet(request, account) {
       return json({
         ok: true,
         page: pageFromRow(pageRow, viewer),
+        redirect,
         revision: {
           id: revision.id,
           number: Number(revision.revision_number),
@@ -240,7 +307,7 @@ async function handleGet(request, account) {
       });
     }
 
-    return json({ ok: true, page: pageFromRow(pageRow, viewer) });
+    return json({ ok: true, page: pageFromRow(pageRow, viewer), redirect });
   } finally {
     client.release();
   }
@@ -334,9 +401,127 @@ async function handlePageMutation(request, account, body, slug) {
   try {
     await client.query("BEGIN");
     const { state, viewer } = await loadSecurity(client, account);
-    const pageRow = await selectPage(client, slug, { lock: true });
+    const restoringFromTrash = body?.action === "restore_from_trash";
+    const pageRow = await selectPage(client, slug, {
+      lock: true,
+      includeDeleted: restoringFromTrash,
+    });
     if (!pageRow) {
       return json({ error: "Wiki page not found." }, 404);
+    }
+
+    if (body?.action === "move_page") {
+      if (!viewer.isAssignedStaff) {
+        return json({ error: "Only assigned wiki staff can move pages." }, 403);
+      }
+      if (pageRow.slug === "front-page") {
+        return json({ error: "The wiki front page address cannot be moved." }, 400);
+      }
+      const newSlug = normalizeSlug(body?.newSlug);
+      if (!validateSlug(newSlug)) {
+        return json({ error: "Use a lowercase page address with words separated by hyphens." }, 400);
+      }
+      if (newSlug === pageRow.slug) {
+        return json({ error: "Enter a different page address before moving." }, 400);
+      }
+      const conflict = await client.query(
+        `SELECT 1 FROM wiki_pages WHERE slug = $1
+         UNION ALL
+         SELECT 1 FROM wiki_redirects WHERE source_slug = $1
+         LIMIT 1`,
+        [newSlug]
+      );
+      if (conflict.rowCount) {
+        return json({ error: "That page address is already in use." }, 409);
+      }
+
+      const oldSlug = pageRow.slug;
+      await client.query(
+        `UPDATE wiki_pages
+         SET slug = $1, updated_at = NOW(), updated_by_email = $2
+         WHERE id = $3`,
+        [newSlug, account.email, pageRow.id]
+      );
+      await client.query(
+        `INSERT INTO wiki_redirects (source_slug, target_page_id, created_by_email)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (source_slug) DO UPDATE
+         SET target_page_id = EXCLUDED.target_page_id,
+             created_by_email = EXCLUDED.created_by_email,
+             created_at = NOW()`,
+        [oldSlug, pageRow.id, account.email]
+      );
+      await insertAuditEntry(client, {
+        action: "page_moved",
+        actorEmail: account.email,
+        pageId: pageRow.id,
+        details: { oldSlug, newSlug, redirectCreated: true },
+      });
+      await client.query("COMMIT");
+      committed = true;
+      const moved = await selectPage(client, newSlug);
+      return json({
+        ok: true,
+        page: pageFromRow(moved, viewer),
+        moved: { oldSlug, newSlug, redirectCreated: true },
+      });
+    }
+
+    if (body?.action === "trash_page") {
+      if (!viewer.isAssignedStaff) {
+        return json({ error: "Only assigned wiki staff can move pages to trash." }, 403);
+      }
+      if (pageRow.slug === "front-page") {
+        return json({ error: "The wiki front page cannot be moved to trash." }, 400);
+      }
+      await client.query(
+        `UPDATE wiki_pages
+         SET is_deleted = TRUE,
+             deleted_at = NOW(),
+             deleted_by_email = $1,
+             updated_at = NOW(),
+             updated_by_email = $1
+         WHERE id = $2`,
+        [account.email, pageRow.id]
+      );
+      await insertAuditEntry(client, {
+        action: "page_trashed",
+        actorEmail: account.email,
+        pageId: pageRow.id,
+        details: { slug: pageRow.slug, title: pageRow.title },
+      });
+      await client.query("COMMIT");
+      committed = true;
+      return json({ ok: true, trashed: { slug: pageRow.slug, title: pageRow.title } });
+    }
+
+    if (body?.action === "restore_from_trash") {
+      if (!viewer.isAssignedStaff) {
+        return json({ error: "Only assigned wiki staff can restore trashed pages." }, 403);
+      }
+      if (!pageRow.is_deleted) {
+        return json({ error: "That page is not in the trash." }, 400);
+      }
+      await client.query(
+        `UPDATE wiki_pages
+         SET is_deleted = FALSE,
+             deleted_at = NULL,
+             deleted_by_email = NULL,
+             updated_at = NOW(),
+             updated_by_email = $1
+         WHERE id = $2`,
+        [account.email, pageRow.id]
+      );
+      await insertAuditEntry(client, {
+        action: "page_restored_from_trash",
+        actorEmail: account.email,
+        pageId: pageRow.id,
+        details: { slug: pageRow.slug, title: pageRow.title },
+      });
+      await client.query("COMMIT");
+      committed = true;
+      const restoredPage = await selectPage(client, pageRow.slug);
+      return json({ ok: true, page: pageFromRow(restoredPage, viewer) });
     }
 
     if (body?.action === "update_page_settings") {
@@ -566,6 +751,9 @@ export default async function handler(request) {
     }
     return handlePageMutation(request, auth.account, body, slug);
   } catch (error) {
+    if (error?.code === "23505") {
+      return json({ error: "That wiki page address is already in use." }, 409);
+    }
     console.error("wiki-pages failed", error);
     return json({ error: "The wiki database could not complete this request." }, 500);
   }

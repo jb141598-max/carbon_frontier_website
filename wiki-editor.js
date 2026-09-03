@@ -1,9 +1,14 @@
 (function () {
   "use strict";
 
-  const LOCAL_PAGE_OVERRIDES_KEY = "carbon-frontier-wiki-local-pages-v2";
-  const LEGACY_LOCAL_PAGE_OVERRIDES_KEY = "carbon-frontier-wiki-local-pages-v1";
+  const LOCAL_PAGE_OVERRIDES_KEY = "carbon-frontier-wiki-local-pages-v3";
+  const LEGACY_LOCAL_PAGE_OVERRIDES_KEYS = [
+    "carbon-frontier-wiki-local-pages-v2",
+    "carbon-frontier-wiki-local-pages-v1",
+  ];
+  const LOCAL_REDIRECTS_KEY = "carbon-frontier-wiki-local-redirects-v1";
   const PAGE_ENDPOINTS = ["/api/wiki/pages", "/.netlify/functions/wiki-pages"];
+  const MEDIA_ENDPOINTS = ["/api/wiki/media", "/.netlify/functions/wiki-media"];
   const BLOCK_TYPES = new Set([
     "paragraph",
     "heading2",
@@ -11,6 +16,7 @@
     "bullet-list",
     "numbered-list",
     "callout",
+    "image",
   ]);
   const ALLOWED_INLINE_TAGS = new Set([
     "A",
@@ -28,8 +34,13 @@
     topTools: document.getElementById("wiki-topbar-tools"),
     topSearch: document.getElementById("wiki-top-search"),
     search: document.getElementById("wiki-search-input"),
+    searchDialog: document.getElementById("wiki-search-dialog"),
+    searchMenuInput: document.getElementById("wiki-search-menu-input"),
     searchResults: document.getElementById("wiki-search-results"),
+    closeSearch: document.getElementById("close-search-button"),
+    searchActions: document.getElementById("search-menu-actions"),
     newPage: document.getElementById("new-page-button"),
+    openTrash: document.getElementById("open-trash-button"),
     articleSurface: document.getElementById("article-surface"),
     breadcrumb: document.getElementById("article-breadcrumb"),
     title: document.getElementById("article-title"),
@@ -49,6 +60,8 @@
     link: document.getElementById("toolbar-link"),
     bullets: document.getElementById("toolbar-bullets"),
     numbers: document.getElementById("toolbar-numbers"),
+    image: document.getElementById("toolbar-image"),
+    pageSettings: document.getElementById("toolbar-page-settings"),
     normalEditsField: document.getElementById("toolbar-permission-field"),
     normalEdits: document.getElementById("editor-normal-edits-input"),
     editSummary: document.getElementById("edit-summary-input"),
@@ -79,6 +92,28 @@
     currentPreview: document.getElementById("current-revision-preview"),
     restoreRevision: document.getElementById("restore-revision-button"),
     historyFeedback: document.getElementById("history-feedback"),
+    mediaDialog: document.getElementById("media-dialog"),
+    mediaForm: document.getElementById("media-form"),
+    mediaFile: document.getElementById("media-file-input"),
+    mediaAlt: document.getElementById("media-alt-input"),
+    mediaCaption: document.getElementById("media-caption-input"),
+    mediaPreview: document.getElementById("media-preview"),
+    mediaFeedback: document.getElementById("media-feedback"),
+    uploadMedia: document.getElementById("upload-media-button"),
+    closeMedia: document.getElementById("close-media-button"),
+    cancelMedia: document.getElementById("cancel-media-button"),
+    managementDialog: document.getElementById("page-management-dialog"),
+    managementTitle: document.getElementById("page-management-title"),
+    managementNormalEdits: document.getElementById("management-normal-edits-input"),
+    moveSlug: document.getElementById("move-page-slug-input"),
+    movePage: document.getElementById("move-page-button"),
+    trashPage: document.getElementById("trash-page-button"),
+    managementFeedback: document.getElementById("page-management-feedback"),
+    closeManagement: document.getElementById("close-page-management-button"),
+    trashDialog: document.getElementById("trash-dialog"),
+    trashList: document.getElementById("trash-list"),
+    trashFeedback: document.getElementById("trash-feedback"),
+    closeTrash: document.getElementById("close-trash-button"),
   };
 
   const app = {
@@ -93,6 +128,9 @@
     selectedRevision: null,
     restoreArmedRevisionId: "",
     searchIndex: -1,
+    pageListPermissions: {},
+    trashArmedSlug: "",
+    mediaPreviewUrl: "",
   };
 
   function core() {
@@ -235,10 +273,87 @@
     throw lastError;
   }
 
+  async function uploadMediaFile(file) {
+    if (isTesting()) {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
+        reader.addEventListener("error", () => reject(new Error("The local image could not be read.")), { once: true });
+        reader.readAsDataURL(file);
+      });
+      return {
+        ok: true,
+        media: {
+          id: randomId("local-media"),
+          originalName: file.name,
+          contentType: file.type,
+          sizeBytes: file.size,
+          url: dataUrl,
+        },
+      };
+    }
+
+    let lastError = new Error("The wiki image service is unavailable.");
+    for (const endpoint of MEDIA_ENDPOINTS) {
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const response = await core().fetchWithAuth(endpoint, { method: "POST", body: form });
+        const payload = await response.json().catch(() => null);
+        if (response.status === 404 && endpoint.startsWith("/api/")) {
+          lastError = new Error(payload?.error || "The wiki image service was not found.");
+          continue;
+        }
+        if (!response.ok) {
+          const error = new Error(payload?.error || `Image upload failed (${response.status}).`);
+          error.status = response.status;
+          throw error;
+        }
+        return payload;
+      } catch (error) {
+        lastError = error;
+        if (error?.status && error.status !== 404) {
+          throw error;
+        }
+      }
+    }
+    throw lastError;
+  }
+
+  async function fetchProtectedMedia(mediaId) {
+    let lastError = new Error("The wiki image could not be loaded.");
+    for (const base of MEDIA_ENDPOINTS) {
+      const endpoint = base.startsWith("/api/")
+        ? `${base}/${encodeURIComponent(mediaId)}`
+        : `${base}?id=${encodeURIComponent(mediaId)}`;
+      try {
+        const response = await core().fetchWithAuth(endpoint);
+        if (response.status === 404 && base.startsWith("/api/")) {
+          continue;
+        }
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          const error = new Error(payload?.error || `Image request failed (${response.status}).`);
+          error.status = response.status;
+          throw error;
+        }
+        return response.blob();
+      } catch (error) {
+        lastError = error;
+        if (error?.status && error.status !== 404) {
+          throw error;
+        }
+      }
+    }
+    throw lastError;
+  }
+
   function readLocalOverrides() {
     try {
       const current = localStorage.getItem(LOCAL_PAGE_OVERRIDES_KEY);
-      const legacy = localStorage.getItem(LEGACY_LOCAL_PAGE_OVERRIDES_KEY);
+      const legacy = LEGACY_LOCAL_PAGE_OVERRIDES_KEYS
+        .map((key) => localStorage.getItem(key))
+        .find(Boolean);
       const parsed = JSON.parse(current || legacy || "{}");
       return parsed && typeof parsed === "object" ? parsed : {};
     } catch (error) {
@@ -252,6 +367,36 @@
     } catch (error) {
       // A locked-down preview can deny storage. This page load still remains usable.
     }
+  }
+
+  function readLocalRedirects() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(LOCAL_REDIRECTS_KEY) || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeLocalRedirects(redirects) {
+    try {
+      localStorage.setItem(LOCAL_REDIRECTS_KEY, JSON.stringify(redirects));
+    } catch (error) {
+      // The redirect remains usable for the current save even if preview storage is blocked.
+    }
+  }
+
+  function testingRedirects() {
+    const snapshotRedirects = window.CarbonFrontierTestingSync?.getSection("wiki")?.redirects;
+    const combined = {};
+    if (Array.isArray(snapshotRedirects)) {
+      snapshotRedirects.forEach((redirect) => {
+        if (redirect?.sourceSlug && redirect?.targetSlug) {
+          combined[redirect.sourceSlug] = redirect.targetSlug;
+        }
+      });
+    }
+    return { ...combined, ...readLocalRedirects() };
   }
 
   function fallbackFrontPage() {
@@ -319,11 +464,12 @@
         canEdit: true,
         canChangePageSettings: true,
         canRestoreRevisions: true,
+        canManagePage: true,
       },
     };
   }
 
-  function testingPages() {
+  function testingPages({ includeDeleted = false } = {}) {
     const snapshotPages = window.CarbonFrontierTestingSync?.getSection("wiki")?.pages;
     const basePages = Array.isArray(snapshotPages) && snapshotPages.length
       ? snapshotPages.map(clone)
@@ -334,7 +480,10 @@
         merged.set(page.slug, clone(page));
       }
     });
-    return [...merged.values()].map(withTestingPermissions);
+    Object.keys(testingRedirects()).forEach((sourceSlug) => merged.delete(sourceSlug));
+    return [...merged.values()]
+      .map(withTestingPermissions)
+      .filter((page) => includeDeleted || !page.isDeleted);
   }
 
   function pageSummary(page) {
@@ -343,6 +492,8 @@
       slug: page.slug,
       title: page.title,
       allowNormalEdits: page.allowNormalEdits,
+      isDeleted: Boolean(page.isDeleted),
+      deletedAt: page.deletedAt || null,
       updatedAt: page.updatedAt,
       updatedBy: page.updatedBy,
       revisionNumber: page.currentRevision?.number || null,
@@ -356,7 +507,7 @@
     if (isTesting()) {
       return {
         ok: true,
-        permissions: { canCreate: true, isAssignedStaff: true },
+        permissions: { canCreate: true, isAssignedStaff: true, canManageTrash: true },
         pages: testingPages().map(pageSummary),
       };
     }
@@ -365,15 +516,34 @@
 
   async function getPage(slug) {
     if (isTesting()) {
-      const page = testingPages().find((candidate) => candidate.slug === slug);
+      let page = testingPages().find((candidate) => candidate.slug === slug);
+      let redirect = null;
+      if (!page) {
+        const targetSlug = testingRedirects()[slug];
+        page = testingPages().find((candidate) => candidate.slug === targetSlug);
+        if (page) {
+          redirect = { sourceSlug: slug, targetSlug: page.slug };
+        }
+      }
       if (!page) {
         const error = new Error("Wiki page not found.");
         error.status = 404;
         throw error;
       }
-      return { ok: true, page };
+      return { ok: true, page, redirect };
     }
     return remoteRequest({ slug });
+  }
+
+  async function listTrashPages() {
+    if (isTesting()) {
+      return {
+        ok: true,
+        permissions: { canManageTrash: true },
+        pages: testingPages({ includeDeleted: true }).filter((page) => page.isDeleted),
+      };
+    }
+    return remoteRequest({ query: { trash: 1 } });
   }
 
   async function getHistory(slug) {
@@ -425,7 +595,10 @@
     if (!isTesting()) {
       return remoteRequest({ method: "POST", body });
     }
-    if (testingPages().some((page) => page.slug === body.slug)) {
+    if (
+      testingPages({ includeDeleted: true }).some((page) => page.slug === body.slug) ||
+      Object.hasOwn(testingRedirects(), body.slug)
+    ) {
       const error = new Error("A wiki page already uses that address.");
       error.status = 409;
       throw error;
@@ -464,7 +637,8 @@
     if (!isTesting()) {
       return remoteRequest({ slug, method: "PATCH", body });
     }
-    let page = testingPages().find((candidate) => candidate.slug === slug);
+    let page = testingPages({ includeDeleted: body.action === "restore_from_trash" })
+      .find((candidate) => candidate.slug === slug);
     if (!page) {
       throw new Error("Wiki page not found.");
     }
@@ -473,7 +647,44 @@
     const actorEmail = coreState().account?.email || "cursor-owner";
     const actorName = coreState().account?.name || "Cursor Testing Owner";
 
-    if (body.action === "update_page_settings") {
+    if (body.action === "move_page") {
+      const newSlug = normalizeSlug(body.newSlug);
+      if (
+        !newSlug ||
+        testingPages({ includeDeleted: true }).some((candidate) => candidate.slug === newSlug) ||
+        Object.hasOwn(testingRedirects(), newSlug)
+      ) {
+        const error = new Error("That page address is already in use.");
+        error.status = 409;
+        throw error;
+      }
+      const oldSlug = page.slug;
+      page.slug = newSlug;
+      page.updatedAt = now;
+      page.updatedBy = actorEmail;
+      const overrides = readLocalOverrides();
+      delete overrides[oldSlug];
+      overrides[newSlug] = withTestingPermissions(page);
+      writeLocalOverrides(overrides);
+      const redirects = readLocalRedirects();
+      redirects[oldSlug] = newSlug;
+      writeLocalRedirects(redirects);
+      return {
+        ok: true,
+        page: withTestingPermissions(page),
+        moved: { oldSlug, newSlug, redirectCreated: true },
+      };
+    } else if (body.action === "trash_page") {
+      page.isDeleted = true;
+      page.deletedAt = now;
+      page.updatedAt = now;
+      page.updatedBy = actorEmail;
+    } else if (body.action === "restore_from_trash") {
+      page.isDeleted = false;
+      page.deletedAt = null;
+      page.updatedAt = now;
+      page.updatedBy = actorEmail;
+    } else if (body.action === "update_page_settings") {
       page.allowNormalEdits = Boolean(body.allowNormalEdits);
       page.updatedAt = now;
       page.updatedBy = actorEmail;
@@ -601,6 +812,28 @@
     }
   }
 
+  async function hydrateMediaImages(container) {
+    const images = [...container.querySelectorAll("img[data-wiki-media-id]")];
+    await Promise.all(images.map(async (imageElement) => {
+      if (imageElement.dataset.mediaLoading === "1" || imageElement.src) {
+        return;
+      }
+      imageElement.dataset.mediaLoading = "1";
+      const loading = imageElement.closest("figure")?.querySelector(".wiki-image-loading");
+      try {
+        const blob = await fetchProtectedMedia(imageElement.dataset.wikiMediaId);
+        const objectUrl = URL.createObjectURL(blob);
+        imageElement.src = objectUrl;
+        imageElement.addEventListener("load", () => loading?.remove(), { once: true });
+        imageElement.hidden = false;
+      } catch (error) {
+        if (loading) {
+          loading.textContent = error?.message || "This wiki image could not be loaded.";
+        }
+      }
+    }));
+  }
+
   function renderContent(container, content) {
     container.replaceChildren();
     const blocks = Array.isArray(content?.blocks) ? content.blocks : [];
@@ -615,7 +848,31 @@
     blocks.forEach((block) => {
       const type = BLOCK_TYPES.has(block?.type) ? block.type : "paragraph";
       let element;
-      if (type === "heading2" || type === "heading3") {
+      if (type === "image") {
+        element = document.createElement("figure");
+        element.contentEditable = "false";
+        element.dataset.wikiMediaId = String(block.mediaId || "");
+        element.dataset.wikiMediaUrl = String(block.url || "");
+        const image = document.createElement("img");
+        image.alt = String(block.alt || "").slice(0, 240);
+        image.dataset.wikiMediaId = String(block.mediaId || "");
+        const directUrl = String(block.url || "");
+        if (/^(?:data:image\/|blob:)/i.test(directUrl)) {
+          image.src = directUrl;
+        } else if (block.mediaId) {
+          image.hidden = true;
+          const loading = document.createElement("span");
+          loading.className = "wiki-image-loading";
+          loading.textContent = "Loading protected wiki image...";
+          element.append(loading);
+        }
+        element.append(image);
+        if (String(block.caption || "").trim()) {
+          const caption = document.createElement("figcaption");
+          caption.textContent = String(block.caption).trim().slice(0, 300);
+          element.append(caption);
+        }
+      } else if (type === "heading2" || type === "heading3") {
         element = document.createElement(type === "heading2" ? "h2" : "h3");
         setInlineContent(element, block);
       } else if (type === "bullet-list" || type === "numbered-list") {
@@ -644,6 +901,7 @@
       }
       container.append(element);
     });
+    hydrateMediaImages(container);
   }
 
   function normalizeEditableRoot() {
@@ -676,6 +934,19 @@
       }
 
       const tag = node.tagName;
+      if (tag === "FIGURE" && node.dataset.wikiMediaId) {
+        const image = node.querySelector("img");
+        const caption = node.querySelector("figcaption");
+        blocks.push({
+          id: randomId(`block-${index}`),
+          type: "image",
+          mediaId: node.dataset.wikiMediaId,
+          url: node.dataset.wikiMediaUrl || "",
+          alt: String(image?.alt || "").slice(0, 240),
+          caption: String(caption?.textContent || "").trim().slice(0, 300),
+        });
+        return;
+      }
       if (tag === "UL" || tag === "OL") {
         blocks.push({
           id: randomId(`block-${index}`),
@@ -745,12 +1016,18 @@
   }
 
   function renderSearchResults() {
-    const query = ui.search.value.trim().toLowerCase();
-    const visiblePages = app.pages
+    const query = ui.searchMenuInput.value.trim().toLowerCase();
+    const visiblePages = [...app.pages]
       .filter((page) => `${page.title} ${page.slug}`.toLowerCase().includes(query))
-      .slice(0, 18);
+      .sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt))
+      .slice(0, query ? 40 : 12);
     ui.searchResults.replaceChildren();
     app.searchIndex = -1;
+
+    const label = document.createElement("p");
+    label.className = "search-results-label";
+    label.textContent = query ? `Results for “${ui.searchMenuInput.value.trim()}”` : "Recently updated";
+    ui.searchResults.append(label);
 
     if (!visiblePages.length) {
       const empty = document.createElement("p");
@@ -763,23 +1040,39 @@
         button.type = "button";
         button.className = `wiki-search-result${page.slug === app.currentSlug ? " is-active" : ""}`;
         button.dataset.slug = page.slug;
+        const icon = document.createElement("span");
+        icon.className = "search-result-icon";
+        icon.textContent = "▤";
+        const copy = document.createElement("span");
+        copy.className = "search-result-copy";
         const title = document.createElement("strong");
         title.textContent = page.title;
         const meta = document.createElement("span");
         meta.textContent = page.revisionNumber
           ? `Revision ${page.revisionNumber} · ${formatDate(page.updatedAt)}`
           : `Updated ${formatDate(page.updatedAt)}`;
-        button.append(title, meta);
+        copy.append(title, meta);
+        const openHint = document.createElement("small");
+        openHint.textContent = page.slug === app.currentSlug ? "Current" : "Open →";
+        button.append(icon, copy, openHint);
         ui.searchResults.append(button);
       });
     }
-    ui.searchResults.hidden = false;
-    ui.search.setAttribute("aria-expanded", "true");
+  }
+
+  function openSearchMenu() {
+    if (app.editing || ui.search.disabled) {
+      return;
+    }
+    ui.searchMenuInput.value = "";
+    renderSearchResults();
+    setDialog(ui.searchDialog, true);
+    window.setTimeout(() => ui.searchMenuInput.focus(), 0);
   }
 
   function closeSearchResults() {
-    ui.searchResults.hidden = true;
-    ui.search.setAttribute("aria-expanded", "false");
+    setDialog(ui.searchDialog, false);
+    ui.searchMenuInput.value = "";
     app.searchIndex = -1;
   }
 
@@ -794,7 +1087,8 @@
       : "No saved revision.";
     renderContent(ui.content, revision?.content);
     ui.editPage.hidden = !page.permissions?.canEdit;
-    ui.historyButton.hidden = !revision;
+    ui.historyButton.hidden = true;
+    ui.pageSettings.hidden = true;
     updateDocumentTitle(page);
   }
 
@@ -815,9 +1109,12 @@
   async function refreshPageList() {
     const payload = await listPages();
     app.pages = Array.isArray(payload.pages) ? payload.pages : [];
+    app.pageListPermissions = payload.permissions || {};
     ui.topTools.hidden = false;
     ui.newPage.hidden = !payload.permissions?.canCreate;
-    if (!ui.searchResults.hidden) {
+    ui.openTrash.hidden = !payload.permissions?.canManageTrash;
+    ui.searchActions.hidden = ui.newPage.hidden && ui.openTrash.hidden;
+    if (!ui.searchDialog.hidden) {
       renderSearchResults();
     }
   }
@@ -832,10 +1129,13 @@
       updateBrowserAddress(normalized);
     }
     closeSearchResults();
-    ui.search.value = "";
     setFeedback(ui.feedback, "Loading page...");
     try {
       const payload = await getPage(normalized);
+      if (payload.redirect?.targetSlug) {
+        app.currentSlug = payload.redirect.targetSlug;
+        updateBrowserAddress(payload.redirect.targetSlug, true);
+      }
       renderPage(payload.page);
       setFeedback(ui.feedback, "");
     } catch (error) {
@@ -848,6 +1148,7 @@
     if (app.editing) {
       return;
     }
+    closeSearchResults();
     ui.newForm.reset();
     app.slugManuallyEdited = false;
     setFeedback(ui.newFeedback, "");
@@ -873,7 +1174,8 @@
     ui.titleInput.value = page.title;
     ui.meta.textContent = `Editing revision ${page.currentRevision?.number || 0}`;
     ui.editPage.hidden = true;
-    ui.historyButton.hidden = true;
+    ui.historyButton.hidden = !page.currentRevision;
+    ui.pageSettings.hidden = !page.permissions?.canManagePage;
     ui.normalEdits.checked = Boolean(page.allowNormalEdits);
     ui.normalEdits.disabled = !page.permissions?.canChangePageSettings;
     ui.normalEditsField.hidden = !page.permissions?.canChangePageSettings;
@@ -884,6 +1186,7 @@
     normalizeEditableRoot();
     ui.search.disabled = true;
     ui.newPage.disabled = true;
+    closeSearchResults();
     setFeedback(ui.feedback, "Editing mode active. Select text and use the toolbar to format it.");
     window.setTimeout(() => ui.content.focus(), 0);
   }
@@ -903,6 +1206,8 @@
     ui.content.removeAttribute("aria-multiline");
     ui.search.disabled = false;
     ui.newPage.disabled = false;
+    ui.historyButton.hidden = true;
+    ui.pageSettings.hidden = true;
     if (restorePage && app.editingBasePage) {
       renderPage(app.editingBasePage);
     }
@@ -1056,6 +1361,271 @@
     }
   }
 
+  function openMediaDialog() {
+    if (!app.editing) {
+      return;
+    }
+    saveCurrentSelection();
+    ui.mediaForm.reset();
+    ui.mediaPreview.textContent = "Choose a PNG, JPG, WebP, or GIF up to 4 MB.";
+    setFeedback(ui.mediaFeedback, "");
+    setDialog(ui.mediaDialog, true);
+    window.setTimeout(() => ui.mediaFile.focus(), 0);
+  }
+
+  function closeMediaDialog() {
+    setDialog(ui.mediaDialog, false);
+  }
+
+  function previewMediaFile() {
+    const file = ui.mediaFile.files?.[0];
+    ui.mediaPreview.replaceChildren();
+    if (!file) {
+      ui.mediaPreview.textContent = "Choose a PNG, JPG, WebP, or GIF up to 4 MB.";
+      return;
+    }
+    if (app.mediaPreviewUrl) {
+      URL.revokeObjectURL(app.mediaPreviewUrl);
+    }
+    app.mediaPreviewUrl = URL.createObjectURL(file);
+    const image = document.createElement("img");
+    image.src = app.mediaPreviewUrl;
+    image.alt = "Selected image preview";
+    ui.mediaPreview.append(image);
+    if (!ui.mediaAlt.value.trim()) {
+      ui.mediaAlt.value = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+    }
+  }
+
+  function insertUploadedImage(media, { alt, caption }) {
+    const figure = document.createElement("figure");
+    figure.contentEditable = "false";
+    figure.dataset.wikiMediaId = media.id;
+    figure.dataset.wikiMediaUrl = media.url || "";
+    const image = document.createElement("img");
+    image.alt = alt;
+    image.src = isTesting() ? media.url : app.mediaPreviewUrl;
+    figure.append(image);
+    if (caption) {
+      const captionElement = document.createElement("figcaption");
+      captionElement.textContent = caption;
+      figure.append(captionElement);
+    }
+
+    const selection = window.getSelection();
+    if (restoreSavedSelection() && selection.rangeCount) {
+      const range = selection.getRangeAt(0);
+      range.collapse(false);
+      range.insertNode(figure);
+      const paragraph = document.createElement("p");
+      paragraph.append(document.createElement("br"));
+      figure.after(paragraph);
+      range.setStart(paragraph, 0);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      ui.content.append(figure);
+    }
+    closeMediaDialog();
+    ui.content.focus();
+    setFeedback(ui.feedback, "Image inserted. Save the page to publish it.");
+  }
+
+  async function handleMediaUpload(event) {
+    event.preventDefault();
+    const file = ui.mediaFile.files?.[0];
+    const alt = ui.mediaAlt.value.trim();
+    const caption = ui.mediaCaption.value.trim();
+    if (!file) {
+      setFeedback(ui.mediaFeedback, "Choose an image first.", true);
+      return;
+    }
+    if (!alt) {
+      setFeedback(ui.mediaFeedback, "Add alt text describing the image.", true);
+      ui.mediaAlt.focus();
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setFeedback(ui.mediaFeedback, "Wiki images must be 4 MB or smaller.", true);
+      return;
+    }
+    ui.uploadMedia.disabled = true;
+    setFeedback(ui.mediaFeedback, "Uploading protected wiki image...");
+    try {
+      const payload = await uploadMediaFile(file);
+      insertUploadedImage(payload.media, { alt, caption });
+    } catch (error) {
+      setFeedback(ui.mediaFeedback, error?.message || "The image could not be uploaded.", true);
+    } finally {
+      ui.uploadMedia.disabled = false;
+    }
+  }
+
+  function openPageManagement() {
+    const page = app.currentPage;
+    if (!app.editing || !page?.permissions?.canManagePage) {
+      return;
+    }
+    ui.managementTitle.textContent = `${page.title} settings`;
+    ui.managementNormalEdits.checked = Boolean(page.allowNormalEdits);
+    ui.moveSlug.value = page.slug;
+    ui.moveSlug.disabled = page.slug === "front-page";
+    ui.movePage.disabled = page.slug === "front-page";
+    ui.trashPage.disabled = page.slug === "front-page";
+    ui.trashPage.textContent = "Move to Trash";
+    app.trashArmedSlug = "";
+    setFeedback(ui.managementFeedback, "");
+    setDialog(ui.managementDialog, true);
+  }
+
+  function closePageManagement() {
+    setDialog(ui.managementDialog, false);
+    app.trashArmedSlug = "";
+  }
+
+  async function updateManagedEditingPermission() {
+    const page = app.currentPage;
+    if (!page?.permissions?.canManagePage) {
+      return;
+    }
+    ui.managementNormalEdits.disabled = true;
+    try {
+      const payload = await mutatePage(page.slug, {
+        action: "update_page_settings",
+        allowNormalEdits: ui.managementNormalEdits.checked,
+      });
+      app.currentPage = payload.page;
+      app.editingBasePage.allowNormalEdits = payload.page.allowNormalEdits;
+      ui.normalEdits.checked = payload.page.allowNormalEdits;
+      await refreshPageList();
+      setFeedback(ui.managementFeedback, payload.page.allowNormalEdits
+        ? "Normal contributor editing enabled."
+        : "Page protected from normal contributor editing.");
+    } catch (error) {
+      ui.managementNormalEdits.checked = Boolean(page.allowNormalEdits);
+      setFeedback(ui.managementFeedback, error?.message || "The page permission could not be changed.", true);
+    } finally {
+      ui.managementNormalEdits.disabled = false;
+    }
+  }
+
+  async function moveManagedPage() {
+    const page = app.currentPage;
+    const newSlug = slugify(ui.moveSlug.value);
+    ui.moveSlug.value = newSlug;
+    if (!page?.permissions?.canManagePage || !newSlug || newSlug === page.slug) {
+      setFeedback(ui.managementFeedback, "Enter a different valid page address.", true);
+      return;
+    }
+    ui.movePage.disabled = true;
+    setFeedback(ui.managementFeedback, "Moving page and creating redirect...");
+    try {
+      const payload = await mutatePage(page.slug, { action: "move_page", newSlug });
+      const oldSlug = page.slug;
+      app.currentSlug = payload.page.slug;
+      app.currentPage = payload.page;
+      app.editingBasePage.slug = payload.page.slug;
+      updateBrowserAddress(payload.page.slug, true);
+      ui.moveSlug.value = payload.page.slug;
+      await refreshPageList();
+      setFeedback(ui.managementFeedback, `Moved. /wiki/${oldSlug} now redirects here.`);
+      setFeedback(ui.feedback, "Page moved. Your unsaved article edits are still open.");
+    } catch (error) {
+      setFeedback(ui.managementFeedback, error?.message || "The page could not be moved.", true);
+    } finally {
+      ui.movePage.disabled = false;
+    }
+  }
+
+  async function trashManagedPage() {
+    const page = app.currentPage;
+    if (!page?.permissions?.canManagePage || page.slug === "front-page") {
+      return;
+    }
+    if (app.trashArmedSlug !== page.slug) {
+      app.trashArmedSlug = page.slug;
+      ui.trashPage.textContent = "Confirm Move to Trash";
+      setFeedback(ui.managementFeedback, "Unsaved edits will be discarded. Click again to confirm.");
+      return;
+    }
+    ui.trashPage.disabled = true;
+    setFeedback(ui.managementFeedback, "Moving page to recoverable trash...");
+    try {
+      await mutatePage(page.slug, { action: "trash_page" });
+      closePageManagement();
+      exitEditing();
+      await refreshPageList();
+      await openPage("front-page");
+      setFeedback(ui.feedback, `“${page.title}” was moved to Trash and can be restored.`);
+    } catch (error) {
+      setFeedback(ui.managementFeedback, error?.message || "The page could not be moved to trash.", true);
+    } finally {
+      ui.trashPage.disabled = false;
+    }
+  }
+
+  async function openTrashDialog() {
+    closeSearchResults();
+    setDialog(ui.trashDialog, true);
+    ui.trashList.innerHTML = '<p class="wiki-list-state">Loading trashed pages...</p>';
+    setFeedback(ui.trashFeedback, "");
+    try {
+      const payload = await listTrashPages();
+      renderTrashList(Array.isArray(payload.pages) ? payload.pages : []);
+    } catch (error) {
+      ui.trashList.replaceChildren();
+      setFeedback(ui.trashFeedback, error?.message || "The wiki trash could not be loaded.", true);
+    }
+  }
+
+  function closeTrashDialog() {
+    setDialog(ui.trashDialog, false);
+  }
+
+  function renderTrashList(pages) {
+    ui.trashList.replaceChildren();
+    if (!pages.length) {
+      const empty = document.createElement("p");
+      empty.className = "wiki-list-state";
+      empty.textContent = "Trash is empty.";
+      ui.trashList.append(empty);
+      return;
+    }
+    pages.forEach((page) => {
+      const row = document.createElement("div");
+      row.className = "trash-row";
+      const copy = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = page.title;
+      const meta = document.createElement("span");
+      meta.textContent = `${page.slug} · Trashed ${formatDate(page.deletedAt || page.updatedAt)}`;
+      copy.append(title, meta);
+      const restore = document.createElement("button");
+      restore.type = "button";
+      restore.className = "secondary-button";
+      restore.dataset.restoreSlug = page.slug;
+      restore.textContent = "Restore";
+      row.append(copy, restore);
+      ui.trashList.append(row);
+    });
+  }
+
+  async function restoreTrashedPage(slug, button) {
+    button.disabled = true;
+    setFeedback(ui.trashFeedback, "Restoring page...");
+    try {
+      const payload = await mutatePage(slug, { action: "restore_from_trash" });
+      await refreshPageList();
+      const trashPayload = await listTrashPages();
+      renderTrashList(Array.isArray(trashPayload.pages) ? trashPayload.pages : []);
+      setFeedback(ui.trashFeedback, `“${payload.page.title}” restored.`);
+    } catch (error) {
+      setFeedback(ui.trashFeedback, error?.message || "The page could not be restored.", true);
+      button.disabled = false;
+    }
+  }
+
   function renderHistoryList() {
     ui.historyList.replaceChildren();
     if (!app.history.length) {
@@ -1178,6 +1748,7 @@
       });
       app.currentPage = payload.page;
       closeHistory();
+      exitEditing();
       renderPage(payload.page);
       await refreshPageList();
       setFeedback(
@@ -1212,15 +1783,19 @@
     }
   }
 
-  ui.search.addEventListener("focus", renderSearchResults);
-  ui.search.addEventListener("input", renderSearchResults);
+  ui.search.addEventListener("click", openSearchMenu);
+  ui.search.addEventListener("focus", openSearchMenu);
   ui.search.addEventListener("keydown", (event) => {
+    if (["Enter", " ", "ArrowDown"].includes(event.key)) {
+      event.preventDefault();
+      openSearchMenu();
+    }
+  });
+  ui.searchMenuInput.addEventListener("input", renderSearchResults);
+  ui.searchMenuInput.addEventListener("keydown", (event) => {
     const buttons = [...ui.searchResults.querySelectorAll("[data-slug]")];
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      if (ui.searchResults.hidden) {
-        renderSearchResults();
-      }
       app.searchIndex = event.key === "ArrowDown"
         ? Math.min(app.searchIndex + 1, buttons.length - 1)
         : Math.max(app.searchIndex - 1, 0);
@@ -1239,13 +1814,10 @@
       openPage(button.dataset.slug);
     }
   });
-  document.addEventListener("click", (event) => {
-    if (!ui.topSearch.contains(event.target)) {
-      closeSearchResults();
-    }
-  });
 
   ui.newPage.addEventListener("click", openNewPageDialog);
+  ui.openTrash.addEventListener("click", openTrashDialog);
+  ui.closeSearch.addEventListener("click", closeSearchResults);
   ui.editPage.addEventListener("click", enterEditing);
   ui.historyButton.addEventListener("click", openHistory);
   ui.savePage.addEventListener("click", saveEditing);
@@ -1260,6 +1832,8 @@
   ui.underline.addEventListener("click", () => executeEditorCommand("underline"));
   ui.bullets.addEventListener("click", () => executeEditorCommand("insertUnorderedList"));
   ui.numbers.addEventListener("click", () => executeEditorCommand("insertOrderedList"));
+  ui.image.addEventListener("click", openMediaDialog);
+  ui.pageSettings.addEventListener("click", openPageManagement);
   ui.blockStyle.addEventListener("change", () => executeEditorCommand("formatBlock", ui.blockStyle.value));
   ui.link.addEventListener("click", openLinkPopover);
   ui.linkCancel.addEventListener("click", closeLinkPopover);
@@ -1317,10 +1891,42 @@
   });
   ui.restoreRevision.addEventListener("click", restoreSelectedRevision);
 
-  [ui.newDialog, ui.historyDialog].forEach((dialog) => {
+  ui.mediaFile.addEventListener("change", previewMediaFile);
+  ui.mediaForm.addEventListener("submit", handleMediaUpload);
+  ui.closeMedia.addEventListener("click", closeMediaDialog);
+  ui.cancelMedia.addEventListener("click", closeMediaDialog);
+
+  ui.closeManagement.addEventListener("click", closePageManagement);
+  ui.managementNormalEdits.addEventListener("change", updateManagedEditingPermission);
+  ui.moveSlug.addEventListener("input", () => {
+    ui.moveSlug.value = slugify(ui.moveSlug.value);
+  });
+  ui.movePage.addEventListener("click", moveManagedPage);
+  ui.trashPage.addEventListener("click", trashManagedPage);
+
+  ui.closeTrash.addEventListener("click", closeTrashDialog);
+  ui.trashList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-restore-slug]");
+    if (button) {
+      restoreTrashedPage(button.dataset.restoreSlug, button);
+    }
+  });
+
+  [
+    ui.searchDialog,
+    ui.newDialog,
+    ui.historyDialog,
+    ui.mediaDialog,
+    ui.managementDialog,
+    ui.trashDialog,
+  ].forEach((dialog) => {
     dialog.addEventListener("click", (event) => {
       if (event.target === dialog) {
-        setDialog(dialog, false);
+        if (dialog === ui.searchDialog) closeSearchResults();
+        else if (dialog === ui.mediaDialog) closeMediaDialog();
+        else if (dialog === ui.managementDialog) closePageManagement();
+        else if (dialog === ui.trashDialog) closeTrashDialog();
+        else setDialog(dialog, false);
       }
     });
   });
@@ -1332,14 +1938,26 @@
       return;
     }
     if (event.key !== "Escape") {
+      if (!app.editing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        openSearchMenu();
+      }
       return;
     }
     if (!ui.linkPopover.hidden) {
       closeLinkPopover();
+    } else if (!ui.mediaDialog.hidden) {
+      closeMediaDialog();
+    } else if (!ui.managementDialog.hidden) {
+      closePageManagement();
+    } else if (!ui.trashDialog.hidden) {
+      closeTrashDialog();
     } else if (!ui.historyDialog.hidden) {
       closeHistory();
     } else if (!ui.newDialog.hidden) {
       closeNewPageDialog();
+    } else if (!ui.searchDialog.hidden) {
+      closeSearchResults();
     }
   });
 

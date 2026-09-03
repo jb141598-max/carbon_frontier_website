@@ -759,9 +759,44 @@
       .article-content p,
       .article-content li {
         color: rgba(255, 255, 255, 0.82);
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: "Play", sans-serif;
         font-size: 0.98rem;
+        font-weight: 400;
         line-height: 1.78;
+      }
+
+      .article-content figure {
+        margin: 28px auto;
+        text-align: center;
+      }
+
+      .article-content figure img {
+        display: block;
+        max-width: min(100%, 920px);
+        max-height: 72vh;
+        margin: 0 auto;
+        border: 1px solid var(--cf-border);
+        border-radius: 14px;
+        object-fit: contain;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .article-content figcaption {
+        margin-top: 9px;
+        color: var(--cf-soft);
+        font-size: 0.78rem;
+        font-weight: 400;
+        line-height: 1.5;
+      }
+
+      .article-content .wiki-image-loading {
+        display: grid;
+        min-height: 220px;
+        place-items: center;
+        color: var(--cf-soft);
+        border: 1px dashed var(--cf-border);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.02);
       }
 
       .article-content ul,
@@ -970,6 +1005,7 @@
         padding: 10px 16px 10px 42px;
         border-radius: 999px;
         background: rgba(10, 10, 10, 0.94);
+        cursor: pointer;
       }
 
       .wiki-top-search-icon {
@@ -982,27 +1018,73 @@
         pointer-events: none;
       }
 
+      .search-shell {
+        width: min(900px, 100%);
+        max-height: min(760px, calc(100vh - 44px));
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.17);
+        border-radius: 24px;
+        background: #0b0b0b;
+        box-shadow: 0 34px 110px rgba(0, 0, 0, 0.72);
+      }
+
+      .search-menu-header {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 16px;
+        border-bottom: 1px solid var(--cf-border);
+        background: rgba(255, 255, 255, 0.035);
+      }
+
+      .search-menu-icon {
+        color: #ff9199;
+        font-size: 1.5rem;
+      }
+
+      .search-menu-header input {
+        min-height: 50px;
+        padding: 12px 16px;
+        border-color: rgba(223, 37, 49, 0.42);
+        border-radius: 14px;
+        font-size: 1rem;
+        background: rgba(255, 255, 255, 0.045);
+      }
+
+      .search-menu-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--cf-border);
+      }
+
       .wiki-search-results {
-        position: absolute;
-        z-index: 45;
-        top: calc(100% + 9px);
-        left: 0;
-        right: 0;
-        max-height: min(440px, 58vh);
+        min-height: 220px;
+        max-height: min(500px, 56vh);
         overflow-y: auto;
-        border: 1px solid var(--cf-border);
-        border-radius: 18px;
-        background: rgba(8, 8, 8, 0.99);
-        box-shadow: var(--cf-shadow);
+        padding: 8px 0;
+      }
+
+      .search-results-label {
+        margin: 0;
+        padding: 10px 18px 8px;
+        color: #ff9199;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
       }
 
       .wiki-search-result {
         display: grid;
-        gap: 4px;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
         width: 100%;
-        padding: 13px 16px;
+        padding: 13px 18px;
         border: 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
         color: var(--cf-white);
         text-align: left;
         background: transparent;
@@ -1023,9 +1105,118 @@
         font-size: 0.88rem;
       }
 
-      .wiki-search-result span {
+      .wiki-search-result span,
+      .wiki-search-result small {
         color: var(--cf-soft);
         font-size: 0.72rem;
+      }
+
+      .search-result-icon {
+        display: grid;
+        width: 40px;
+        height: 40px;
+        place-items: center;
+        border: 1px solid var(--cf-border);
+        border-radius: 10px;
+        color: #ffadb2;
+        background: rgba(255, 255, 255, 0.045);
+      }
+
+      .search-result-copy {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .search-result-copy strong,
+      .search-result-copy span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .search-menu-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 18px;
+        padding: 11px 18px;
+        border-top: 1px solid var(--cf-border);
+        color: var(--cf-soft);
+        font-size: 0.7rem;
+      }
+
+      .page-management-grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .management-card {
+        padding: 16px;
+        border: 1px solid var(--cf-border);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .management-card h3 {
+        margin: 0 0 7px;
+      }
+
+      .management-card p {
+        margin: 0 0 13px;
+        color: var(--cf-soft);
+        font-size: 0.8rem;
+        line-height: 1.55;
+      }
+
+      .management-inline {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 9px;
+      }
+
+      .trash-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .trash-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 13px;
+        border: 1px solid var(--cf-border);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+
+      .trash-row strong,
+      .trash-row span {
+        display: block;
+      }
+
+      .trash-row span {
+        margin-top: 4px;
+        color: var(--cf-soft);
+        font-size: 0.72rem;
+      }
+
+      .media-preview {
+        display: grid;
+        min-height: 180px;
+        place-items: center;
+        overflow: hidden;
+        border: 1px dashed var(--cf-border);
+        border-radius: 16px;
+        color: var(--cf-soft);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .media-preview img {
+        display: block;
+        max-width: 100%;
+        max-height: 320px;
+        object-fit: contain;
       }
 
       .document-toolbar {
@@ -1404,7 +1595,24 @@
 
         .wiki-topbar-tools {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .search-menu-header {
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          gap: 8px;
+          padding: 11px;
+        }
+
+        .search-menu-footer {
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 0.62rem;
+        }
+
+        .management-inline,
+        .trash-row {
+          grid-template-columns: 1fr;
         }
 
         .document-toolbar {
@@ -1446,20 +1654,15 @@
               <span class="wiki-top-search-icon" aria-hidden="true">⌕</span>
               <input
                 id="wiki-search-input"
-                type="search"
+                type="text"
                 placeholder="Search wiki pages..."
                 autocomplete="off"
                 aria-label="Search wiki pages"
-                aria-expanded="false"
-                aria-controls="wiki-search-results"
+                aria-haspopup="dialog"
+                aria-controls="wiki-search-dialog"
+                readonly
               />
-              <div class="wiki-search-results" id="wiki-search-results" hidden>
-                <p class="wiki-list-state">Loading wiki pages...</p>
-              </div>
             </div>
-            <button class="primary-button" id="new-page-button" type="button" hidden>
-              + New Page
-            </button>
           </div>
 
           <div class="topbar-actions">
@@ -1555,6 +1758,11 @@
                     <div class="toolbar-group" aria-label="Lists">
                       <button class="toolbar-button" id="toolbar-bullets" type="button" title="Bulleted list" aria-label="Bulleted list">• List</button>
                       <button class="toolbar-button" id="toolbar-numbers" type="button" title="Numbered list" aria-label="Numbered list">1. List</button>
+                    </div>
+                    <div class="toolbar-divider" aria-hidden="true"></div>
+                    <div class="toolbar-group" aria-label="Page tools">
+                      <button class="toolbar-button" id="toolbar-image" type="button" title="Insert an image">Image</button>
+                      <button class="toolbar-button" id="toolbar-page-settings" type="button" title="Move, protect, or trash this page" hidden>Page Settings</button>
                     </div>
                     <div class="toolbar-spacer"></div>
                     <label class="toolbar-permission" id="toolbar-permission-field">
@@ -1655,6 +1863,35 @@
               </article>
             </section>
 
+            <div class="wiki-dialog" id="wiki-search-dialog" role="dialog" aria-modal="true" aria-labelledby="wiki-search-dialog-title" hidden>
+              <div class="search-shell">
+                <div class="search-menu-header">
+                  <span class="search-menu-icon" aria-hidden="true">⌕</span>
+                  <input
+                    id="wiki-search-menu-input"
+                    type="search"
+                    placeholder="Search Carbon Frontier wiki pages..."
+                    autocomplete="off"
+                    aria-label="Search wiki pages"
+                    aria-controls="wiki-search-results"
+                  />
+                  <button class="icon-button" id="close-search-button" type="button" aria-label="Close wiki search">×</button>
+                </div>
+                <div class="search-menu-actions" id="search-menu-actions">
+                  <button class="primary-button" id="new-page-button" type="button" hidden>+ New Page</button>
+                  <button class="secondary-button" id="open-trash-button" type="button" hidden>Trash</button>
+                </div>
+                <div class="wiki-search-results" id="wiki-search-results">
+                  <p class="wiki-list-state">Loading wiki pages...</p>
+                </div>
+                <div class="search-menu-footer" aria-hidden="true">
+                  <span>↑ ↓ Navigate</span>
+                  <span>Enter Open</span>
+                  <span>Esc Close</span>
+                </div>
+              </div>
+            </div>
+
             <div class="wiki-dialog" id="new-page-dialog" role="dialog" aria-modal="true" aria-labelledby="new-page-title" hidden>
               <form class="dialog-card" id="new-page-form">
                 <div class="dialog-header">
@@ -1726,6 +1963,92 @@
                     </div>
                     <p class="wiki-feedback" id="history-feedback" aria-live="polite"></p>
                   </section>
+                </div>
+              </div>
+            </div>
+
+            <div class="wiki-dialog" id="media-dialog" role="dialog" aria-modal="true" aria-labelledby="media-dialog-title" hidden>
+              <form class="dialog-card" id="media-form">
+                <div class="dialog-header">
+                  <div>
+                    <p class="eyebrow">Wiki media</p>
+                    <h2 id="media-dialog-title">Insert an image</h2>
+                  </div>
+                  <button class="icon-button" id="close-media-button" type="button" aria-label="Close image uploader">×</button>
+                </div>
+                <div class="dialog-body">
+                  <label>
+                    <span class="field-label">Image file</span>
+                    <input id="media-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required />
+                  </label>
+                  <div class="media-preview" id="media-preview">Choose a PNG, JPG, WebP, or GIF up to 4 MB.</div>
+                  <label>
+                    <span class="field-label">Alt text</span>
+                    <input id="media-alt-input" maxlength="240" required placeholder="Describe the image for readers who cannot see it" />
+                  </label>
+                  <label>
+                    <span class="field-label">Caption (optional)</span>
+                    <input id="media-caption-input" maxlength="300" placeholder="Text shown beneath the image" />
+                  </label>
+                  <p class="wiki-feedback" id="media-feedback" aria-live="polite"></p>
+                  <div class="form-actions">
+                    <button class="secondary-button" id="cancel-media-button" type="button">Cancel</button>
+                    <button class="primary-button" id="upload-media-button" type="submit">Upload &amp; Insert</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="wiki-dialog" id="page-management-dialog" role="dialog" aria-modal="true" aria-labelledby="page-management-title" hidden>
+              <div class="dialog-card">
+                <div class="dialog-header">
+                  <div>
+                    <p class="eyebrow">Assigned staff tools</p>
+                    <h2 id="page-management-title">Page settings</h2>
+                  </div>
+                  <button class="icon-button" id="close-page-management-button" type="button" aria-label="Close page settings">×</button>
+                </div>
+                <div class="dialog-body page-management-grid">
+                  <section class="management-card">
+                    <h3>Normal contributor editing</h3>
+                    <p>Assigned Wiki Editors, Admins, and Owners can always edit. This switch controls verified public contributors.</p>
+                    <label class="check-field">
+                      <input id="management-normal-edits-input" type="checkbox" />
+                      Allow normal contributors to edit this page
+                    </label>
+                  </section>
+                  <section class="management-card">
+                    <h3>Move page</h3>
+                    <p>The old address will automatically redirect readers to the new one.</p>
+                    <div class="management-inline">
+                      <input id="move-page-slug-input" maxlength="100" placeholder="new-page-address" />
+                      <button class="secondary-button" id="move-page-button" type="button">Move Page</button>
+                    </div>
+                  </section>
+                  <section class="management-card">
+                    <h3>Trash page</h3>
+                    <p>This hides the page and its redirects without permanently deleting its revision history. It can be restored from Trash.</p>
+                    <button class="danger-button" id="trash-page-button" type="button">Move to Trash</button>
+                  </section>
+                  <p class="wiki-feedback" id="page-management-feedback" aria-live="polite"></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="wiki-dialog" id="trash-dialog" role="dialog" aria-modal="true" aria-labelledby="trash-dialog-title" hidden>
+              <div class="dialog-card">
+                <div class="dialog-header">
+                  <div>
+                    <p class="eyebrow">Recoverable pages</p>
+                    <h2 id="trash-dialog-title">Wiki trash</h2>
+                  </div>
+                  <button class="icon-button" id="close-trash-button" type="button" aria-label="Close wiki trash">×</button>
+                </div>
+                <div class="dialog-body">
+                  <div class="trash-list" id="trash-list">
+                    <p class="wiki-list-state">Loading trashed pages...</p>
+                  </div>
+                  <p class="wiki-feedback" id="trash-feedback" aria-live="polite"></p>
                 </div>
               </div>
             </div>
@@ -2219,7 +2542,7 @@
         if (isGoogleIdTokenUsable(wikiState.idToken)) {
           headers.set("authorization", `Bearer ${wikiState.idToken}`);
         }
-        if (options.body) {
+        if (typeof options.body === "string") {
           headers.set("content-type", "application/json");
         }
         return fetch(endpoint, { ...options, headers });

@@ -115,7 +115,7 @@ async function loadWikiSnapshot() {
   const db = getDatabase();
   const client = await db.pool.connect();
   try {
-    const [settingsResult, membersResult, pagesResult, revisionsResult] = await Promise.all([
+    const [settingsResult, membersResult, pagesResult, revisionsResult, redirectsResult] = await Promise.all([
       client.query(
         `SELECT visibility, editing_mode, updated_at, updated_by_email
          FROM wiki_settings
@@ -132,6 +132,8 @@ async function loadWikiSnapshot() {
            p.slug,
            p.title,
            p.allow_normal_edits,
+           p.is_deleted,
+           p.deleted_at,
            p.created_by_email,
            p.updated_by_email,
            p.created_at,
@@ -147,7 +149,6 @@ async function loadWikiSnapshot() {
            r.created_at AS revision_created_at
          FROM wiki_pages p
          LEFT JOIN wiki_revisions r ON r.id = p.current_revision_id
-         WHERE p.is_deleted = FALSE
          ORDER BY p.updated_at DESC`
       ),
       client.query(
@@ -169,13 +170,19 @@ async function loadWikiSnapshot() {
              ) AS page_rank
            FROM wiki_revisions r
            INNER JOIN wiki_pages p ON p.id = r.page_id
-           WHERE p.is_deleted = FALSE
          )
          SELECT id, page_id, revision_number, page_title, content_json, edit_summary,
                 author_email, author_name, author_role, created_at
          FROM ranked_revisions
          WHERE page_rank <= 25
          ORDER BY page_id, revision_number ASC`
+      ),
+      client.query(
+        `SELECT d.source_slug, p.slug AS target_slug
+         FROM wiki_redirects d
+         INNER JOIN wiki_pages p ON p.id = d.target_page_id
+         WHERE p.is_deleted = FALSE
+         ORDER BY d.created_at DESC`
       ),
     ]);
 
@@ -215,6 +222,8 @@ async function loadWikiSnapshot() {
         slug: page.slug,
         title: page.title,
         allowNormalEdits: page.allow_normal_edits,
+        isDeleted: page.is_deleted === true,
+        deletedAt: isoDate(page.deleted_at),
         createdBy: page.created_by_email,
         updatedBy: page.updated_by_email,
         createdAt: isoDate(page.created_at),
@@ -233,6 +242,10 @@ async function loadWikiSnapshot() {
             }
           : null,
         localRevisions: revisionsByPage.get(page.id) || [],
+      })),
+      redirects: redirectsResult.rows.map((redirect) => ({
+        sourceSlug: redirect.source_slug,
+        targetSlug: redirect.target_slug,
       })),
     };
   } finally {
@@ -279,7 +292,7 @@ export default async function handler(request) {
 
     return json(
       {
-        schemaVersion: 2,
+        schemaVersion: 3,
         generatedAt: new Date().toISOString(),
         sourceOrigin: new URL(request.url).origin,
         roadmap,

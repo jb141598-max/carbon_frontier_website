@@ -1,0 +1,41 @@
+CARBON FRONTIER WIKI — STEP 5
+================================
+
+This package includes every file from the previous build plus the complete
+Step 5 page/media-management system.
+
+INTERFACE CHANGES
+-----------------
+- Normal article text uses the Play font at regular (400) weight.
+- History is hidden while reading and appears only after Edit Page is opened.
+- Clicking the top search bar opens a centered search menu.
+- The menu shows recently updated pages before a query is entered.
+- Live results, arrow-key navigation, Enter to open, and Escape to close are supported.
+- + New Page now lives inside the search menu.
+- Staff can open recoverable Trash from the search menu.
+
+STEP 5 FEATURES
+---------------
+- Upload PNG, JPG, WebP, or GIF images up to 4 MB from the editing toolbar.
+- Private-wiki images are fetched through an authenticated Function and are not
+  exposed by a public Blob URL.
+- Move pages to a new address.
+- The former address becomes a permanent wiki redirect automatically.
+- Protect/unprotect an individual page from normal public contributors.
+- Move pages to recoverable Trash without deleting revision history.
+- Restore trashed pages from the staff Trash panel.
+- The front page cannot be moved or trashed.
+- Every page-management action is recorded in the wiki audit log.
+- Cursor/Live Preview owner testing supports moves, redirects, protection,
+  trash, restoration, and local image insertion without writing to production.
+
+DEPLOYMENT
+----------
+Merge this folder into the website root, keeping the folder structure intact,
+then deploy to Netlify. The new migration is applied during deployment.
+
+New production files include:
+- netlify/functions/wiki-media.mjs
+- netlify/database/migrations/202608310001_add_wiki_page_management.sql
+
+The existing CURSOR_TESTING_SYNC_KEY setting does not need to be changed.
