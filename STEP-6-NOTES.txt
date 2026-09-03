@@ -1,0 +1,39 @@
+CARBON FRONTIER WIKI — STEP 6
+================================
+
+This package includes every file from the previous build plus the complete
+Step 6 contributor-analytics system.
+
+SEARCH INTERFACE FIXES
+----------------------
+- The page behind the search menu now uses a lighter gray overlay and a softer blur.
+- The compact top search field keeps the normal text/I-beam mouse cursor.
+- Clicking the compact field still opens the full search menu.
+- The full search field is focused immediately, so typing can begin without a
+  second click.
+
+STEP 6 FEATURES
+---------------
+- Owners and Admins can open Analytics from the Wiki or Permissions top bar.
+- Reports support exact inclusive start and end dates.
+- “All Editors” includes every person who saved an edit in the selected range.
+- “Assigned Wiki Editors” includes Owners, Admins, and assigned Wiki Editors.
+- Assigned staff stay listed when they have zero edits.
+- Unassigned people with zero edits are never listed.
+- Summary cards show edits, pages created, active editors, and people listed.
+- The report includes per-person edits, pages edited, pages created, and last edit.
+- Email addresses are hidden by default and reveal/re-hide when clicked.
+- The most-edited pages list respects the selected people filter.
+- Contributor results can be downloaded as CSV.
+- Cursor/Live Preview analytics combine the downloaded live wiki copy with local
+  test edits and never write analytics data back to production.
+- The production analytics Function independently verifies Google authentication
+  and the Owner/Admin role before returning any report or email address.
+
+DEPLOYMENT
+----------
+Merge this folder into the website root, keeping the folder structure intact,
+then deploy to Netlify. Deployment is required for wiki-analytics.html,
+wiki-analytics.js, the new Function, and the /wiki/analytics route to go live.
+
+The existing CURSOR_TESTING_SYNC_KEY and Google settings do not need to change.

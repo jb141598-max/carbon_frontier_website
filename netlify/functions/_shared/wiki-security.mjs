@@ -129,6 +129,7 @@ function normalizeSettings(row) {
   return {
     visibility,
     editingMode: visibility === "private" ? "restricted" : requestedEditingMode,
+    reviewMode: row?.review_mode === "approval" ? "approval" : "immediate",
     updatedAt: row?.updated_at ? new Date(row.updated_at).toISOString() : null,
     updatedBy: normalizeEmail(row?.updated_by_email) || null,
   };
@@ -177,7 +178,7 @@ export async function ensureConfiguredOwners(client) {
 export async function loadAccessState(client, { includeAudit = false } = {}) {
   const [settingsResult, membersResult] = await Promise.all([
     client.query(
-      `SELECT visibility, editing_mode, updated_at, updated_by_email
+      `SELECT visibility, editing_mode, review_mode, updated_at, updated_by_email
        FROM wiki_settings
        WHERE id = 1`
     ),
@@ -240,6 +241,7 @@ export function createViewer(state, account) {
     canManageAdmins: isOwner,
     canManageEditors: isOwner || isAdmin,
     canManageSettings: isOwner || isAdmin,
+    canModerate: isOwner || isAdmin,
   };
 }
 
@@ -250,6 +252,7 @@ export function createAccessPayload(state, account, { includeManagementData = fa
     settings: {
       visibility: state.visibility,
       editingMode: state.editingMode,
+      reviewMode: state.reviewMode,
     },
     viewer,
     analytics: {

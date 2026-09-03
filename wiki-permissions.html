@@ -599,7 +599,7 @@
       }
 
       .settings-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 16px;
       }
 
@@ -825,8 +825,11 @@
                 <p class="auth-note" id="auth-note"></p>
               </div>
             </div>
-            <a class="primary-button" id="access-panel-button" href="wiki.html" hidden>
-              Wiki Front Page
+            <a class="secondary-button" id="analytics-button" href="wiki-analytics.html" hidden>
+              Analytics
+            </a>
+            <a class="primary-button" id="moderation-button" href="wiki-moderation.html" hidden>
+              Moderation
             </a>
           </div>
         </header>
@@ -946,6 +949,20 @@
                       </span>
                     </label>
                   </div>
+
+                  <div class="settings-card">
+                    <h3>Public edit review</h3>
+                    <label>
+                      <span class="field-label">Contributor changes</span>
+                      <select id="review-mode-select">
+                        <option value="immediate">Publish immediately</option>
+                        <option value="approval">Require approval</option>
+                      </select>
+                      <span class="field-note">
+                        This affects ordinary public contributors only. Assigned staff always publish immediately.
+                      </span>
+                    </label>
+                  </div>
                 </div>
                 <div class="form-actions" style="margin-top: 14px">
                   <button class="primary-button" id="save-settings-button" type="submit">
@@ -1038,7 +1055,7 @@
         googleInitialized: false,
         pendingRemoveEmail: "",
         cursorTesting: isCursorTestingEnvironment(),
-        cursorSettings: { visibility: "private", editingMode: "restricted" },
+        cursorSettings: { visibility: "private", editingMode: "restricted", reviewMode: "immediate" },
         cursorMembers: [
           {
             email: "jb141598@gmail.com",
@@ -1068,7 +1085,8 @@
         googleSigninSlot: document.getElementById("google-signin-slot"),
         signoutButton: document.getElementById("signout-button"),
         authNote: document.getElementById("auth-note"),
-        accessPanelButton: document.getElementById("access-panel-button"),
+        analyticsButton: document.getElementById("analytics-button"),
+        moderationButton: document.getElementById("moderation-button"),
         loadingView: document.getElementById("loading-view"),
         unavailableView: document.getElementById("unavailable-view"),
         unavailableHeading: document.getElementById("unavailable-heading"),
@@ -1084,6 +1102,7 @@
         settingsForm: document.getElementById("settings-form"),
         visibilitySelect: document.getElementById("visibility-select"),
         editingSelect: document.getElementById("editing-select"),
+        reviewModeSelect: document.getElementById("review-mode-select"),
         editingNote: document.getElementById("editing-note"),
         saveSettingsButton: document.getElementById("save-settings-button"),
         memberForm: document.getElementById("member-form"),
@@ -1111,6 +1130,7 @@
             wikiSnapshot.settings?.editingMode === "open"
               ? "open"
               : "restricted",
+          reviewMode: wikiSnapshot.settings?.reviewMode === "approval" ? "approval" : "immediate",
         };
         if (Array.isArray(wikiSnapshot.members)) {
           wikiState.cursorMembers = wikiSnapshot.members.map((member) => ({
@@ -1444,6 +1464,7 @@
             canManageAdmins: true,
             canManageEditors: true,
             canManageSettings: true,
+            canModerate: true,
           },
           analytics: {
             defaultScope:
@@ -1478,6 +1499,11 @@
               visibility === "public" && body.editingMode === "open"
                 ? "open"
                 : "restricted",
+            reviewMode: body.reviewMode === undefined
+              ? wikiState.cursorSettings.reviewMode
+              : body.reviewMode === "approval"
+                ? "approval"
+                : "immediate",
           };
         } else if (body.action === "upsert_member") {
           const email = normalizeEmail(body.email);
@@ -1627,7 +1653,8 @@
         if (!access || !viewer?.canManageEditors) {
           elements.wikiView.hidden = true;
           elements.unavailableView.hidden = false;
-          elements.accessPanelButton.hidden = true;
+          elements.analyticsButton.hidden = true;
+          elements.moderationButton.hidden = true;
           elements.unavailableHeading.textContent = "Permissions not available";
           elements.accountPill.textContent = viewer?.authenticated
             ? "No permission access"
@@ -1642,7 +1669,8 @@
 
         elements.unavailableView.hidden = true;
         elements.wikiView.hidden = false;
-        elements.accessPanelButton.hidden = !viewer.canManageEditors;
+        elements.analyticsButton.hidden = !viewer.canManageSettings;
+        elements.moderationButton.hidden = !viewer.canModerate;
         elements.accountPill.textContent = viewer.role
           ? `${roleLabel(viewer.role)} access`
           : viewer.canEdit
@@ -1672,6 +1700,7 @@
         if (viewer.canManageEditors) {
           elements.visibilitySelect.value = settings.visibility;
           elements.editingSelect.value = settings.editingMode;
+          elements.reviewModeSelect.value = settings.reviewMode || "immediate";
           syncPrivacyControls();
           elements.adminRoleOption.hidden = !viewer.canManageAdmins;
           if (!viewer.canManageAdmins && elements.memberRoleSelect.value === "admin") {
@@ -1776,6 +1805,7 @@
             action: "update_settings",
             visibility: elements.visibilitySelect.value,
             editingMode: elements.editingSelect.value,
+            reviewMode: elements.reviewModeSelect.value,
           },
           "Wiki privacy settings saved."
         );

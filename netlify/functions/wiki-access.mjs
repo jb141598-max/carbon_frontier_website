@@ -51,20 +51,26 @@ async function mutateAccess(account, body) {
       const visibility = body?.visibility === "public" ? "public" : "private";
       const requestedEditingMode = body?.editingMode === "open" ? "open" : "restricted";
       const editingMode = visibility === "private" ? "restricted" : requestedEditingMode;
+      const reviewMode = body?.reviewMode === undefined
+        ? state.reviewMode
+        : body.reviewMode === "approval"
+          ? "approval"
+          : "immediate";
 
       await client.query(
         `UPDATE wiki_settings
          SET visibility = $1,
              editing_mode = $2,
+             review_mode = $3,
              updated_at = NOW(),
-             updated_by_email = $3
+             updated_by_email = $4
          WHERE id = 1`,
-        [visibility, editingMode, account.email]
+        [visibility, editingMode, reviewMode, account.email]
       );
       await insertAuditEntry(client, {
         action: "settings_updated",
         actorEmail: account.email,
-        details: { visibility, editingMode },
+        details: { visibility, editingMode, reviewMode },
       });
       await client.query("COMMIT");
       committed = true;

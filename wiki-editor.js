@@ -1067,7 +1067,11 @@
     ui.searchMenuInput.value = "";
     renderSearchResults();
     setDialog(ui.searchDialog, true);
-    window.setTimeout(() => ui.searchMenuInput.focus(), 0);
+    ui.search.blur();
+    window.requestAnimationFrame(() => {
+      ui.searchMenuInput.focus({ preventScroll: true });
+      ui.searchMenuInput.setSelectionRange(0, 0);
+    });
   }
 
   function closeSearchResults() {
@@ -1151,6 +1155,9 @@
     closeSearchResults();
     ui.newForm.reset();
     app.slugManuallyEdited = false;
+    ui.createPage.textContent = app.pageListPermissions?.submitsForReview
+      ? "Submit for Review"
+      : "Create Page";
     setFeedback(ui.newFeedback, "");
     setDialog(ui.newDialog, true);
     window.setTimeout(() => ui.newTitle.focus(), 0);
@@ -1180,6 +1187,7 @@
     ui.normalEdits.disabled = !page.permissions?.canChangePageSettings;
     ui.normalEditsField.hidden = !page.permissions?.canChangePageSettings;
     ui.editSummary.value = "";
+    ui.savePage.textContent = page.permissions?.submitsForReview ? "Submit" : "Save";
     ui.content.contentEditable = "true";
     ui.content.setAttribute("role", "textbox");
     ui.content.setAttribute("aria-multiline", "true");
@@ -1208,6 +1216,7 @@
     ui.newPage.disabled = false;
     ui.historyButton.hidden = true;
     ui.pageSettings.hidden = true;
+    ui.savePage.textContent = "Save";
     if (restorePage && app.editingBasePage) {
       renderPage(app.editingBasePage);
     }
@@ -1309,6 +1318,16 @@
         editSummary: ui.editSummary.value.trim(),
         baseRevisionId: page.currentRevision.id,
       });
+      if (payload.pendingReview) {
+        app.currentPage = payload.page || page;
+        exitEditing();
+        renderPage(app.currentPage);
+        setFeedback(
+          ui.feedback,
+          "Your edit was submitted for approval. The current article stays unchanged until an Owner or Admin approves it."
+        );
+        return;
+      }
       app.currentPage = payload.page;
       exitEditing();
       renderPage(payload.page);
@@ -1350,6 +1369,14 @@
         },
         editSummary: "Create page",
       });
+      if (payload.pendingReview) {
+        closeNewPageDialog();
+        setFeedback(
+          ui.feedback,
+          `“${title}” was submitted for approval. It will appear after an Owner or Admin approves it.`
+        );
+        return;
+      }
       closeNewPageDialog();
       await refreshPageList();
       await openPage(payload.page.slug);

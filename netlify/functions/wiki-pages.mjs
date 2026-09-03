@@ -89,13 +89,30 @@ function pageFromRow(row, viewer) {
       canChangePageSettings: viewer.isAssignedStaff,
       canRestoreRevisions: viewer.isAssignedStaff,
       canManagePage: viewer.isAssignedStaff,
+      submitsForReview:
+        canEditThisPage && !viewer.isAssignedStaff && viewer.reviewMode === "approval",
     },
   };
 }
 
 async function loadSecurity(client, account) {
   const state = await loadAccessState(client);
-  return { state, viewer: createViewer(state, account) };
+  const viewer = createViewer(state, account);
+  viewer.reviewMode = state.reviewMode;
+  viewer.isBlocked = false;
+  viewer.blockReason = null;
+  if (viewer.authenticated && !viewer.isAssignedStaff) {
+    const blockedResult = await client.query(
+      `SELECT reason FROM wiki_blocked_users WHERE email = $1`,
+      [account.email]
+    );
+    if (blockedResult.rowCount) {
+      viewer.isBlocked = true;
+      viewer.blockReason = blockedResult.rows[0].reason || null;
+      viewer.canEdit = false;
+    }
+  }
+  return { state, viewer };
 }
 
 async function selectPage(client, slug, { lock = false, includeDeleted = false } = {}) {
@@ -157,7 +174,7 @@ async function selectRedirectPage(client, sourceSlug) {
 async function handleGet(request, account) {
   const client = await db.pool.connect();
   try {
-    const { viewer } = await loadSecurity(client, account);
+    const { state, viewer } = await loadSecurity(client, account);
     if (!viewer.canView) {
       return json({ error: "Wiki not available." }, 403);
     }
@@ -217,6 +234,8 @@ async function handleGet(request, account) {
           canCreate: viewer.canEdit,
           isAssignedStaff: viewer.isAssignedStaff,
           canManageTrash: viewer.isAssignedStaff,
+          submitsForReview:
+            viewer.canEdit && !viewer.isAssignedStaff && state.reviewMode === "approval",
         },
         pages: result.rows.map((row) => ({
           id: row.id,
@@ -335,7 +354,68 @@ async function handleCreate(request, account, body) {
     await client.query("BEGIN");
     const { state, viewer } = await loadSecurity(client, account);
     if (!viewer.canEdit) {
-      return json({ error: "This account cannot create wiki pages." }, 403);
+      return json(
+        {
+          error: viewer.isBlocked
+            ? "This account is blocked from contributing to the wiki."
+            : "This account cannot create wiki pages.",
+        },
+        403
+      );
+    }
+
+    const addressConflict = await client.query(
+      `SELECT 1 FROM wiki_pages WHERE slug = $1
+       UNION ALL
+       SELECT 1 FROM wiki_redirects WHERE source_slug = $1
+       LIMIT 1`,
+      [slug]
+    );
+    if (addressConflict.rowCount) {
+      return json({ error: "That page address is already in use." }, 409);
+    }
+
+    if (!viewer.isAssignedStaff && state.reviewMode === "approval") {
+      const conflict = await client.query(
+        `SELECT 1 FROM wiki_pending_edits
+         WHERE requested_slug = $1 AND submission_type = 'create' AND status = 'pending'
+         LIMIT 1`,
+        [slug]
+      );
+      if (conflict.rowCount) {
+        return json({ error: "That page address is already in use or awaiting review." }, 409);
+      }
+      const submissionId = crypto.randomUUID();
+      await client.query(
+        `INSERT INTO wiki_pending_edits (
+           id, submission_type, requested_slug, page_title, content_json,
+           edit_summary, author_email, author_name
+         ) VALUES ($1, 'create', $2, $3, $4::jsonb, $5, $6, $7)`,
+        [
+          submissionId,
+          slug,
+          title,
+          contentResult.serialized,
+          editSummary,
+          account.email,
+          account.name || null,
+        ]
+      );
+      await insertAuditEntry(client, {
+        action: "page_edit_submitted",
+        actorEmail: account.email,
+        details: { submissionId, submissionType: "create", slug, title },
+      });
+      await client.query("COMMIT");
+      committed = true;
+      return json(
+        {
+          ok: true,
+          pendingReview: true,
+          submission: { id: submissionId, type: "create", slug, title },
+        },
+        202
+      );
     }
 
     const pageId = crypto.randomUUID();
@@ -639,7 +719,14 @@ async function handlePageMutation(request, account, body, slug) {
     const canEditThisPage =
       viewer.isAssignedStaff || (viewer.canEdit && pageRow.allow_normal_edits === true);
     if (!canEditThisPage) {
-      return json({ error: "Editing is disabled for this page." }, 403);
+      return json(
+        {
+          error: viewer.isBlocked
+            ? "This account is blocked from contributing to the wiki."
+            : "Editing is disabled for this page.",
+        },
+        403
+      );
     }
 
     const baseRevisionId = String(body?.baseRevisionId || "").trim();
@@ -666,6 +753,55 @@ async function handlePageMutation(request, account, body, slug) {
     }
     if (!contentResult.ok) {
       return json({ error: contentResult.message }, 400);
+    }
+
+    if (!viewer.isAssignedStaff && state.reviewMode === "approval") {
+      const submissionId = crypto.randomUUID();
+      await client.query(
+        `INSERT INTO wiki_pending_edits (
+           id, submission_type, page_id, requested_slug, page_title,
+           base_revision_id, content_json, edit_summary, author_email, author_name
+         ) VALUES ($1, 'edit', $2, $3, $4, $5, $6::jsonb, $7, $8, $9)`,
+        [
+          submissionId,
+          pageRow.id,
+          pageRow.slug,
+          title,
+          pageRow.revision_id,
+          contentResult.serialized,
+          editSummary,
+          account.email,
+          account.name || null,
+        ]
+      );
+      await insertAuditEntry(client, {
+        action: "page_edit_submitted",
+        actorEmail: account.email,
+        pageId: pageRow.id,
+        details: {
+          submissionId,
+          submissionType: "edit",
+          slug: pageRow.slug,
+          title,
+          baseRevisionId: pageRow.revision_id,
+        },
+      });
+      await client.query("COMMIT");
+      committed = true;
+      return json(
+        {
+          ok: true,
+          pendingReview: true,
+          submission: {
+            id: submissionId,
+            type: "edit",
+            slug: pageRow.slug,
+            title,
+          },
+          page: pageFromRow(pageRow, viewer),
+        },
+        202
+      );
     }
 
     const revisionId = crypto.randomUUID();

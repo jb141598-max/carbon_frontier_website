@@ -1005,7 +1005,12 @@
         padding: 10px 16px 10px 42px;
         border-radius: 999px;
         background: rgba(10, 10, 10, 0.94);
-        cursor: pointer;
+        cursor: text;
+      }
+
+      .wiki-dialog.is-search-dialog {
+        background: rgba(48, 51, 58, 0.42);
+        backdrop-filter: blur(4px);
       }
 
       .wiki-top-search-icon {
@@ -1024,8 +1029,8 @@
         overflow: hidden;
         border: 1px solid rgba(255, 255, 255, 0.17);
         border-radius: 24px;
-        background: #0b0b0b;
-        box-shadow: 0 34px 110px rgba(0, 0, 0, 0.72);
+        background: #191b20;
+        box-shadow: 0 28px 78px rgba(0, 0, 0, 0.48);
       }
 
       .search-menu-header {
@@ -1698,6 +1703,12 @@
                 <p class="auth-note" id="auth-note"></p>
               </div>
             </div>
+            <a class="secondary-button" id="analytics-button" href="wiki-analytics.html" hidden>
+              Analytics
+            </a>
+            <a class="secondary-button" id="moderation-button" href="wiki-moderation.html" hidden>
+              Moderation
+            </a>
             <a class="primary-button" id="access-panel-button" href="wiki-permissions.html" hidden>
               Permissions
             </a>
@@ -1863,7 +1874,7 @@
               </article>
             </section>
 
-            <div class="wiki-dialog" id="wiki-search-dialog" role="dialog" aria-modal="true" aria-labelledby="wiki-search-dialog-title" hidden>
+            <div class="wiki-dialog is-search-dialog" id="wiki-search-dialog" role="dialog" aria-modal="true" aria-labelledby="wiki-search-dialog-title" hidden>
               <div class="search-shell">
                 <div class="search-menu-header">
                   <span class="search-menu-icon" aria-hidden="true">⌕</span>
@@ -2193,7 +2204,7 @@
         googleInitialized: false,
         pendingRemoveEmail: "",
         cursorTesting: isCursorTestingEnvironment(),
-        cursorSettings: { visibility: "private", editingMode: "restricted" },
+        cursorSettings: { visibility: "private", editingMode: "restricted", reviewMode: "immediate" },
         cursorMembers: [
           {
             email: "jb141598@gmail.com",
@@ -2224,6 +2235,8 @@
         googleSigninSlot: document.getElementById("google-signin-slot"),
         signoutButton: document.getElementById("signout-button"),
         authNote: document.getElementById("auth-note"),
+        analyticsButton: document.getElementById("analytics-button"),
+        moderationButton: document.getElementById("moderation-button"),
         accessPanelButton: document.getElementById("access-panel-button"),
         loadingView: document.getElementById("loading-view"),
         unavailableView: document.getElementById("unavailable-view"),
@@ -2270,6 +2283,7 @@
             wikiSnapshot.settings?.editingMode === "open"
               ? "open"
               : "restricted",
+          reviewMode: wikiSnapshot.settings?.reviewMode === "approval" ? "approval" : "immediate",
         };
         if (Array.isArray(wikiSnapshot.members)) {
           wikiState.cursorMembers = wikiSnapshot.members.map((member) => ({
@@ -2575,6 +2589,7 @@
             canManageAdmins: true,
             canManageEditors: true,
             canManageSettings: true,
+            canModerate: true,
           },
           analytics: {
             defaultScope:
@@ -2609,6 +2624,11 @@
               visibility === "public" && body.editingMode === "open"
                 ? "open"
                 : "restricted",
+            reviewMode: body.reviewMode === undefined
+              ? wikiState.cursorSettings.reviewMode
+              : body.reviewMode === "approval"
+                ? "approval"
+                : "immediate",
           };
         } else if (body.action === "upsert_member") {
           const email = normalizeEmail(body.email);
@@ -2886,6 +2906,8 @@
         if (!access || !viewer?.canView) {
           elements.wikiView.hidden = true;
           elements.unavailableView.hidden = false;
+          elements.analyticsButton.hidden = true;
+          elements.moderationButton.hidden = true;
           elements.accessPanelButton.hidden = true;
           elements.accountPill.textContent = viewer?.authenticated
             ? "No wiki access"
@@ -2901,6 +2923,8 @@
 
         elements.unavailableView.hidden = true;
         elements.wikiView.hidden = false;
+        elements.analyticsButton.hidden = !viewer.canManageSettings;
+        elements.moderationButton.hidden = !viewer.canModerate;
         elements.accessPanelButton.hidden = !viewer.canManageEditors;
         elements.accountPill.textContent = viewer.role
           ? `${roleLabel(viewer.role)} access`

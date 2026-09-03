@@ -42,7 +42,19 @@ function safeFileName(value) {
 
 async function loadViewer(client, account) {
   const state = await loadAccessState(client);
-  return { state, viewer: createViewer(state, account) };
+  const viewer = createViewer(state, account);
+  viewer.isBlocked = false;
+  if (viewer.authenticated && !viewer.isAssignedStaff) {
+    const blockedResult = await client.query(
+      `SELECT 1 FROM wiki_blocked_users WHERE email = $1`,
+      [account.email]
+    );
+    if (blockedResult.rowCount) {
+      viewer.canEdit = false;
+      viewer.isBlocked = true;
+    }
+  }
+  return { state, viewer };
 }
 
 async function handleGet(request, account) {
@@ -132,7 +144,14 @@ async function handleUpload(request, account) {
     await client.query("BEGIN");
     const { state, viewer } = await loadViewer(client, account);
     if (!viewer.canEdit) {
-      return json({ error: "This account cannot upload wiki images." }, 403);
+      return json(
+        {
+          error: viewer.isBlocked
+            ? "This account is blocked from contributing to the wiki."
+            : "This account cannot upload wiki images.",
+        },
+        403
+      );
     }
 
     const id = crypto.randomUUID();

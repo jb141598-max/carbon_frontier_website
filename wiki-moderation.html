@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>Carbon Frontier Wiki Moderation</title>
+    <meta name="google-signin-client_id" content="609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap" rel="stylesheet" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+      :root {
+        --red: #df2531;
+        --orange: #f08c2b;
+        --green: #2fb86a;
+        --white: #fff;
+        --muted: rgba(255,255,255,.69);
+        --soft: rgba(255,255,255,.46);
+        --border: rgba(255,255,255,.12);
+        --panel: rgba(255,255,255,.045);
+        --shadow: 0 24px 68px rgba(0,0,0,.44);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        min-height: 100vh;
+        color: var(--white);
+        font-family: "Play", sans-serif;
+        font-weight: 400;
+        background:
+          radial-gradient(circle at top left, rgba(223,37,49,.24), transparent 31%),
+          radial-gradient(circle at 88% 10%, rgba(223,37,49,.15), transparent 25%),
+          linear-gradient(180deg,#080808 0%,#000 46%,#050505 100%);
+      }
+      button, input, textarea { font: inherit; }
+      button { cursor: pointer; }
+      button:disabled, input:disabled, textarea:disabled { cursor: not-allowed; opacity: .52; }
+      [hidden] { display: none !important; }
+      .page-shell { position: relative; min-height: 100vh; padding: 28px; overflow: hidden; }
+      .page-shell::before {
+        position: absolute; inset: 0; content: ""; pointer-events: none;
+        background-image: linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+        background-size: 96px 96px; mask-image: linear-gradient(180deg,rgba(0,0,0,.84),transparent 84%);
+      }
+      .content { position: relative; z-index: 1; width: min(1280px,100%); margin: 0 auto; }
+      .topbar,.topbar-nav,.topbar-actions,.heading-row,.section-heading,.card-actions,.block-form,.block-row,.activity-row { display:flex; align-items:center; }
+      .topbar { justify-content:space-between; gap:18px; margin-bottom:34px; }
+      .topbar-nav,.topbar-actions,.card-actions { gap:10px; }
+      .nav-button,.primary-button,.secondary-button,.danger-button {
+        min-height:44px; display:inline-flex; align-items:center; justify-content:center; padding:11px 16px;
+        border:1px solid var(--border); border-radius:999px; color:var(--white); background:rgba(255,255,255,.04);
+        font-size:.82rem; font-weight:700; letter-spacing:.07em; text-decoration:none; text-transform:uppercase; transition:160ms ease;
+      }
+      .nav-button:hover,.secondary-button:hover,.nav-button:focus-visible,.secondary-button:focus-visible {
+        border-color:rgba(223,37,49,.68); background:rgba(223,37,49,.15); outline:none; transform:translateY(-1px);
+      }
+      .primary-button { border-color:rgba(223,37,49,.9); background:rgba(223,37,49,.44); }
+      .primary-button:hover,.primary-button:focus-visible { background:rgba(223,37,49,.64); outline:none; transform:translateY(-1px); }
+      .danger-button { color:#ffadb3; border-color:rgba(223,37,49,.45); }
+      .danger-button.is-armed { color:#fff; border-color:rgba(223,37,49,.92); background:rgba(223,37,49,.52); }
+      .account-pill {
+        min-height:44px; display:flex; align-items:center; max-width:min(36vw,300px); padding:10px 14px;
+        border:1px solid var(--border); border-radius:999px; color:var(--muted); background:rgba(255,255,255,.04);
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      }
+      .loading-card,.unavailable-card,.summary-card,.data-panel,.review-card,.block-row,.activity-row {
+        border:1px solid var(--border); background:var(--panel); box-shadow:var(--shadow);
+      }
+      .loading-card,.unavailable-card { width:min(760px,100%); margin:10vh auto 0; padding:clamp(30px,6vw,58px); border-radius:32px; text-align:center; }
+      .loading-card h1,.unavailable-card h1 { margin:0; font-size:clamp(2rem,7vw,3.8rem); text-transform:uppercase; }
+      .loading-card p,.unavailable-card p { max-width:590px; margin:16px auto 0; color:var(--muted); line-height:1.7; }
+      .signin-slot { min-height:44px; display:grid; justify-content:center; margin-top:22px; }
+      .heading-row { justify-content:space-between; gap:24px; margin-bottom:24px; }
+      .eyebrow { margin:0; color:#ff9ba2; font-size:.78rem; font-weight:700; letter-spacing:.18em; text-transform:uppercase; }
+      .heading-row h1 { margin:7px 0 0; font-size:clamp(2.6rem,7vw,5.6rem); letter-spacing:.04em; line-height:.95; text-transform:uppercase; }
+      .heading-copy { max-width:620px; margin:0; color:var(--muted); line-height:1.65; text-align:right; }
+      .summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-bottom:16px; }
+      .summary-card { padding:20px; border-radius:22px; box-shadow:none; }
+      .summary-card span { display:block; color:var(--soft); font-size:.72rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; }
+      .summary-card strong { display:block; margin-top:10px; font-size:clamp(1.55rem,4vw,2.5rem); }
+      .summary-card strong[data-mode="approval"] { color:#ffc27f; }
+      .summary-card strong[data-mode="immediate"] { color:#9ce8bc; }
+      .data-panel { padding:22px; border-radius:28px; box-shadow:none; margin-top:16px; }
+      .section-heading { justify-content:space-between; gap:16px; margin-bottom:17px; }
+      .section-heading h2 { margin:0; font-size:1.4rem; }
+      .section-heading p { margin:5px 0 0; color:var(--soft); font-size:.82rem; line-height:1.5; }
+      .count-badge { min-width:32px; min-height:32px; display:grid; place-items:center; padding:5px 9px; border:1px solid rgba(223,37,49,.45); border-radius:999px; color:#ffadb3; background:rgba(223,37,49,.1); font-weight:700; }
+      .review-list,.block-list,.activity-list { display:grid; gap:10px; }
+      .review-card { padding:18px; border-radius:20px; box-shadow:none; }
+      .review-top { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:start; }
+      .review-type { display:inline-flex; min-height:25px; align-items:center; padding:4px 8px; border:1px solid rgba(240,140,43,.45); border-radius:999px; color:#ffc27f; background:rgba(240,140,43,.1); font-size:.67rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+      .review-card h3 { margin:10px 0 0; font-size:1.12rem; }
+      .review-meta,.review-summary,.review-preview,.block-meta,.activity-meta { color:var(--muted); font-size:.82rem; line-height:1.55; }
+      .review-meta { margin:6px 0 0; }
+      .review-summary { margin:14px 0 0; }
+      .review-preview { margin:10px 0 0; padding:13px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(0,0,0,.23); }
+      .review-controls { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:end; margin-top:14px; }
+      label span { display:block; margin-bottom:7px; color:var(--soft); font-size:.7rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+      input,textarea { width:100%; min-height:44px; padding:10px 12px; border:1px solid var(--border); border-radius:13px; color:#fff; background:#0e0e0e; outline:none; }
+      textarea { min-height:76px; resize:vertical; }
+      input:focus,textarea:focus { border-color:rgba(223,37,49,.78); box-shadow:0 0 0 3px rgba(223,37,49,.12); }
+      .block-form { gap:10px; align-items:end; margin-bottom:14px; }
+      .block-form label:first-child { flex:1 1 280px; }
+      .block-form label:nth-child(2) { flex:2 1 420px; }
+      .block-row { justify-content:space-between; gap:16px; padding:15px 16px; border-radius:17px; box-shadow:none; }
+      .block-row strong { display:block; }
+      .block-meta { margin:5px 0 0; }
+      .activity-row { justify-content:space-between; gap:18px; padding:14px 15px; border-radius:17px; box-shadow:none; }
+      .activity-copy { min-width:0; }
+      .activity-copy strong { display:block; }
+      .activity-meta { margin:5px 0 0; }
+      .activity-time { flex:0 0 auto; color:var(--soft); font-size:.75rem; }
+      .feedback { min-height:21px; margin:12px 0 0; color:#9ce8bc; font-size:.82rem; line-height:1.5; }
+      .feedback.is-error { color:#ff9ba2; }
+      .empty-state { padding:24px; border:1px dashed var(--border); border-radius:18px; color:var(--muted); text-align:center; }
+      .email-spoiler { display:inline-grid; grid-template-areas:"spoiler"; max-width:100%; min-height:28px; padding:4px 8px; border:1px solid rgba(255,255,255,.09); border-radius:7px; color:#fff; background:rgba(255,255,255,.14); vertical-align:middle; }
+      .email-spoiler:hover,.email-spoiler:focus-visible { border-color:rgba(255,255,255,.25); background:rgba(255,255,255,.2); outline:none; }
+      .email-spoiler-text,.email-spoiler-cover { grid-area:spoiler; align-self:center; max-width:280px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .email-spoiler-text { opacity:0; user-select:none; }
+      .email-spoiler-cover { justify-self:center; color:rgba(255,255,255,.78); font-size:.65rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+      .email-spoiler.is-revealed { border-color:rgba(223,37,49,.42); background:rgba(223,37,49,.12); }
+      .email-spoiler.is-revealed .email-spoiler-text { opacity:1; user-select:text; }
+      .email-spoiler.is-revealed .email-spoiler-cover { opacity:0; pointer-events:none; }
+      @media (max-width:900px) {
+        .heading-row { align-items:flex-start; flex-direction:column; }
+        .heading-copy { text-align:left; }
+        .review-controls { grid-template-columns:1fr; }
+        .card-actions { flex-wrap:wrap; }
+      }
+      @media (max-width:680px) {
+        .page-shell { padding:18px; }
+        .topbar { align-items:stretch; flex-direction:column; }
+        .topbar-nav { overflow-x:auto; }
+        .topbar-actions { justify-content:space-between; }
+        .account-pill { max-width:48vw; }
+        .summary-grid { grid-template-columns:1fr; }
+        .review-top,.block-row,.activity-row { grid-template-columns:1fr; align-items:stretch; }
+        .review-top { display:grid; }
+        .block-row,.activity-row { flex-direction:column; }
+        .block-form { align-items:stretch; flex-direction:column; }
+        .block-form .primary-button { width:100%; }
+        .activity-time { align-self:flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="content">
+        <header class="topbar">
+          <nav class="topbar-nav" aria-label="Primary navigation">
+            <a class="nav-button" href="wiki.html">Wiki</a>
+            <a class="nav-button" href="index.html">Roadmap</a>
+            <a class="nav-button" href="updates.html">Updates</a>
+          </nav>
+          <div class="topbar-actions">
+            <div class="account-pill" id="account-pill">Checking access...</div>
+            <a class="secondary-button" href="wiki-analytics.html">Analytics</a>
+            <a class="secondary-button" href="wiki-permissions.html">Permissions</a>
+          </div>
+        </header>
+
+        <section class="loading-card" id="loading-view">
+          <h1>Moderation</h1>
+          <p>Checking your account and loading the contribution queue.</p>
+        </section>
+
+        <section class="unavailable-card" id="unavailable-view" hidden>
+          <h1>Moderation unavailable</h1>
+          <p id="unavailable-copy">Only wiki owners and admins can moderate contributions.</p>
+          <div class="signin-slot" id="google-signin-slot"></div>
+        </section>
+
+        <main id="moderation-view" hidden>
+          <div class="heading-row">
+            <div>
+              <p class="eyebrow">Carbon Frontier Wiki Administration</p>
+              <h1>Moderation</h1>
+            </div>
+            <p class="heading-copy">Review public contributions before publication, block abusive contributors, and inspect important wiki activity.</p>
+          </div>
+
+          <section class="summary-grid" aria-label="Moderation summary">
+            <article class="summary-card"><span>Pending review</span><strong id="pending-total">0</strong></article>
+            <article class="summary-card"><span>Blocked contributors</span><strong id="blocked-total">0</strong></article>
+            <article class="summary-card"><span>Public edit behavior</span><strong id="review-mode">Immediate</strong></article>
+          </section>
+
+          <section class="data-panel" aria-labelledby="pending-heading">
+            <div class="section-heading">
+              <div><h2 id="pending-heading">Pending contributions</h2><p>Approving publishes the submitted version. Rejecting leaves the current page unchanged.</p></div>
+              <span class="count-badge" id="pending-badge">0</span>
+            </div>
+            <div class="review-list" id="pending-list"></div>
+            <div class="empty-state" id="pending-empty" hidden>No public contributions are waiting for review.</div>
+            <p class="feedback" id="pending-feedback" aria-live="polite"></p>
+          </section>
+
+          <section class="data-panel" aria-labelledby="blocked-heading">
+            <div class="section-heading">
+              <div><h2 id="blocked-heading">Blocked contributors</h2><p>Blocking removes ordinary editing and upload access. Assigned staff cannot be blocked.</p></div>
+            </div>
+            <form class="block-form" id="block-form">
+              <label><span>Contributor email</span><input id="block-email" type="email" autocomplete="off" placeholder="contributor@example.com" required /></label>
+              <label><span>Reason</span><input id="block-reason" type="text" maxlength="300" placeholder="Optional internal reason" /></label>
+              <button class="danger-button" id="block-button" type="submit">Block</button>
+            </form>
+            <div class="block-list" id="blocked-list"></div>
+            <div class="empty-state" id="blocked-empty" hidden>No contributors are blocked.</div>
+            <p class="feedback" id="blocked-feedback" aria-live="polite"></p>
+          </section>
+
+          <section class="data-panel" aria-labelledby="activity-heading">
+            <div class="section-heading">
+              <div><h2 id="activity-heading">Activity log</h2><p>Recent moderation, permissions, page-management, and publishing actions.</p></div>
+            </div>
+            <div class="activity-list" id="activity-list"></div>
+            <div class="empty-state" id="activity-empty" hidden>No wiki activity has been recorded yet.</div>
+          </section>
+        </main>
+      </div>
+    </div>
+    <script src="testing-sync.js"></script>
+    <script src="wiki-moderation.js"></script>
+  </body>
+</html>

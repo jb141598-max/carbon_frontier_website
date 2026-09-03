@@ -26,6 +26,38 @@
   to = "/wiki-permissions.html"
   status = 200
 
+# Contributor analytics is restricted to wiki owners and admins by the
+# server Function, even if someone knows the page address.
+[[redirects]]
+  from = "/wiki/analytics"
+  to = "/wiki-analytics.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/analytics/"
+  to = "/wiki-analytics.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/admin/analytics"
+  to = "/wiki-analytics.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/moderation"
+  to = "/wiki-moderation.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/moderation/"
+  to = "/wiki-moderation.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/admin/moderation"
+  to = "/wiki-moderation.html"
+  status = 200
+
 [[redirects]]
   from = "/wiki/*"
   to = "/wiki.html"

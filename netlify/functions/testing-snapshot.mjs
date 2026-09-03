@@ -115,9 +115,18 @@ async function loadWikiSnapshot() {
   const db = getDatabase();
   const client = await db.pool.connect();
   try {
-    const [settingsResult, membersResult, pagesResult, revisionsResult, redirectsResult] = await Promise.all([
+    const [
+      settingsResult,
+      membersResult,
+      pagesResult,
+      revisionsResult,
+      redirectsResult,
+      pendingResult,
+      blocksResult,
+      auditResult,
+    ] = await Promise.all([
       client.query(
-        `SELECT visibility, editing_mode, updated_at, updated_by_email
+        `SELECT visibility, editing_mode, review_mode, updated_at, updated_by_email
          FROM wiki_settings
          WHERE id = 1`
       ),
@@ -184,6 +193,28 @@ async function loadWikiSnapshot() {
          WHERE p.is_deleted = FALSE
          ORDER BY d.created_at DESC`
       ),
+      client.query(
+        `SELECT pe.*, r.revision_number AS base_revision_number
+         FROM wiki_pending_edits pe
+         LEFT JOIN wiki_revisions r ON r.id = pe.base_revision_id
+         WHERE pe.status = 'pending'
+         ORDER BY pe.created_at ASC
+         LIMIT 200`
+      ),
+      client.query(
+        `SELECT email, reason, blocked_by_email, blocked_at
+         FROM wiki_blocked_users
+         ORDER BY blocked_at DESC
+         LIMIT 200`
+      ),
+      client.query(
+        `SELECT a.id, a.action, a.actor_email, a.target_email, a.page_id,
+                a.details_json, a.created_at, p.title AS page_title, p.slug AS page_slug
+         FROM wiki_audit_log a
+         LEFT JOIN wiki_pages p ON p.id = a.page_id
+         ORDER BY a.created_at DESC
+         LIMIT 150`
+      ),
     ]);
 
     const settings = settingsResult.rows[0] || {};
@@ -208,6 +239,7 @@ async function loadWikiSnapshot() {
       settings: {
         visibility: settings.visibility === "public" ? "public" : "private",
         editingMode: settings.editing_mode === "open" ? "open" : "restricted",
+        reviewMode: settings.review_mode === "approval" ? "approval" : "immediate",
         updatedAt: isoDate(settings.updated_at),
         updatedBy: settings.updated_by_email || null,
       },
@@ -247,6 +279,44 @@ async function loadWikiSnapshot() {
         sourceSlug: redirect.source_slug,
         targetSlug: redirect.target_slug,
       })),
+      moderation: {
+        pendingEdits: pendingResult.rows.map((submission) => ({
+          id: submission.id,
+          type: submission.submission_type,
+          pageId: submission.page_id || null,
+          slug: submission.requested_slug,
+          title: submission.page_title,
+          baseRevisionId: submission.base_revision_id || null,
+          baseRevisionNumber: submission.base_revision_number
+            ? Number(submission.base_revision_number)
+            : null,
+          content: submission.content_json,
+          editSummary: submission.edit_summary || "",
+          authorEmail: submission.author_email,
+          authorName: submission.author_name || null,
+          status: submission.status,
+          createdAt: isoDate(submission.created_at),
+        })),
+        blockedUsers: blocksResult.rows.map((blocked) => ({
+          email: blocked.email,
+          reason: blocked.reason || "",
+          blockedBy: blocked.blocked_by_email,
+          blockedAt: isoDate(blocked.blocked_at),
+        })),
+        activity: auditResult.rows.map((entry) => ({
+          id: entry.id,
+          action: entry.action,
+          actorEmail: entry.actor_email,
+          targetEmail: entry.target_email || null,
+          pageId: entry.page_id || null,
+          pageTitle: entry.page_title || null,
+          pageSlug: entry.page_slug || null,
+          details: entry.details_json && typeof entry.details_json === "object"
+            ? entry.details_json
+            : {},
+          createdAt: isoDate(entry.created_at),
+        })),
+      },
     };
   } finally {
     client.release();
@@ -292,7 +362,7 @@ export default async function handler(request) {
 
     return json(
       {
-        schemaVersion: 3,
+        schemaVersion: 4,
         generatedAt: new Date().toISOString(),
         sourceOrigin: new URL(request.url).origin,
         roadmap,

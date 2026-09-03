@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>Carbon Frontier Wiki Analytics</title>
+    <meta
+      name="google-signin-client_id"
+      content="609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+      :root {
+        --red: #df2531;
+        --red-soft: rgba(223, 37, 49, 0.14);
+        --green: #2fb86a;
+        --orange: #f08c2b;
+        --white: #fff;
+        --muted: rgba(255, 255, 255, 0.68);
+        --soft: rgba(255, 255, 255, 0.46);
+        --border: rgba(255, 255, 255, 0.12);
+        --panel: rgba(255, 255, 255, 0.045);
+        --panel-strong: rgba(255, 255, 255, 0.075);
+        --shadow: 0 24px 68px rgba(0, 0, 0, 0.44);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        min-height: 100vh;
+        color: var(--white);
+        font-family: "Play", sans-serif;
+        font-weight: 400;
+        background:
+          radial-gradient(circle at top left, rgba(223, 37, 49, 0.24), transparent 31%),
+          radial-gradient(circle at 88% 10%, rgba(223, 37, 49, 0.15), transparent 25%),
+          linear-gradient(180deg, #080808 0%, #000 46%, #050505 100%);
+      }
+      button, input, select { font: inherit; }
+      button { cursor: pointer; }
+      button:disabled { cursor: wait; opacity: 0.55; }
+      [hidden] { display: none !important; }
+
+      .page-shell { position: relative; min-height: 100vh; padding: 28px; overflow: hidden; }
+      .page-shell::before {
+        position: absolute;
+        inset: 0;
+        content: "";
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+        background-size: 96px 96px;
+        mask-image: linear-gradient(180deg, rgba(0,0,0,.84), transparent 84%);
+      }
+      .content { position: relative; z-index: 1; width: min(1320px, 100%); margin: 0 auto; }
+
+      .topbar, .topbar-nav, .topbar-actions, .heading-row, .filter-actions,
+      .scope-switch, .section-heading, .person-cell { display: flex; align-items: center; }
+      .topbar { justify-content: space-between; gap: 18px; margin-bottom: 34px; }
+      .topbar-nav, .topbar-actions, .filter-actions { gap: 10px; }
+
+      .nav-button, .primary-button, .secondary-button, .scope-button {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 11px 16px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--white);
+        background: rgba(255,255,255,.04);
+        font-size: .82rem;
+        font-weight: 700;
+        letter-spacing: .07em;
+        text-decoration: none;
+        text-transform: uppercase;
+        transition: 160ms ease;
+      }
+      .nav-button:hover, .secondary-button:hover, .scope-button:hover,
+      .nav-button:focus-visible, .secondary-button:focus-visible, .scope-button:focus-visible {
+        border-color: rgba(223,37,49,.68);
+        background: rgba(223,37,49,.15);
+        outline: none;
+        transform: translateY(-1px);
+      }
+      .primary-button, .scope-button[aria-pressed="true"] {
+        border-color: rgba(223,37,49,.9);
+        background: rgba(223,37,49,.44);
+      }
+      .primary-button:hover, .primary-button:focus-visible {
+        background: rgba(223,37,49,.64);
+        outline: none;
+        transform: translateY(-1px);
+      }
+      .account-pill {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        max-width: min(38vw, 310px);
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--muted);
+        background: rgba(255,255,255,.04);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .loading-card, .unavailable-card, .filter-panel, .summary-card, .data-panel {
+        border: 1px solid var(--border);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+      .loading-card, .unavailable-card {
+        width: min(760px, 100%);
+        margin: 10vh auto 0;
+        padding: clamp(30px, 6vw, 58px);
+        border-radius: 32px;
+        text-align: center;
+      }
+      .loading-card h1, .unavailable-card h1 { margin: 0; font-size: clamp(2rem, 7vw, 3.8rem); text-transform: uppercase; }
+      .loading-card p, .unavailable-card p { max-width: 590px; margin: 16px auto 0; color: var(--muted); line-height: 1.7; }
+      .signin-slot { min-height: 44px; display: grid; justify-content: center; margin-top: 22px; }
+
+      .heading-row { justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+      .eyebrow { margin: 0; color: #ff9ba2; font-size: .78rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+      .heading-row h1 { margin: 7px 0 0; font-size: clamp(2.6rem, 7vw, 5.6rem); letter-spacing: .04em; line-height: .95; text-transform: uppercase; }
+      .heading-copy { max-width: 610px; margin: 0; color: var(--muted); line-height: 1.65; text-align: right; }
+
+      .filter-panel { padding: 22px; border-radius: 28px; }
+      .filter-grid { display: grid; grid-template-columns: repeat(2, minmax(150px, .7fr)) minmax(330px, 1.6fr); gap: 14px; align-items: end; }
+      .field-label { display: block; margin-bottom: 8px; color: var(--muted); font-size: .75rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+      input[type="date"] {
+        width: 100%; min-height: 48px; padding: 11px 13px; border: 1px solid var(--border); border-radius: 14px;
+        color: var(--white); color-scheme: dark; background: #0e0e0e; outline: none;
+      }
+      input[type="date"]:focus { border-color: rgba(223,37,49,.78); box-shadow: 0 0 0 3px rgba(223,37,49,.12); }
+      .scope-switch { min-height: 48px; gap: 6px; padding: 4px; border: 1px solid var(--border); border-radius: 16px; background: #0e0e0e; }
+      .scope-button { min-height: 38px; flex: 1 1 0; padding: 8px 12px; border-color: transparent; }
+      .filter-actions { justify-content: flex-end; margin-top: 16px; }
+      .filter-note, .feedback { margin: 12px 0 0; color: var(--soft); font-size: .8rem; line-height: 1.55; }
+      .feedback { min-height: 21px; color: #9ce8bc; }
+      .feedback.is-error { color: #ff9ba2; }
+
+      .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
+      .summary-card { padding: 20px; border-radius: 22px; box-shadow: none; }
+      .summary-card span { display: block; color: var(--soft); font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+      .summary-card strong { display: block; margin-top: 10px; font-size: clamp(1.8rem, 4vw, 2.8rem); line-height: 1; }
+
+      .report-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .7fr); gap: 16px; }
+      .data-panel { min-width: 0; padding: 22px; border-radius: 28px; box-shadow: none; }
+      .section-heading { justify-content: space-between; gap: 16px; margin-bottom: 17px; }
+      .section-heading h2 { margin: 0; font-size: 1.35rem; }
+      .section-heading span { color: var(--soft); font-size: .78rem; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 13px 11px; border-bottom: 1px solid rgba(255,255,255,.08); text-align: left; white-space: nowrap; }
+      th { color: var(--soft); font-size: .69rem; letter-spacing: .08em; text-transform: uppercase; }
+      td { color: var(--muted); font-size: .86rem; }
+      th:not(:first-child), td:not(:first-child) { text-align: right; }
+      tbody tr:last-child td { border-bottom: 0; }
+      .person-cell { gap: 10px; min-width: 230px; }
+      .person-avatar { width: 34px; height: 34px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 10px; color: #ffd0d3; background: var(--red-soft); font-size: .72rem; font-weight: 700; }
+      .person-name { display: block; color: var(--white); font-weight: 700; }
+      .role-label { display: block; margin-top: 3px; color: var(--soft); font-size: .72rem; }
+      .empty-state { padding: 24px; border: 1px dashed var(--border); border-radius: 18px; color: var(--muted); text-align: center; }
+
+      .email-spoiler {
+        display: inline-grid; grid-template-areas: "spoiler"; max-width: 100%; min-height: 28px; margin-top: 6px; padding: 4px 8px;
+        border: 1px solid rgba(255,255,255,.09); border-radius: 7px; color: var(--white); background: rgba(255,255,255,.14);
+      }
+      .email-spoiler:hover, .email-spoiler:focus-visible { border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.2); outline: none; }
+      .email-spoiler-text, .email-spoiler-cover { grid-area: spoiler; align-self: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .email-spoiler-text { max-width: 260px; opacity: 0; user-select: none; }
+      .email-spoiler-cover { justify-self: center; color: rgba(255,255,255,.78); font-size: .65rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      .email-spoiler.is-revealed { border-color: rgba(223,37,49,.42); background: rgba(223,37,49,.12); }
+      .email-spoiler.is-revealed .email-spoiler-text { opacity: 1; user-select: text; }
+      .email-spoiler.is-revealed .email-spoiler-cover { opacity: 0; pointer-events: none; }
+
+      .page-list { display: grid; gap: 8px; }
+      .page-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 13px 14px; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; color: inherit; text-decoration: none; background: rgba(255,255,255,.025); }
+      .page-row:hover, .page-row:focus-visible { border-color: rgba(223,37,49,.5); background: rgba(223,37,49,.1); outline: none; }
+      .page-title { overflow: hidden; color: var(--white); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .page-meta { display: block; margin-top: 4px; color: var(--soft); font-size: .72rem; }
+      .page-edits { color: #ffadb2; font-size: .8rem; font-weight: 700; white-space: nowrap; }
+
+      @media (max-width: 980px) {
+        .filter-grid, .report-grid { grid-template-columns: 1fr; }
+        .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .heading-row { align-items: flex-start; flex-direction: column; }
+        .heading-copy { text-align: left; }
+      }
+      @media (max-width: 680px) {
+        .page-shell { padding: 18px; }
+        .topbar { align-items: stretch; flex-direction: column; }
+        .topbar-nav { overflow-x: auto; }
+        .topbar-actions { justify-content: space-between; }
+        .account-pill { max-width: 48vw; }
+        .summary-grid { grid-template-columns: 1fr 1fr; }
+        .scope-switch { align-items: stretch; flex-direction: column; }
+        .scope-button { width: 100%; }
+        .filter-actions { align-items: stretch; flex-direction: column; }
+        .filter-actions button { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="content">
+        <header class="topbar">
+          <nav class="topbar-nav" aria-label="Primary navigation">
+            <a class="nav-button" href="wiki.html">Wiki</a>
+            <a class="nav-button" href="index.html">Roadmap</a>
+            <a class="nav-button" href="updates.html">Updates</a>
+          </nav>
+          <div class="topbar-actions">
+            <div class="account-pill" id="account-pill">Checking access...</div>
+            <a class="secondary-button" href="wiki-moderation.html">Moderation</a>
+            <a class="secondary-button" href="wiki-permissions.html">Permissions</a>
+          </div>
+        </header>
+
+        <section class="loading-card" id="loading-view">
+          <h1>Analytics</h1>
+          <p>Checking your account and preparing the wiki contributor report.</p>
+        </section>
+
+        <section class="unavailable-card" id="unavailable-view" hidden>
+          <h1>Analytics unavailable</h1>
+          <p id="unavailable-copy">Only wiki owners and admins can open contributor analytics.</p>
+          <div class="signin-slot" id="google-signin-slot"></div>
+        </section>
+
+        <main id="analytics-view" hidden>
+          <div class="heading-row">
+            <div>
+              <p class="eyebrow">Carbon Frontier Wiki Administration</p>
+              <h1>Analytics</h1>
+            </div>
+            <p class="heading-copy">
+              Count edits and new pages over an exact date range. Reports use saved wiki revisions,
+              so every published change is included.
+            </p>
+          </div>
+
+          <section class="filter-panel" aria-labelledby="filters-heading">
+            <div class="filter-grid">
+              <label>
+                <span class="field-label">Start date</span>
+                <input id="start-date" type="date" required />
+              </label>
+              <label>
+                <span class="field-label">End date</span>
+                <input id="end-date" type="date" required />
+              </label>
+              <div>
+                <span class="field-label" id="filters-heading">People to include</span>
+                <div class="scope-switch" role="group" aria-label="People to include">
+                  <button class="scope-button" id="scope-all" type="button" data-scope="all_editors" aria-pressed="false">All Editors</button>
+                  <button class="scope-button" id="scope-staff" type="button" data-scope="assigned_staff" aria-pressed="true">Assigned Wiki Editors</button>
+                </div>
+              </div>
+            </div>
+            <p class="filter-note">
+              Assigned Wiki Editors includes Owners, Admins, and assigned Wiki Editors—even when they have zero edits. Unassigned people are listed only after editing.
+            </p>
+            <div class="filter-actions">
+              <button class="secondary-button" id="export-button" type="button" disabled>Export CSV</button>
+              <button class="primary-button" id="generate-button" type="button">Generate Report</button>
+            </div>
+            <p class="feedback" id="report-feedback" aria-live="polite"></p>
+          </section>
+
+          <section class="summary-grid" aria-label="Report totals">
+            <article class="summary-card"><span>Total edits</span><strong id="total-edits">0</strong></article>
+            <article class="summary-card"><span>Pages created</span><strong id="pages-created">0</strong></article>
+            <article class="summary-card"><span>Active editors</span><strong id="active-editors">0</strong></article>
+            <article class="summary-card"><span>People listed</span><strong id="people-listed">0</strong></article>
+          </section>
+
+          <div class="report-grid">
+            <section class="data-panel" aria-labelledby="contributors-heading">
+              <div class="section-heading">
+                <h2 id="contributors-heading">Contributor totals</h2>
+                <span id="range-label">Choose a date range</span>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Contributor</th>
+                      <th>Edits</th>
+                      <th>Pages edited</th>
+                      <th>Pages created</th>
+                      <th>Last edit</th>
+                    </tr>
+                  </thead>
+                  <tbody id="contributors-body"></tbody>
+                </table>
+                <div class="empty-state" id="contributors-empty" hidden>No contributors match this report.</div>
+              </div>
+            </section>
+
+            <section class="data-panel" aria-labelledby="pages-heading">
+              <div class="section-heading">
+                <h2 id="pages-heading">Most-edited pages</h2>
+                <span>Top 20</span>
+              </div>
+              <div class="page-list" id="top-pages-list"></div>
+              <div class="empty-state" id="pages-empty" hidden>No page edits match this report.</div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </div>
+    <script src="testing-sync.js"></script>
+    <script src="wiki-analytics.js"></script>
+  </body>
+</html>

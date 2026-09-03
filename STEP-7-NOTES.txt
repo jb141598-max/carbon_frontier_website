@@ -1,0 +1,52 @@
+CARBON FRONTIER WIKI — STEP 7
+================================
+
+This package includes every file from the previous build plus the complete
+Step 7 public-contribution moderation system.
+
+PERMISSIONS CLEANUP
+-------------------
+- Removed the duplicate “Wiki Front Page” button from the Permissions top bar.
+- The normal “Wiki” navigation button remains and opens the front page.
+- Added a Public Edit Review setting:
+  - Publish immediately
+  - Require approval
+- The review setting affects ordinary public contributors only. Owners, Admins,
+  and assigned Wiki Editors continue publishing immediately.
+
+STEP 7 FEATURES
+---------------
+- Owners and Admins can open a dedicated Moderation page.
+- Pending new pages and page edits show the contributor, date, edit summary,
+  content preview, and base revision.
+- Approving publishes the contribution as a permanent wiki revision.
+- Rejecting keeps the current article unchanged.
+- Approval uses conflict protection; an older pending edit cannot overwrite a
+  page that changed after the submission was created.
+- Approve, reject, block, and unblock actions require a confirmation click.
+- Owners/Admins can add a private review note.
+- Owners/Admins can block ordinary contributors by verified email.
+- Blocking rejects that contributor's remaining pending submissions and removes
+  editing/image-upload access.
+- Assigned Owners, Admins, and Wiki Editors cannot be blocked.
+- Blocked users keep any public read access; private wiki rules remain unchanged.
+- Activity Log displays recent moderation, permission, publishing, page move,
+  protection, Trash, restore, and media actions.
+- Email addresses on moderation screens remain hidden behind click-to-reveal
+  spoilers.
+- Cursor/Live Preview downloads moderation data with testing snapshot schema 4.
+  Local moderation changes and approvals stay inside the test browser.
+
+DEPLOYMENT
+----------
+Merge this folder into the website root, keeping the folder structure intact,
+then deploy to Netlify. The new moderation database migration is applied during
+deployment.
+
+New production files include:
+- wiki-moderation.html
+- wiki-moderation.js
+- netlify/functions/wiki-moderation.mjs
+- netlify/database/migrations/202609030001_add_wiki_moderation.sql
+
+The existing CURSOR_TESTING_SYNC_KEY and Google settings do not need to change.
