@@ -66,6 +66,7 @@
       .scope-switch, .section-heading, .person-cell { display: flex; align-items: center; }
       .topbar { justify-content: space-between; gap: 18px; margin-bottom: 34px; }
       .topbar-nav, .topbar-actions, .filter-actions { gap: 10px; }
+      .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
 
       .nav-button, .primary-button, .secondary-button, .scope-button {
         min-height: 44px;
@@ -224,6 +225,7 @@
           </nav>
           <div class="topbar-actions">
             <div class="account-pill" id="account-pill">Checking access...</div>
+            <a class="secondary-button" href="wiki-import.html">Import</a>
             <a class="secondary-button" href="wiki-moderation.html">Moderation</a>
             <a class="secondary-button" href="wiki-permissions.html">Permissions</a>
           </div>

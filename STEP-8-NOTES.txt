@@ -1,0 +1,46 @@
+CARBON FRONTIER WIKI - STEP 8
+
+WHAT WAS ADDED
+
+1. Miraheze migration
+   - Owners and Admins can open wiki-import.html.
+   - Enter an HTTPS *.miraheze.org address and preview the old wiki first.
+   - Select all pages or filter and select only certain pages.
+   - Imports run in small batches so large wikis do not use one oversized Function request.
+   - Main Page can replace /wiki (the front-page record).
+   - Existing pages can be skipped or imported as a new revision.
+   - Current article text, headings, lists, links, categories, redirects, and supported images are imported.
+   - Imported images are copied into the protected Carbon Frontier wiki Blob store.
+   - PNG, JPG, WebP, and GIF images up to 4 MB are supported.
+   - Imported revisions use author_email = system, so the migration does not inflate contributor analytics.
+   - Every imported page, update, redirect, and image creates an audit entry.
+
+2. Google Docs-style fonts and image organization
+   - Font selector: Play, Arial, Georgia, Times New Roman, Verdana, and Courier New.
+   - Play remains the normal-text default at regular weight.
+   - Click an image while editing to select it; double-click it or choose Image Options.
+   - Layouts: In line, Wrap left, Wrap right, Break text, Behind text, and In front of text.
+   - Image width can be adjusted from 20% to 100%.
+   - Alt text and captions can be edited after insertion.
+   - Flow images can be dragged between paragraphs.
+   - Behind/in-front images can be dragged freely across the article.
+   - Image layout, width, and position are stored inside every saved revision.
+
+CURSOR / LIVE PREVIEW
+
+- The Import page treats Cursor/localhost as the Owner.
+- Preview uses MediaWiki's public API directly.
+- Imports made there are saved only in the local testing copy and never touch Netlify.
+- Open wiki.html after importing to see the local pages.
+
+DEPLOYMENT
+
+- Replace the matching project files and deploy the complete package once.
+- Netlify will deploy the new wiki-import Function and /wiki/import routes.
+- No new environment variable or database migration is required for Step 8.
+
+IMPORT SCOPE
+
+- Step 8 imports each page's current Miraheze revision, not its full historical revision archive.
+- Complex MediaWiki templates cannot be recreated automatically. Their readable text is preserved where possible.
+- Wiki tables are converted into readable text rows because the current Carbon Frontier document format does not yet have an editable table block.

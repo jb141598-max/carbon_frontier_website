@@ -130,6 +130,11 @@
         gap: 10px;
       }
 
+      .topbar-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
       .account-entry {
         position: relative;
       }
@@ -735,6 +740,9 @@
       }
 
       .article-content {
+        position: relative;
+        display: flow-root;
+        min-height: 280px;
         padding: clamp(24px, 5vw, 48px);
       }
 
@@ -766,12 +774,82 @@
       }
 
       .article-content figure {
+        position: relative;
+        width: min(var(--wiki-image-width, 72%), 920px);
         margin: 28px auto;
         text-align: center;
+        clear: both;
+      }
+
+      .article-content figure[data-image-layout="wrap-left"] {
+        float: left;
+        clear: left;
+        margin: 8px 28px 18px 0;
+      }
+
+      .article-content figure[data-image-layout="wrap-right"] {
+        float: right;
+        clear: right;
+        margin: 8px 0 18px 28px;
+      }
+
+      .article-content figure[data-image-layout="break"] {
+        width: min(var(--wiki-image-width, 100%), 920px);
+        clear: both;
+      }
+
+      .article-content figure[data-image-layout="behind"],
+      .article-content figure[data-image-layout="front"] {
+        position: absolute;
+        left: clamp(0%, calc(var(--wiki-image-x, 0) * 1%), 85%);
+        top: max(0px, calc(var(--wiki-image-y, 0) * 1px));
+        width: min(var(--wiki-image-width, 45%), 920px);
+        margin: 0;
+        clear: none;
+      }
+
+      .article-content figure[data-image-layout="behind"] {
+        z-index: 0;
+        opacity: 0.72;
+      }
+
+      .article-content figure[data-image-layout="front"] {
+        z-index: 8;
+        filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.5));
+      }
+
+      .article-content figure[data-image-layout="behind"] ~ :not(figure),
+      .article-content > :not(figure) {
+        position: relative;
+        z-index: 1;
+      }
+
+      .article-surface.is-editing .article-content figure {
+        cursor: grab;
+        user-select: none;
+      }
+
+      .article-surface.is-editing .article-content figure:active {
+        cursor: grabbing;
+      }
+
+      .article-surface.is-editing .article-content figure.is-image-selected {
+        outline: 3px solid rgba(223, 37, 49, 0.78);
+        outline-offset: 5px;
+      }
+
+      .article-surface.is-editing .article-content figure[data-image-layout="behind"] {
+        z-index: 4;
+        opacity: 0.86;
+      }
+
+      .article-surface.is-editing .article-content figure.is-image-dragging {
+        opacity: 0.58;
       }
 
       .article-content figure img {
         display: block;
+        width: 100%;
         max-width: min(100%, 920px);
         max-height: 72vh;
         margin: 0 auto;
@@ -1288,6 +1366,60 @@
         border-color: rgba(255, 255, 255, 0.1);
       }
 
+      #toolbar-font-family {
+        min-width: 118px;
+      }
+
+      .image-layout-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .image-layout-option {
+        min-height: 58px;
+        padding: 9px;
+        border: 1px solid var(--cf-border);
+        border-radius: 12px;
+        color: var(--cf-muted);
+        background: rgba(255, 255, 255, 0.025);
+        font-size: 0.74rem;
+        line-height: 1.25;
+      }
+
+      .image-layout-option:hover,
+      .image-layout-option:focus-visible,
+      .image-layout-option.is-active {
+        border-color: rgba(223, 37, 49, 0.76);
+        color: var(--cf-white);
+        background: rgba(223, 37, 49, 0.16);
+        outline: none;
+      }
+
+      .image-size-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 62px;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .image-size-row input[type="range"] {
+        width: 100%;
+        accent-color: var(--cf-red);
+      }
+
+      .image-size-output {
+        color: var(--cf-white);
+        text-align: right;
+      }
+
+      .image-drag-note {
+        margin: 0;
+        color: var(--cf-soft);
+        font-size: 0.76rem;
+        line-height: 1.55;
+      }
+
       .toolbar-summary {
         width: min(210px, 30vw);
         min-height: 36px;
@@ -1638,6 +1770,10 @@
           flex-direction: column;
         }
 
+        .image-layout-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .history-comparison-header {
           align-items: stretch;
           flex-direction: column;
@@ -1709,6 +1845,9 @@
             <a class="secondary-button" id="moderation-button" href="wiki-moderation.html" hidden>
               Moderation
             </a>
+            <a class="secondary-button" id="import-wiki-button" href="wiki-import.html" hidden>
+              Import
+            </a>
             <a class="primary-button" id="access-panel-button" href="wiki-permissions.html" hidden>
               Permissions
             </a>
@@ -1758,6 +1897,14 @@
                         <option value="h3">Heading 3</option>
                         <option value="blockquote">Note box</option>
                       </select>
+                      <select class="toolbar-select" id="toolbar-font-family" aria-label="Font family">
+                        <option value="Play">Play</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Verdana">Verdana</option>
+                        <option value="Courier New">Courier New</option>
+                      </select>
                     </div>
                     <div class="toolbar-group" aria-label="Text formatting">
                       <button class="toolbar-button" id="toolbar-bold" type="button" title="Bold" aria-label="Bold"><strong>B</strong></button>
@@ -1773,6 +1920,7 @@
                     <div class="toolbar-divider" aria-hidden="true"></div>
                     <div class="toolbar-group" aria-label="Page tools">
                       <button class="toolbar-button" id="toolbar-image" type="button" title="Insert an image">Image</button>
+                      <button class="toolbar-button" id="toolbar-image-options" type="button" title="Change the selected image" hidden>Image Options</button>
                       <button class="toolbar-button" id="toolbar-page-settings" type="button" title="Move, protect, or trash this page" hidden>Page Settings</button>
                     </div>
                     <div class="toolbar-spacer"></div>
@@ -2010,6 +2158,55 @@
               </form>
             </div>
 
+            <div class="wiki-dialog" id="image-options-dialog" role="dialog" aria-modal="true" aria-labelledby="image-options-title" hidden>
+              <form class="dialog-card" id="image-options-form">
+                <div class="dialog-header">
+                  <div>
+                    <p class="eyebrow">Google Docs-style layout</p>
+                    <h2 id="image-options-title">Image options</h2>
+                  </div>
+                  <button class="icon-button" id="close-image-options-button" type="button" aria-label="Close image options">×</button>
+                </div>
+                <div class="dialog-body">
+                  <div>
+                    <span class="field-label">Text layout</span>
+                    <div class="image-layout-grid" id="image-layout-grid" role="group" aria-label="Image text layout">
+                      <button class="image-layout-option" type="button" data-image-layout="inline">In line</button>
+                      <button class="image-layout-option" type="button" data-image-layout="wrap-left">Wrap left</button>
+                      <button class="image-layout-option" type="button" data-image-layout="wrap-right">Wrap right</button>
+                      <button class="image-layout-option" type="button" data-image-layout="break">Break text</button>
+                      <button class="image-layout-option" type="button" data-image-layout="behind">Behind text</button>
+                      <button class="image-layout-option" type="button" data-image-layout="front">In front of text</button>
+                    </div>
+                  </div>
+                  <label>
+                    <span class="field-label">Image width</span>
+                    <span class="image-size-row">
+                      <input id="image-width-input" type="range" min="20" max="100" step="5" value="70" />
+                      <output class="image-size-output" id="image-width-output">70%</output>
+                    </span>
+                  </label>
+                  <label>
+                    <span class="field-label">Alt text</span>
+                    <input id="image-alt-input" maxlength="240" required />
+                  </label>
+                  <label>
+                    <span class="field-label">Caption (optional)</span>
+                    <input id="image-caption-input" maxlength="300" />
+                  </label>
+                  <p class="image-drag-note">
+                    Drag an in-line or wrapping image to reorder it between paragraphs. Layered images can be dragged freely across the page.
+                  </p>
+                  <p class="wiki-feedback" id="image-options-feedback" aria-live="polite"></p>
+                  <div class="form-actions">
+                    <button class="danger-button" id="remove-image-button" type="button">Remove Image</button>
+                    <button class="secondary-button" id="cancel-image-options-button" type="button">Cancel</button>
+                    <button class="primary-button" type="submit">Apply</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
             <div class="wiki-dialog" id="page-management-dialog" role="dialog" aria-modal="true" aria-labelledby="page-management-title" hidden>
               <div class="dialog-card">
                 <div class="dialog-header">
@@ -2237,6 +2434,7 @@
         authNote: document.getElementById("auth-note"),
         analyticsButton: document.getElementById("analytics-button"),
         moderationButton: document.getElementById("moderation-button"),
+        importWikiButton: document.getElementById("import-wiki-button"),
         accessPanelButton: document.getElementById("access-panel-button"),
         loadingView: document.getElementById("loading-view"),
         unavailableView: document.getElementById("unavailable-view"),
@@ -2908,6 +3106,7 @@
           elements.unavailableView.hidden = false;
           elements.analyticsButton.hidden = true;
           elements.moderationButton.hidden = true;
+          elements.importWikiButton.hidden = true;
           elements.accessPanelButton.hidden = true;
           elements.accountPill.textContent = viewer?.authenticated
             ? "No wiki access"
@@ -2925,6 +3124,7 @@
         elements.wikiView.hidden = false;
         elements.analyticsButton.hidden = !viewer.canManageSettings;
         elements.moderationButton.hidden = !viewer.canModerate;
+        elements.importWikiButton.hidden = !viewer.canManageSettings;
         elements.accessPanelButton.hidden = !viewer.canManageEditors;
         elements.accountPill.textContent = viewer.role
           ? `${roleLabel(viewer.role)} access`

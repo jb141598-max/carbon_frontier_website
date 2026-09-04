@@ -58,6 +58,22 @@
   to = "/wiki-moderation.html"
   status = 200
 
+# Owner/Admin Miraheze migration tool.
+[[redirects]]
+  from = "/wiki/import"
+  to = "/wiki-import.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/import/"
+  to = "/wiki-import.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/admin/import"
+  to = "/wiki-import.html"
+  status = 200
+
 [[redirects]]
   from = "/wiki/*"
   to = "/wiki.html"

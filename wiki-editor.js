@@ -9,6 +9,22 @@
   const LOCAL_REDIRECTS_KEY = "carbon-frontier-wiki-local-redirects-v1";
   const PAGE_ENDPOINTS = ["/api/wiki/pages", "/.netlify/functions/wiki-pages"];
   const MEDIA_ENDPOINTS = ["/api/wiki/media", "/.netlify/functions/wiki-media"];
+  const FONT_FAMILIES = new Map([
+    ["play", "Play"],
+    ["arial", "Arial"],
+    ["georgia", "Georgia"],
+    ["times new roman", "Times New Roman"],
+    ["verdana", "Verdana"],
+    ["courier new", "Courier New"],
+  ]);
+  const IMAGE_LAYOUTS = new Set([
+    "inline",
+    "wrap-left",
+    "wrap-right",
+    "break",
+    "behind",
+    "front",
+  ]);
   const BLOCK_TYPES = new Set([
     "paragraph",
     "heading2",
@@ -24,6 +40,7 @@
     "BR",
     "CODE",
     "EM",
+    "FONT",
     "I",
     "S",
     "STRONG",
@@ -54,6 +71,7 @@
     undo: document.getElementById("toolbar-undo"),
     redo: document.getElementById("toolbar-redo"),
     blockStyle: document.getElementById("toolbar-block-style"),
+    fontFamily: document.getElementById("toolbar-font-family"),
     bold: document.getElementById("toolbar-bold"),
     italic: document.getElementById("toolbar-italic"),
     underline: document.getElementById("toolbar-underline"),
@@ -61,6 +79,7 @@
     bullets: document.getElementById("toolbar-bullets"),
     numbers: document.getElementById("toolbar-numbers"),
     image: document.getElementById("toolbar-image"),
+    imageOptions: document.getElementById("toolbar-image-options"),
     pageSettings: document.getElementById("toolbar-page-settings"),
     normalEditsField: document.getElementById("toolbar-permission-field"),
     normalEdits: document.getElementById("editor-normal-edits-input"),
@@ -102,6 +121,17 @@
     uploadMedia: document.getElementById("upload-media-button"),
     closeMedia: document.getElementById("close-media-button"),
     cancelMedia: document.getElementById("cancel-media-button"),
+    imageOptionsDialog: document.getElementById("image-options-dialog"),
+    imageOptionsForm: document.getElementById("image-options-form"),
+    imageLayoutGrid: document.getElementById("image-layout-grid"),
+    imageWidth: document.getElementById("image-width-input"),
+    imageWidthOutput: document.getElementById("image-width-output"),
+    imageAlt: document.getElementById("image-alt-input"),
+    imageCaption: document.getElementById("image-caption-input"),
+    imageOptionsFeedback: document.getElementById("image-options-feedback"),
+    closeImageOptions: document.getElementById("close-image-options-button"),
+    cancelImageOptions: document.getElementById("cancel-image-options-button"),
+    removeImage: document.getElementById("remove-image-button"),
     managementDialog: document.getElementById("page-management-dialog"),
     managementTitle: document.getElementById("page-management-title"),
     managementNormalEdits: document.getElementById("management-normal-edits-input"),
@@ -131,6 +161,10 @@
     pageListPermissions: {},
     trashArmedSlug: "",
     mediaPreviewUrl: "",
+    selectedFigure: null,
+    selectedImageLayout: "inline",
+    draggingFigure: null,
+    layeredDrag: null,
   };
 
   function core() {
@@ -783,6 +817,9 @@
         }
 
         const href = child.tagName === "A" ? String(child.getAttribute("href") || "").trim() : "";
+        const fontFace = child.tagName === "FONT"
+          ? FONT_FAMILIES.get(String(child.getAttribute("face") || "").trim().toLowerCase()) || ""
+          : "";
         [...child.attributes].forEach((attribute) => child.removeAttribute(attribute.name));
         if (child.tagName === "A" && href) {
           try {
@@ -794,6 +831,9 @@
           } catch (error) {
             // Invalid links become plain styled text.
           }
+        }
+        if (child.tagName === "FONT" && fontFace) {
+          child.setAttribute("face", fontFace);
         }
         cleanNode(child);
       });
@@ -834,6 +874,30 @@
     }));
   }
 
+  function clampNumber(value, minimum, maximum, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
+  }
+
+  function normalizeImageLayout(value) {
+    return IMAGE_LAYOUTS.has(value) ? value : "inline";
+  }
+
+  function configureFigure(figure, block = {}) {
+    const layout = normalizeImageLayout(block.layout || figure.dataset.imageLayout);
+    const width = clampNumber(block.widthPercent ?? figure.dataset.imageWidth, 20, 100, 72);
+    const x = clampNumber(block.xPercent ?? figure.dataset.imageX, 0, 85, 0);
+    const y = clampNumber(block.yPixels ?? figure.dataset.imageY, 0, 5000, 0);
+    figure.dataset.imageLayout = layout;
+    figure.dataset.imageWidth = String(width);
+    figure.dataset.imageX = String(x);
+    figure.dataset.imageY = String(y);
+    figure.style.setProperty("--wiki-image-width", `${width}%`);
+    figure.style.setProperty("--wiki-image-x", String(x));
+    figure.style.setProperty("--wiki-image-y", String(y));
+    figure.draggable = Boolean(app.editing && !["behind", "front"].includes(layout));
+  }
+
   function renderContent(container, content) {
     container.replaceChildren();
     const blocks = Array.isArray(content?.blocks) ? content.blocks : [];
@@ -853,11 +917,12 @@
         element.contentEditable = "false";
         element.dataset.wikiMediaId = String(block.mediaId || "");
         element.dataset.wikiMediaUrl = String(block.url || "");
+        configureFigure(element, block);
         const image = document.createElement("img");
         image.alt = String(block.alt || "").slice(0, 240);
         image.dataset.wikiMediaId = String(block.mediaId || "");
         const directUrl = String(block.url || "");
-        if (/^(?:data:image\/|blob:)/i.test(directUrl)) {
+        if (/^(?:data:image\/|blob:|https:\/\/)/i.test(directUrl)) {
           image.src = directUrl;
         } else if (block.mediaId) {
           image.hidden = true;
@@ -944,6 +1009,10 @@
           url: node.dataset.wikiMediaUrl || "",
           alt: String(image?.alt || "").slice(0, 240),
           caption: String(caption?.textContent || "").trim().slice(0, 300),
+          layout: normalizeImageLayout(node.dataset.imageLayout),
+          widthPercent: clampNumber(node.dataset.imageWidth, 20, 100, 72),
+          xPercent: clampNumber(node.dataset.imageX, 0, 85, 0),
+          yPixels: clampNumber(node.dataset.imageY, 0, 5000, 0),
         });
         return;
       }
@@ -1082,6 +1151,7 @@
 
   function renderPage(page) {
     app.currentPage = page;
+    clearSelectedFigure();
     ui.breadcrumb.textContent = page.slug === "front-page" ? "Wiki front page" : "Wiki article";
     ui.title.textContent = page.title;
     const revision = page.currentRevision;
@@ -1098,6 +1168,7 @@
 
   function renderPageError(error) {
     app.currentPage = null;
+    clearSelectedFigure();
     ui.breadcrumb.textContent = "Wiki article";
     ui.title.textContent = error?.status === 404 ? "Page not found" : "Page unavailable";
     ui.meta.textContent = "";
@@ -1192,6 +1263,9 @@
     ui.content.setAttribute("role", "textbox");
     ui.content.setAttribute("aria-multiline", "true");
     normalizeEditableRoot();
+    [...ui.content.querySelectorAll("figure[data-wiki-media-id]")].forEach((figure) => {
+      configureFigure(figure);
+    });
     ui.search.disabled = true;
     ui.newPage.disabled = true;
     closeSearchResults();
@@ -1207,6 +1281,8 @@
     ui.articleSurface.classList.remove("is-editing");
     ui.documentToolbar.hidden = true;
     ui.linkPopover.hidden = true;
+    closeImageOptions();
+    clearSelectedFigure();
     ui.title.hidden = false;
     ui.titleInput.hidden = true;
     ui.content.contentEditable = "false";
@@ -1249,6 +1325,111 @@
     ].forEach(([button, command]) => {
       button.classList.toggle("is-active", document.queryCommandState(command));
     });
+    const activeFont = String(document.queryCommandValue("fontName") || "")
+      .replace(/["']/g, "")
+      .trim()
+      .toLowerCase();
+    ui.fontFamily.value = FONT_FAMILIES.get(activeFont) || "Play";
+  }
+
+  function clearSelectedFigure() {
+    if (app.selectedFigure?.isConnected) {
+      app.selectedFigure.classList.remove("is-image-selected");
+    }
+    app.selectedFigure = null;
+    if (ui.imageOptions) {
+      ui.imageOptions.hidden = true;
+    }
+  }
+
+  function selectFigure(figure) {
+    if (!app.editing || !figure || figure.parentElement !== ui.content) {
+      return;
+    }
+    if (app.selectedFigure && app.selectedFigure !== figure) {
+      app.selectedFigure.classList.remove("is-image-selected");
+    }
+    app.selectedFigure = figure;
+    figure.classList.add("is-image-selected");
+    ui.imageOptions.hidden = false;
+  }
+
+  function setImageLayoutChoice(layout) {
+    app.selectedImageLayout = normalizeImageLayout(layout);
+    [...ui.imageLayoutGrid.querySelectorAll("[data-image-layout]")].forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.imageLayout === app.selectedImageLayout);
+      button.setAttribute("aria-pressed", String(button.dataset.imageLayout === app.selectedImageLayout));
+    });
+  }
+
+  function openImageOptions() {
+    const figure = app.selectedFigure;
+    if (!app.editing || !figure?.isConnected) {
+      setFeedback(ui.feedback, "Click an image first, then choose Image Options.", true);
+      return;
+    }
+    setImageLayoutChoice(figure.dataset.imageLayout);
+    ui.imageWidth.value = String(clampNumber(figure.dataset.imageWidth, 20, 100, 72));
+    ui.imageWidthOutput.textContent = `${ui.imageWidth.value}%`;
+    ui.imageAlt.value = String(figure.querySelector("img")?.alt || "");
+    ui.imageCaption.value = String(figure.querySelector("figcaption")?.textContent || "");
+    setFeedback(ui.imageOptionsFeedback, "");
+    setDialog(ui.imageOptionsDialog, true);
+  }
+
+  function closeImageOptions() {
+    setDialog(ui.imageOptionsDialog, false);
+  }
+
+  function applyImageOptions(event) {
+    event.preventDefault();
+    const figure = app.selectedFigure;
+    if (!figure?.isConnected) {
+      closeImageOptions();
+      return;
+    }
+    const alt = ui.imageAlt.value.trim();
+    if (!alt) {
+      setFeedback(ui.imageOptionsFeedback, "Add alt text describing the image.", true);
+      ui.imageAlt.focus();
+      return;
+    }
+    const layout = app.selectedImageLayout;
+    const isBecomingLayered = ["behind", "front"].includes(layout) &&
+      !["behind", "front"].includes(figure.dataset.imageLayout);
+    configureFigure(figure, {
+      layout,
+      widthPercent: ui.imageWidth.value,
+      xPercent: isBecomingLayered ? 8 : figure.dataset.imageX,
+      yPixels: isBecomingLayered ? Math.max(0, figure.offsetTop - 36) : figure.dataset.imageY,
+    });
+    figure.querySelector("img").alt = alt.slice(0, 240);
+    const captionText = ui.imageCaption.value.trim().slice(0, 300);
+    let caption = figure.querySelector("figcaption");
+    if (captionText && !caption) {
+      caption = document.createElement("figcaption");
+      figure.append(caption);
+    }
+    if (caption) {
+      if (captionText) caption.textContent = captionText;
+      else caption.remove();
+    }
+    closeImageOptions();
+    selectFigure(figure);
+    setFeedback(ui.feedback, "Image layout updated. Save the page to publish it.");
+  }
+
+  function removeSelectedImage() {
+    const figure = app.selectedFigure;
+    if (!figure?.isConnected) {
+      closeImageOptions();
+      return;
+    }
+    figure.remove();
+    closeImageOptions();
+    clearSelectedFigure();
+    normalizeEditableRoot();
+    setFeedback(ui.feedback, "Image removed from this draft. Save the page to publish the change.");
   }
 
   function saveCurrentSelection() {
@@ -1429,6 +1610,7 @@
     figure.contentEditable = "false";
     figure.dataset.wikiMediaId = media.id;
     figure.dataset.wikiMediaUrl = media.url || "";
+    configureFigure(figure, { layout: "inline", widthPercent: 72, xPercent: 0, yPixels: 0 });
     const image = document.createElement("img");
     image.alt = alt;
     image.src = isTesting() ? media.url : app.mediaPreviewUrl;
@@ -1456,7 +1638,8 @@
     }
     closeMediaDialog();
     ui.content.focus();
-    setFeedback(ui.feedback, "Image inserted. Save the page to publish it.");
+    selectFigure(figure);
+    setFeedback(ui.feedback, "Image inserted. Drag it to reorder, or choose Image Options for wrapping, size, and layering.");
   }
 
   async function handleMediaUpload(event) {
@@ -1789,6 +1972,73 @@
     }
   }
 
+  function directContentChild(target) {
+    let element = target?.nodeType === Node.ELEMENT_NODE ? target : target?.parentElement;
+    while (element && element.parentElement !== ui.content) {
+      element = element.parentElement;
+    }
+    return element?.parentElement === ui.content ? element : null;
+  }
+
+  function beginLayeredImageDrag(event, figure) {
+    const layout = normalizeImageLayout(figure.dataset.imageLayout);
+    if (!app.editing || !["behind", "front"].includes(layout) || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    selectFigure(figure);
+    const contentRect = ui.content.getBoundingClientRect();
+    app.layeredDrag = {
+      figure,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: clampNumber(figure.dataset.imageX, 0, 85, 0),
+      startY: clampNumber(figure.dataset.imageY, 0, 5000, 0),
+      contentWidth: Math.max(1, contentRect.width),
+    };
+    figure.classList.add("is-image-dragging");
+    figure.setPointerCapture?.(event.pointerId);
+  }
+
+  function moveLayeredImage(event) {
+    const drag = app.layeredDrag;
+    if (!drag || drag.pointerId !== event.pointerId || !drag.figure.isConnected) {
+      return;
+    }
+    const width = clampNumber(drag.figure.dataset.imageWidth, 20, 100, 45);
+    const maximumX = Math.max(0, 100 - Math.min(width, 85));
+    const x = clampNumber(
+      drag.startX + ((event.clientX - drag.startClientX) / drag.contentWidth) * 100,
+      0,
+      maximumX,
+      drag.startX
+    );
+    const y = clampNumber(
+      drag.startY + event.clientY - drag.startClientY,
+      0,
+      5000,
+      drag.startY
+    );
+    configureFigure(drag.figure, {
+      layout: drag.figure.dataset.imageLayout,
+      widthPercent: width,
+      xPercent: x,
+      yPixels: y,
+    });
+  }
+
+  function finishLayeredImageDrag(event) {
+    const drag = app.layeredDrag;
+    if (!drag || (event?.pointerId !== undefined && drag.pointerId !== event.pointerId)) {
+      return;
+    }
+    drag.figure.classList.remove("is-image-dragging");
+    drag.figure.releasePointerCapture?.(drag.pointerId);
+    app.layeredDrag = null;
+    setFeedback(ui.feedback, "Image position updated. Save the page to publish it.");
+  }
+
   async function initialize() {
     if (!core()) {
       return;
@@ -1862,7 +2112,9 @@
   ui.image.addEventListener("click", openMediaDialog);
   ui.pageSettings.addEventListener("click", openPageManagement);
   ui.blockStyle.addEventListener("change", () => executeEditorCommand("formatBlock", ui.blockStyle.value));
+  ui.fontFamily.addEventListener("change", () => executeEditorCommand("fontName", ui.fontFamily.value));
   ui.link.addEventListener("click", openLinkPopover);
+  ui.imageOptions.addEventListener("click", openImageOptions);
   ui.linkCancel.addEventListener("click", closeLinkPopover);
   ui.linkApply.addEventListener("click", () => {
     const url = ui.linkUrl.value.trim();
@@ -1883,6 +2135,60 @@
   });
   ui.content.addEventListener("keyup", updateToolbarState);
   ui.content.addEventListener("mouseup", updateToolbarState);
+  ui.content.addEventListener("click", (event) => {
+    if (!app.editing) return;
+    const figure = event.target.closest("figure[data-wiki-media-id]");
+    if (figure?.parentElement === ui.content) selectFigure(figure);
+    else clearSelectedFigure();
+  });
+  ui.content.addEventListener("dblclick", (event) => {
+    const figure = event.target.closest("figure[data-wiki-media-id]");
+    if (app.editing && figure?.parentElement === ui.content) {
+      event.preventDefault();
+      selectFigure(figure);
+      openImageOptions();
+    }
+  });
+  ui.content.addEventListener("dragstart", (event) => {
+    const figure = event.target.closest("figure[data-wiki-media-id]");
+    if (!app.editing || !figure || ["behind", "front"].includes(figure.dataset.imageLayout)) {
+      event.preventDefault();
+      return;
+    }
+    app.draggingFigure = figure;
+    figure.classList.add("is-image-dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", figure.dataset.wikiMediaId || "wiki-image");
+  });
+  ui.content.addEventListener("dragover", (event) => {
+    if (!app.draggingFigure) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  });
+  ui.content.addEventListener("drop", (event) => {
+    const figure = app.draggingFigure;
+    if (!figure) return;
+    event.preventDefault();
+    const target = directContentChild(event.target);
+    if (target && target !== figure) {
+      const bounds = target.getBoundingClientRect();
+      target.insertAdjacentElement(event.clientY < bounds.top + bounds.height / 2 ? "beforebegin" : "afterend", figure);
+    } else if (!target) {
+      ui.content.append(figure);
+    }
+    figure.classList.remove("is-image-dragging");
+    app.draggingFigure = null;
+    selectFigure(figure);
+    setFeedback(ui.feedback, "Image moved. Save the page to publish its new position.");
+  });
+  ui.content.addEventListener("dragend", () => {
+    app.draggingFigure?.classList.remove("is-image-dragging");
+    app.draggingFigure = null;
+  });
+  ui.content.addEventListener("pointerdown", (event) => {
+    const figure = event.target.closest("figure[data-wiki-media-id]");
+    if (figure?.parentElement === ui.content) beginLayeredImageDrag(event, figure);
+  });
   ui.content.addEventListener("paste", (event) => {
     if (!app.editing) {
       return;
@@ -1923,6 +2229,18 @@
   ui.closeMedia.addEventListener("click", closeMediaDialog);
   ui.cancelMedia.addEventListener("click", closeMediaDialog);
 
+  ui.imageLayoutGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-image-layout]");
+    if (button) setImageLayoutChoice(button.dataset.imageLayout);
+  });
+  ui.imageWidth.addEventListener("input", () => {
+    ui.imageWidthOutput.textContent = `${ui.imageWidth.value}%`;
+  });
+  ui.imageOptionsForm.addEventListener("submit", applyImageOptions);
+  ui.closeImageOptions.addEventListener("click", closeImageOptions);
+  ui.cancelImageOptions.addEventListener("click", closeImageOptions);
+  ui.removeImage.addEventListener("click", removeSelectedImage);
+
   ui.closeManagement.addEventListener("click", closePageManagement);
   ui.managementNormalEdits.addEventListener("change", updateManagedEditingPermission);
   ui.moveSlug.addEventListener("input", () => {
@@ -1944,6 +2262,7 @@
     ui.newDialog,
     ui.historyDialog,
     ui.mediaDialog,
+    ui.imageOptionsDialog,
     ui.managementDialog,
     ui.trashDialog,
   ].forEach((dialog) => {
@@ -1951,6 +2270,7 @@
       if (event.target === dialog) {
         if (dialog === ui.searchDialog) closeSearchResults();
         else if (dialog === ui.mediaDialog) closeMediaDialog();
+        else if (dialog === ui.imageOptionsDialog) closeImageOptions();
         else if (dialog === ui.managementDialog) closePageManagement();
         else if (dialog === ui.trashDialog) closeTrashDialog();
         else setDialog(dialog, false);
@@ -1975,6 +2295,8 @@
       closeLinkPopover();
     } else if (!ui.mediaDialog.hidden) {
       closeMediaDialog();
+    } else if (!ui.imageOptionsDialog.hidden) {
+      closeImageOptions();
     } else if (!ui.managementDialog.hidden) {
       closePageManagement();
     } else if (!ui.trashDialog.hidden) {
@@ -1987,6 +2309,10 @@
       closeSearchResults();
     }
   });
+
+  document.addEventListener("pointermove", moveLayeredImage);
+  document.addEventListener("pointerup", finishLayeredImageDrag);
+  document.addEventListener("pointercancel", finishLayeredImageDrag);
 
   window.addEventListener("popstate", () => {
     app.currentSlug = slugFromLocation();
