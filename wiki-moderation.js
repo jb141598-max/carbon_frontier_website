@@ -372,8 +372,13 @@
 
   function contentPreview(content) {
     const blocks = Array.isArray(content?.blocks) ? content.blocks : [];
+    const itemText = (item) => typeof item === "string" ? item : item?.text || String(item?.html || "").replace(/<[^>]+>/g, " ");
     const text = blocks.map((block) => {
-      if (Array.isArray(block.items)) return block.items.join(" · ");
+      if (Array.isArray(block.items)) return block.items.map(itemText).join(" · ");
+      if (Array.isArray(block.entries)) return block.entries.map(itemText).join(" · ");
+      if (block.type === "table") return [itemText(block.caption), ...(block.rows || []).flat().map(itemText)].join(" · ");
+      if (block.type === "template") return `Template: ${block.templateSlug || "drawing"} ${Object.values(block.values || {}).join(" · ")}`;
+      if (block.type === "comment" || block.type === "horizontal-rule") return "";
       if (block.type === "image") return block.caption || block.alt || "Image";
       return block.text || String(block.html || "").replace(/<[^>]+>/g, " ");
     }).join(" ").replace(/\s+/g, " ").trim();

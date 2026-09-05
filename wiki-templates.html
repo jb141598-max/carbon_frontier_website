@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>Wiki Template Studio | Carbon Frontier</title>
+    <meta name="google-signin-client_id" content="609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap" rel="stylesheet" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+      :root {
+        --red:#df2531; --white:#fff; --muted:rgba(255,255,255,.7); --soft:rgba(255,255,255,.46);
+        --border:rgba(255,255,255,.12); --panel:#111; --panel-soft:rgba(255,255,255,.045); --shadow:0 24px 68px rgba(0,0,0,.46);
+      }
+      * { box-sizing:border-box; }
+      html,body { min-height:100%; margin:0; }
+      body { min-height:100vh; color:var(--white); font-family:"Play",sans-serif; font-weight:400; background:radial-gradient(circle at top left,rgba(223,37,49,.23),transparent 29%),radial-gradient(circle at 90% 8%,rgba(223,37,49,.13),transparent 24%),linear-gradient(180deg,#080808,#000 48%,#050505); }
+      button,input,select,textarea { font:inherit; } button { cursor:pointer; } button:disabled { cursor:not-allowed; opacity:.52; } [hidden] { display:none!important; }
+      .page-shell { position:relative; min-height:100vh; padding:24px; overflow:hidden; }
+      .page-shell::before { position:absolute; inset:0; content:""; pointer-events:none; background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px); background-size:96px 96px; mask-image:linear-gradient(180deg,rgba(0,0,0,.84),transparent 84%); }
+      .content { position:relative; z-index:1; width:min(1540px,100%); margin:0 auto; }
+      .topbar,.topbar-nav,.topbar-actions,.heading-row,.studio-toolbar,.toolbar-group,.panel-heading,.form-actions,.layer-actions,.property-toggle { display:flex; align-items:center; }
+      .topbar { justify-content:space-between; gap:18px; margin-bottom:26px; }
+      .topbar-nav,.topbar-actions { gap:9px; } .topbar-actions { flex-wrap:wrap; justify-content:flex-end; }
+      .nav-button,.primary-button,.secondary-button,.danger-button,.tool-button {
+        min-height:42px; display:inline-flex; align-items:center; justify-content:center; padding:10px 15px; border:1px solid var(--border); border-radius:999px;
+        color:var(--white); background:rgba(255,255,255,.04); font-size:.78rem; font-weight:700; letter-spacing:.06em; text-decoration:none; text-transform:uppercase; transition:150ms ease;
+      }
+      .nav-button:hover,.secondary-button:hover,.tool-button:hover,.nav-button:focus-visible,.secondary-button:focus-visible,.tool-button:focus-visible { border-color:rgba(223,37,49,.68); background:rgba(223,37,49,.15); outline:none; }
+      .primary-button { border-color:rgba(223,37,49,.9); background:rgba(223,37,49,.46); }
+      .primary-button:hover,.primary-button:focus-visible { background:rgba(223,37,49,.66); outline:none; }
+      .danger-button { color:#ffabb1; border-color:rgba(223,37,49,.48); }
+      .account-pill { min-height:42px; display:flex; align-items:center; max-width:min(34vw,290px); padding:9px 13px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:rgba(255,255,255,.04); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .loading-card,.unavailable-card { width:min(760px,100%); margin:10vh auto 0; padding:clamp(30px,6vw,58px); border:1px solid var(--border); border-radius:32px; text-align:center; background:var(--panel-soft); box-shadow:var(--shadow); }
+      .loading-card h1,.unavailable-card h1 { margin:0; font-size:clamp(2rem,7vw,3.8rem); text-transform:uppercase; }
+      .loading-card p,.unavailable-card p { max-width:590px; margin:16px auto 0; color:var(--muted); line-height:1.7; }
+      .signin-slot { min-height:44px; display:grid; justify-content:center; margin-top:22px; }
+      .heading-row { justify-content:space-between; gap:24px; margin-bottom:20px; }
+      .eyebrow { margin:0; color:#ff9ba2; font-size:.75rem; font-weight:700; letter-spacing:.16em; text-transform:uppercase; }
+      .heading-row h1 { margin:6px 0 0; font-size:clamp(2.4rem,6vw,5rem); line-height:.95; text-transform:uppercase; }
+      .heading-copy { max-width:610px; margin:0; color:var(--muted); line-height:1.6; text-align:right; }
+      .studio { display:grid; grid-template-columns:245px minmax(480px,1fr) 285px; min-height:720px; overflow:hidden; border:1px solid var(--border); border-radius:26px; background:#090909; box-shadow:var(--shadow); }
+      .library-panel,.properties-panel { min-width:0; padding:16px; background:rgba(255,255,255,.025); }
+      .library-panel { border-right:1px solid var(--border); } .properties-panel { border-left:1px solid var(--border); overflow-y:auto; max-height:820px; }
+      .panel-heading { justify-content:space-between; gap:10px; margin-bottom:13px; }
+      .panel-heading h2,.properties-panel h2 { margin:0; font-size:1rem; }
+      .mini-button { width:34px; height:34px; border:1px solid var(--border); border-radius:10px; color:var(--white); background:rgba(255,255,255,.05); }
+      .template-list { display:grid; gap:8px; max-height:690px; overflow:auto; }
+      .template-list-button { width:100%; padding:12px; border:1px solid rgba(255,255,255,.08); border-radius:14px; color:var(--muted); background:rgba(255,255,255,.025); text-align:left; }
+      .template-list-button:hover,.template-list-button.is-active { border-color:rgba(223,37,49,.58); background:rgba(223,37,49,.12); }
+      .template-list-button strong,.template-list-button span { display:block; } .template-list-button strong { color:var(--white); font-size:.86rem; } .template-list-button span { margin-top:4px; color:var(--soft); font-size:.68rem; }
+      .editor-panel { min-width:0; background:#0d0d0d; }
+      .document-fields { display:grid; grid-template-columns:minmax(180px,.6fr) minmax(260px,1.4fr); gap:8px; padding:11px 13px; border-bottom:1px solid var(--border); background:#101010; }
+      input,select,textarea { width:100%; min-height:40px; padding:9px 11px; border:1px solid var(--border); border-radius:10px; color:var(--white); background:#0b0b0b; outline:none; }
+      input:focus,select:focus,textarea:focus { border-color:rgba(223,37,49,.78); box-shadow:0 0 0 3px rgba(223,37,49,.11); }
+      .studio-toolbar { position:relative; z-index:5; flex-wrap:wrap; gap:7px; padding:10px 12px; border-bottom:1px solid var(--border); background:#151515; }
+      .toolbar-group { gap:5px; } .toolbar-divider { width:1px; height:28px; background:rgba(255,255,255,.13); }
+      .tool-button { min-height:34px; min-width:34px; padding:7px 9px; border-radius:9px; font-size:.7rem; letter-spacing:.03em; text-transform:none; }
+      .tool-button.is-active { border-color:rgba(223,37,49,.7); background:rgba(223,37,49,.2); }
+      .canvas-viewport { min-height:570px; max-height:690px; overflow:auto; padding:46px; background:radial-gradient(circle,rgba(255,255,255,.075) 1px,transparent 1px),#202124; background-size:18px 18px; }
+      .drawing-canvas { position:relative; width:720px; height:420px; margin:auto; overflow:hidden; background:#111; box-shadow:0 18px 44px rgba(0,0,0,.56); transform-origin:top left; touch-action:none; }
+      .drawing-element { position:absolute; min-width:8px; min-height:8px; transform:rotate(var(--rotation,0deg)); transform-origin:center; opacity:var(--opacity,1); user-select:none; touch-action:none; }
+      .drawing-element.is-selected { outline:2px solid #4aa3ff; outline-offset:3px; }
+      .drawing-element.is-selected::after { position:absolute; inset:-7px; content:""; pointer-events:none; border:1px dashed rgba(74,163,255,.78); }
+      .element-text { display:flex; align-items:flex-start; white-space:pre-wrap; overflow:hidden; line-height:1.2; }
+      .element-shape,.element-frame { border-style:solid; }
+      .element-shape[data-shape="ellipse"] { border-radius:50%!important; }
+      .element-shape[data-shape="triangle"] { background:transparent!important; border:0!important; clip-path:polygon(50% 0,100% 100%,0 100%); }
+      .element-shape[data-shape="diamond"] { clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); }
+      .element-line { height:0!important; min-height:0; border-top-style:solid; transform-origin:left center; }
+      .element-image img { width:100%; height:100%; display:block; pointer-events:none; }
+      .resize-handle { position:absolute; z-index:4; width:12px; height:12px; border:2px solid #fff; border-radius:50%; background:#4aa3ff; }
+      .resize-handle[data-handle="nw"] { left:-8px; top:-8px; cursor:nwse-resize; }
+      .resize-handle[data-handle="ne"] { right:-8px; top:-8px; cursor:nesw-resize; }
+      .resize-handle[data-handle="sw"] { left:-8px; bottom:-8px; cursor:nesw-resize; }
+      .resize-handle[data-handle="se"] { right:-8px; bottom:-8px; cursor:nwse-resize; }
+      .editor-footer { display:flex; align-items:center; gap:10px; padding:11px 13px; border-top:1px solid var(--border); background:#101010; }
+      .editor-footer input { flex:1; } .editor-footer .feedback { margin:0 auto 0 0; }
+      .feedback { min-height:20px; margin:10px 0 0; color:#9ce8bc; font-size:.76rem; line-height:1.45; }
+      .feedback.is-error { color:#ff9ba2; }
+      .empty-state { padding:24px 14px; border:1px dashed var(--border); border-radius:14px; color:var(--muted); font-size:.78rem; line-height:1.55; text-align:center; }
+      .property-section { padding:14px 0; border-bottom:1px solid rgba(255,255,255,.08); }
+      .property-section:last-child { border-bottom:0; }
+      .property-section h3 { margin:0 0 10px; color:#ffabb1; font-size:.7rem; letter-spacing:.11em; text-transform:uppercase; }
+      .property-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; } .property-grid .wide { grid-column:1/-1; }
+      .field-label { display:block; margin-bottom:6px; color:var(--soft); font-size:.65rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+      .property-toggle { gap:7px; min-height:40px; padding:8px 10px; border:1px solid var(--border); border-radius:10px; color:var(--muted); font-size:.72rem; }
+      .property-toggle input { width:16px; min-height:16px; accent-color:var(--red); }
+      input[type="color"] { min-height:40px; padding:4px; }
+      input[type="range"] { min-height:30px; padding:0; accent-color:var(--red); }
+      .layer-actions { gap:6px; } .layer-actions button { flex:1; min-height:36px; padding:7px; }
+      .dialog { position:fixed; z-index:50; inset:0; display:grid; place-items:center; padding:20px; background:rgba(18,18,22,.58); backdrop-filter:blur(6px); }
+      .dialog-card { width:min(560px,100%); max-height:calc(100vh - 40px); overflow:auto; padding:24px; border:1px solid var(--border); border-radius:24px; background:#111; box-shadow:var(--shadow); }
+      .dialog-card h2 { margin:0; } .dialog-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px; } .dialog-grid .wide { grid-column:1/-1; }
+      .form-actions { justify-content:flex-end; gap:8px; margin-top:18px; }
+      @media(max-width:1120px) { .studio { grid-template-columns:210px minmax(450px,1fr); } .properties-panel { grid-column:1/-1; border-top:1px solid var(--border); border-left:0; max-height:none; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; } }
+      @media(max-width:760px) { .page-shell{padding:16px}.topbar,.heading-row{align-items:flex-start;flex-direction:column}.heading-copy{text-align:left}.studio{display:block}.library-panel{border-right:0;border-bottom:1px solid var(--border)}.template-list{max-height:220px}.document-fields{grid-template-columns:1fr}.canvas-viewport{padding:26px;min-height:500px}.properties-panel{display:block}.topbar-actions{justify-content:flex-start}.account-pill{max-width:80vw} }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell"><div class="content">
+      <header class="topbar">
+        <nav class="topbar-nav" aria-label="Primary navigation">
+          <a class="nav-button" href="wiki.html">Wiki</a><a class="nav-button" href="index.html">Roadmap</a><a class="nav-button" href="updates.html">Updates</a>
+        </nav>
+        <div class="topbar-actions"><div class="account-pill" id="account-pill">Checking access...</div><a class="secondary-button" href="wiki-import.html">Import</a><a class="secondary-button" href="wiki-analytics.html">Analytics</a><a class="secondary-button" href="wiki-moderation.html">Moderation</a><a class="secondary-button" href="wiki-permissions.html">Permissions</a></div>
+      </header>
+
+      <section class="loading-card" id="loading-view"><h1>Templates</h1><p>Checking your wiki access and loading the template studio.</p></section>
+      <section class="unavailable-card" id="unavailable-view" hidden><h1>Templates unavailable</h1><p id="unavailable-copy">Sign in with an assigned wiki staff account.</p><div class="signin-slot" id="google-signin-slot"></div></section>
+
+      <main id="templates-view" hidden>
+        <div class="heading-row"><div><p class="eyebrow">Step 9 · Reusable designs</p><h1>Template Studio</h1></div><p class="heading-copy">Build reusable wiki cards, banners, diagrams, and infoboxes. Placeholder text is filled separately on every article.</p></div>
+        <section class="studio" aria-label="Visual wiki template editor">
+          <aside class="library-panel"><div class="panel-heading"><h2>Templates</h2><button class="mini-button" id="new-template-button" type="button" title="New template">+</button></div><div class="template-list" id="template-list"><div class="empty-state">Loading templates...</div></div></aside>
+          <div class="editor-panel">
+            <div class="document-fields"><input id="template-name-input" maxlength="100" placeholder="Template name" aria-label="Template name" /><input id="template-description-input" maxlength="500" placeholder="Describe when this template should be used" aria-label="Template description" /></div>
+            <div class="studio-toolbar" id="studio-toolbar">
+              <div class="toolbar-group"><button class="tool-button" id="undo-button" type="button" title="Undo">↶</button><button class="tool-button" id="redo-button" type="button" title="Redo">↷</button></div><span class="toolbar-divider"></span>
+              <div class="toolbar-group"><button class="tool-button" data-add-element="text" type="button">Text</button><button class="tool-button" data-add-element="placeholder" type="button">Placeholder</button><button class="tool-button" data-add-element="rectangle" type="button">Rectangle</button><button class="tool-button" data-add-element="ellipse" type="button">Circle</button><button class="tool-button" data-add-element="frame" type="button">Frame</button><button class="tool-button" data-add-element="line" type="button">Line</button><button class="tool-button" id="add-image-button" type="button">Image</button><input id="template-image-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden /></div><span class="toolbar-divider"></span>
+              <div class="toolbar-group"><button class="tool-button" id="duplicate-button" type="button">Duplicate</button><button class="tool-button" id="bring-forward-button" type="button">Forward</button><button class="tool-button" id="send-backward-button" type="button">Backward</button><button class="tool-button" id="delete-element-button" type="button">Delete</button></div>
+            </div>
+            <div class="canvas-viewport" id="canvas-viewport"><div class="drawing-canvas" id="drawing-canvas" tabindex="0" aria-label="Template drawing canvas"></div></div>
+            <div class="editor-footer"><input id="template-summary-input" maxlength="300" placeholder="Describe this template change..." aria-label="Template edit summary" /><p class="feedback" id="template-feedback" aria-live="polite"></p><button class="primary-button" id="save-template-button" type="button">Save Template</button></div>
+          </div>
+          <aside class="properties-panel">
+            <div class="property-section"><h2 id="selection-title">Canvas</h2><p class="feedback" id="selection-copy">Select an object to edit it, or change the canvas below.</p></div>
+            <div class="property-section" id="canvas-properties"><h3>Canvas</h3><div class="property-grid"><label><span class="field-label">Width</span><input id="canvas-width-input" type="number" min="240" max="1600" /></label><label><span class="field-label">Height</span><input id="canvas-height-input" type="number" min="120" max="1600" /></label><label class="wide"><span class="field-label">Background</span><input id="canvas-background-input" type="color" /></label><label class="property-toggle wide"><input id="snap-grid-input" type="checkbox" checked /> Snap objects to 8 px grid</label></div></div>
+            <div class="property-section" id="element-properties" hidden><h3>Position &amp; size</h3><div class="property-grid"><label><span class="field-label">X</span><input data-element-prop="x" type="number" /></label><label><span class="field-label">Y</span><input data-element-prop="y" type="number" /></label><label><span class="field-label">Width</span><input data-element-prop="width" type="number" min="8" /></label><label><span class="field-label">Height</span><input data-element-prop="height" type="number" min="8" /></label><label class="wide"><span class="field-label">Rotation</span><input data-element-prop="rotation" type="number" min="-360" max="360" /></label></div></div>
+            <div class="property-section" id="text-properties" hidden><h3>Text</h3><div class="property-grid"><label class="wide" id="text-value-field"><span class="field-label">Text</span><textarea data-element-prop="text" rows="3"></textarea></label><label class="wide" id="placeholder-key-field"><span class="field-label">Placeholder name</span><input data-element-prop="placeholderKey" placeholder="machine_name" /></label><label class="wide" id="placeholder-default-field"><span class="field-label">Default text</span><textarea data-element-prop="defaultValue" rows="3"></textarea></label><label class="wide"><span class="field-label">Font</span><select data-element-prop="fontFamily"><option>Play</option><option>Arial</option><option>Georgia</option><option>Times New Roman</option><option>Verdana</option><option>Courier New</option></select></label><label><span class="field-label">Size</span><input data-element-prop="fontSize" type="number" min="8" max="144" /></label><label><span class="field-label">Color</span><input data-element-prop="color" type="color" /></label><label><span class="field-label">Weight</span><select data-element-prop="fontWeight"><option value="400">Regular</option><option value="700">Bold</option></select></label><label><span class="field-label">Style</span><select data-element-prop="fontStyle"><option value="normal">Normal</option><option value="italic">Italic</option></select></label><label class="wide"><span class="field-label">Alignment</span><select data-element-prop="textAlign"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label></div></div>
+            <div class="property-section" id="shape-properties" hidden><h3>Shape &amp; frame</h3><div class="property-grid"><label class="wide" id="shape-kind-field"><span class="field-label">Shape</span><select data-element-prop="shape"><option value="rectangle">Rectangle</option><option value="rounded">Rounded rectangle</option><option value="ellipse">Ellipse</option><option value="triangle">Triangle</option><option value="diamond">Diamond</option></select></label><label><span class="field-label">Fill</span><input data-element-prop="fill" type="color" /></label><label><span class="field-label">Outline</span><input data-element-prop="stroke" type="color" /></label><label><span class="field-label">Outline size</span><input data-element-prop="strokeWidth" type="number" min="0" max="24" /></label><label><span class="field-label">Corner radius</span><input data-element-prop="borderRadius" type="number" min="0" max="200" /></label></div></div>
+            <div class="property-section" id="line-properties" hidden><h3>Line</h3><div class="property-grid"><label><span class="field-label">Color</span><input data-element-prop="stroke" type="color" /></label><label><span class="field-label">Thickness</span><input data-element-prop="strokeWidth" type="number" min="1" max="24" /></label></div></div>
+            <div class="property-section" id="image-properties" hidden><h3>Image</h3><div class="property-grid"><label class="wide"><span class="field-label">Alt text</span><input data-element-prop="alt" maxlength="240" /></label><label class="wide"><span class="field-label">Fit</span><select data-element-prop="fit"><option value="cover">Fill frame</option><option value="contain">Fit inside</option></select></label><label class="wide"><span class="field-label">Corner radius</span><input data-element-prop="borderRadius" type="number" min="0" max="200" /></label></div></div>
+            <div class="property-section" id="common-properties" hidden><h3>Appearance &amp; layer</h3><div class="property-grid"><label class="wide"><span class="field-label">Opacity</span><input data-element-prop="opacity" type="range" min="0.05" max="1" step="0.05" /></label></div><div class="layer-actions"><button class="secondary-button" id="front-button" type="button">To Front</button><button class="secondary-button" id="back-button" type="button">To Back</button></div></div>
+          </aside>
+        </section>
+      </main>
+    </div></div>
+
+    <div class="dialog" id="new-template-dialog" role="dialog" aria-modal="true" aria-labelledby="new-template-heading" hidden><form class="dialog-card" id="new-template-form"><p class="eyebrow">New reusable design</p><h2 id="new-template-heading">Create template</h2><div class="dialog-grid"><label class="wide"><span class="field-label">Name</span><input id="new-template-name" maxlength="100" required placeholder="Machine card" /></label><label class="wide"><span class="field-label">Description</span><input id="new-template-description" maxlength="500" placeholder="When should editors use this?" /></label><label><span class="field-label">Canvas width</span><input id="new-template-width" type="number" min="240" max="1600" value="720" required /></label><label><span class="field-label">Canvas height</span><input id="new-template-height" type="number" min="120" max="1600" value="420" required /></label></div><p class="feedback" id="new-template-feedback" aria-live="polite"></p><div class="form-actions"><button class="secondary-button" id="cancel-new-template" type="button">Cancel</button><button class="primary-button" type="submit">Create Template</button></div></form></div>
+    <script src="testing-sync.js"></script><script src="wiki-templates.js"></script>
+  </body>
+</html>

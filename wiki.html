@@ -877,6 +877,65 @@
         background: rgba(255, 255, 255, 0.02);
       }
 
+      .wiki-template-instance {
+        position: relative;
+        display: block;
+        width: min(100%, var(--template-width, 720px));
+        margin: 28px auto;
+        overflow: hidden;
+        border-radius: 14px;
+        isolation: isolate;
+      }
+
+      .wiki-template-stage {
+        position: relative;
+        width: var(--template-width, 720px);
+        height: var(--template-height, 420px);
+        overflow: hidden;
+        background: #111;
+        transform: scale(var(--template-scale, 1));
+        transform-origin: top left;
+      }
+
+      .wiki-template-object {
+        position: absolute;
+        min-width: 2px;
+        min-height: 2px;
+        transform: rotate(var(--object-rotation, 0deg));
+        transform-origin: center;
+        opacity: var(--object-opacity, 1);
+        white-space: pre-wrap;
+        overflow: hidden;
+        line-height: 1.2;
+      }
+
+      .wiki-template-object.is-text { display: flex; align-items: flex-start; }
+      .wiki-template-object.is-shape { border-style: solid; }
+      .wiki-template-object[data-shape="ellipse"] { border-radius: 50% !important; }
+      .wiki-template-object[data-shape="triangle"] { border: 0 !important; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+      .wiki-template-object[data-shape="diamond"] { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+      .wiki-template-object.is-line { height: 0 !important; min-height: 0; border-top-style: solid; transform-origin: left center; }
+      .wiki-template-object img { display: block; width: 100%; height: 100%; border: 0; border-radius: inherit; object-fit: cover; }
+
+      .article-surface.is-editing .wiki-template-instance {
+        cursor: default;
+        outline: 1px dashed rgba(255, 255, 255, 0.24);
+        outline-offset: 5px;
+      }
+
+      .article-surface.is-editing .wiki-template-instance::after {
+        position: absolute;
+        z-index: 20;
+        right: 8px;
+        bottom: 8px;
+        padding: 5px 8px;
+        border-radius: 999px;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.76);
+        content: "Template · double-click to edit values";
+        font-size: 0.66rem;
+      }
+
       .article-content ul,
       .article-content ol {
         padding-left: 1.4rem;
@@ -1316,6 +1375,30 @@
         box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
       }
 
+      .editor-mode-switch { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--cf-border); border-radius: 12px; }
+      .editor-mode-switch [aria-pressed="true"] { color: #fff; background: rgba(223,37,49,.32); }
+      .wikitext-panel { margin: clamp(18px,3vw,32px); border: 1px solid var(--cf-border); border-radius: 14px; overflow: hidden; background: #111; }
+      .wikitext-panel-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--cf-border); }
+      .wikitext-panel-header p { margin: 0 auto 0 0; font-size: .8rem; color: var(--cf-muted); }
+      #wikitext-input { display: block; width: 100%; min-height: 480px; padding: 22px; resize: vertical; border: 0; border-radius: 0; background: #121417; color: #e7e9ed; font: 400 15px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2; white-space: pre-wrap; }
+      #wikitext-input:focus { outline: 2px solid rgba(223,37,49,.5); outline-offset: -2px; box-shadow: none; }
+      #wikitext-status { margin: 0; min-height: 36px; padding: 10px 16px; font-size: .78rem; border-top: 1px solid var(--cf-border); color: var(--cf-muted); }
+      #wikitext-status.is-error { color: #ff9ba2; }
+      #wikitext-help { padding: 16px; border-top: 1px solid var(--cf-border); color: var(--cf-muted); font-size: .82rem; line-height: 1.7; }
+      #wikitext-help pre { overflow-x: auto; padding: 12px; border-radius: 10px; background: rgba(255,255,255,.04); color: #fff; font-size: .8rem; }
+      #wikitext-help a { color: #ff9ba2; }
+      #wikitext-preview { border-top: 1px solid var(--cf-border); min-height: 100px; }
+      .article-content table { width: 100%; border-collapse: collapse; margin: 20px 0; font-family: "Play", sans-serif; font-weight: 400; table-layout: fixed; overflow-wrap: anywhere; }
+      .article-content td, .article-content th { padding: 12px; border: 1px solid var(--cf-border); text-align: left; vertical-align: top; }
+      .article-content th { background: rgba(223,37,49,.15); font-weight: 700; }
+      .article-content caption { text-align: left; padding: 10px 0; color: var(--cf-muted); }
+      .article-content pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 16px; background: #141619; border: 1px solid var(--cf-border); border-radius: 12px; font: 400 .9rem/1.7 ui-monospace, monospace; }
+      .article-content hr { clear: both; border: 0; border-top: 1px solid var(--cf-border); margin: 24px 0; }
+      .article-content h1, .article-content h4, .article-content h5, .article-content h6 { margin: 1.5em 0 .55em; line-height: 1.2; }
+      .wiki-source-preserved { padding: 16px; border: 1px dashed var(--cf-border); color: var(--cf-muted); white-space: pre-wrap; }
+      .wiki-source-comment { display: none; }
+      .article-surface.is-editing .wiki-source-comment { display: block; padding: 10px; font-size: .75rem; color: var(--cf-soft); border: 1px dashed var(--cf-border); }
+
       .toolbar-group {
         display: flex;
         align-items: center;
@@ -1419,6 +1502,33 @@
         font-size: 0.76rem;
         line-height: 1.55;
       }
+
+      .template-picker-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+      }
+
+      .template-picker-option {
+        min-height: 86px;
+        padding: 13px;
+        border: 1px solid var(--cf-border);
+        border-radius: 14px;
+        color: var(--cf-muted);
+        background: rgba(255, 255, 255, 0.025);
+        text-align: left;
+      }
+
+      .template-picker-option strong,
+      .template-picker-option span { display: block; }
+      .template-picker-option strong { color: var(--cf-white); }
+      .template-picker-option span { margin-top: 7px; color: var(--cf-soft); font-size: 0.72rem; }
+      .template-picker-option:hover,
+      .template-picker-option:focus-visible,
+      .template-picker-option.is-selected { border-color: rgba(223, 37, 49, 0.74); background: rgba(223, 37, 49, 0.14); outline: none; }
+
+      .template-value-fields { display: grid; gap: 10px; }
+      .template-picker-note { margin: 0; color: var(--cf-soft); font-size: 0.75rem; line-height: 1.55; }
 
       .toolbar-summary {
         width: min(210px, 30vw);
@@ -1848,6 +1958,9 @@
             <a class="secondary-button" id="import-wiki-button" href="wiki-import.html" hidden>
               Import
             </a>
+            <a class="secondary-button" id="templates-button" href="wiki-templates.html" hidden>
+              Templates
+            </a>
             <a class="primary-button" id="access-panel-button" href="wiki-permissions.html" hidden>
               Permissions
             </a>
@@ -1885,6 +1998,10 @@
               <div>
                 <article class="article-surface" id="article-surface" aria-live="polite">
                   <div class="document-toolbar" id="document-toolbar" hidden>
+                    <div class="editor-mode-switch" role="group" aria-label="Page editing mode">
+                      <button class="toolbar-button" id="editor-mode-visual" type="button" aria-pressed="true">Visual</button>
+                      <button class="toolbar-button" id="editor-mode-wikitext" type="button" aria-pressed="false">Wikitext</button>
+                    </div>
                     <div class="toolbar-group" aria-label="History controls">
                       <button class="toolbar-button" id="toolbar-undo" type="button" title="Undo" aria-label="Undo">↶</button>
                       <button class="toolbar-button" id="toolbar-redo" type="button" title="Redo" aria-label="Redo">↷</button>
@@ -1920,6 +2037,7 @@
                     <div class="toolbar-divider" aria-hidden="true"></div>
                     <div class="toolbar-group" aria-label="Page tools">
                       <button class="toolbar-button" id="toolbar-image" type="button" title="Insert an image">Image</button>
+                      <button class="toolbar-button" id="toolbar-template" type="button" title="Insert a reusable wiki template">Template</button>
                       <button class="toolbar-button" id="toolbar-image-options" type="button" title="Change the selected image" hidden>Image Options</button>
                       <button class="toolbar-button" id="toolbar-page-settings" type="button" title="Move, protect, or trash this page" hidden>Page Settings</button>
                     </div>
@@ -1964,6 +2082,46 @@
                   <div class="article-content" id="article-content">
                     <p class="reader-loading">Loading page content...</p>
                   </div>
+                  <section class="wikitext-panel" id="wikitext-panel" aria-label="Wikitext editor" hidden>
+                    <div class="wikitext-panel-header">
+                      <p>Write wiki markup, preview it, then save your revision.</p>
+                      <button class="toolbar-button" id="wikitext-preview-button" type="button" aria-expanded="false" aria-controls="wikitext-preview">Preview</button>
+                      <button class="toolbar-button" id="wikitext-help-button" type="button" aria-expanded="false" aria-controls="wikitext-help">Syntax Guide</button>
+                    </div>
+                    <textarea id="wikitext-input" aria-label="Page wikitext" spellcheck="false" autocapitalize="off" autocomplete="off" maxlength="200000"></textarea>
+                    <p id="wikitext-status" role="status" aria-live="polite">Ready.</p>
+                    <div id="wikitext-help" hidden>
+                      <p>Use familiar <a href="https://www.mediawiki.org/wiki/Help:Formatting" target="_blank" rel="noopener noreferrer">MediaWiki formatting</a>. This editor supports the examples below.</p>
+                      <pre>== Heading ==
+=== Smaller heading ===
+'''Bold''' and ''italic''
+[[Coal Drill|Read about the drill]]
+[https://example.com External link]
+* Bullet
+** Nested bullet
+# Numbered item
+&lt;br&gt; for a line break
+----
+&lt;nowiki&gt;Show [[markup]] literally&lt;/nowiki&gt;</pre>
+                      <pre>{| class="wikitable"
+! Machine !! Power
+|-
+| Coal Drill || 100 J/s
+|}</pre>
+                      <pre>{{machine-infobox
+|machine_name=Coal Drill
+|tier=Tier 1
+|category=Mining
+|description=Extracts coal.
+}}
+
+[[File:UPLOADED_MEDIA_ID|thumb|right|60%|alt=A coal drill|Caption]]</pre>
+                      <p>Put each image and template on its own line. Template names come from Template Studio; placeholder values are plain text. Image targets are uploaded media IDs or HTTPS image URLs, and widths use percentages.</p>
+                      <p>Existing image placement and template snapshots are retained by their <code>cf-ref</code> values. <code>{{CFBlock|…}}</code> keeps a visual block that cannot be represented directly; leave its ID intact to preserve it.</p>
+                      <p>This is a supported subset of wikitext. Lua modules, parser functions, nested templates, category assignment, and arbitrary HTML are not supported. Incomplete or unsupported markup is reported before saving. Visual changes may normalize source formatting; unchanged source is retained exactly.</p>
+                    </div>
+                    <div class="article-content" id="wikitext-preview" aria-label="Wikitext preview" hidden></div>
+                  </section>
                 </article>
                 <p class="wiki-feedback" id="wiki-feedback" aria-live="polite"></p>
               </div>
@@ -2207,6 +2365,29 @@
               </form>
             </div>
 
+            <div class="wiki-dialog" id="template-dialog" role="dialog" aria-modal="true" aria-labelledby="template-dialog-title" hidden>
+              <form class="dialog-card" id="template-form">
+                <div class="dialog-header">
+                  <div>
+                    <p class="eyebrow">Reusable wiki design</p>
+                    <h2 id="template-dialog-title">Insert template</h2>
+                  </div>
+                  <button class="icon-button" id="close-template-button" type="button" aria-label="Close template picker">×</button>
+                </div>
+                <div class="dialog-body">
+                  <p class="template-picker-note">Choose a design, then fill its placeholders for this article. Template design updates automatically appear everywhere it is used.</p>
+                  <div class="template-picker-grid" id="template-picker-list"><p class="wiki-list-state">Loading templates...</p></div>
+                  <div class="template-value-fields" id="template-value-fields"></div>
+                  <p class="wiki-feedback" id="template-picker-feedback" aria-live="polite"></p>
+                  <div class="form-actions">
+                    <a class="secondary-button" id="open-template-studio-link" href="wiki-templates.html">Open Template Studio</a>
+                    <button class="secondary-button" id="cancel-template-button" type="button">Cancel</button>
+                    <button class="primary-button" id="insert-template-button" type="submit" disabled>Insert Template</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
             <div class="wiki-dialog" id="page-management-dialog" role="dialog" aria-modal="true" aria-labelledby="page-management-title" hidden>
               <div class="dialog-card">
                 <div class="dialog-header">
@@ -2435,6 +2616,7 @@
         analyticsButton: document.getElementById("analytics-button"),
         moderationButton: document.getElementById("moderation-button"),
         importWikiButton: document.getElementById("import-wiki-button"),
+        templatesButton: document.getElementById("templates-button"),
         accessPanelButton: document.getElementById("access-panel-button"),
         loadingView: document.getElementById("loading-view"),
         unavailableView: document.getElementById("unavailable-view"),
@@ -3107,6 +3289,7 @@
           elements.analyticsButton.hidden = true;
           elements.moderationButton.hidden = true;
           elements.importWikiButton.hidden = true;
+          elements.templatesButton.hidden = true;
           elements.accessPanelButton.hidden = true;
           elements.accountPill.textContent = viewer?.authenticated
             ? "No wiki access"
@@ -3125,6 +3308,7 @@
         elements.analyticsButton.hidden = !viewer.canManageSettings;
         elements.moderationButton.hidden = !viewer.canModerate;
         elements.importWikiButton.hidden = !viewer.canManageSettings;
+        elements.templatesButton.hidden = !viewer.isAssignedStaff;
         elements.accessPanelButton.hidden = !viewer.canManageEditors;
         elements.accountPill.textContent = viewer.role
           ? `${roleLabel(viewer.role)} access`
@@ -3261,7 +3445,7 @@
         if (event.key === "Escape") {
           closeAccountMenu();
           wikiState.accessPanelOpen = false;
-          renderWikiAccess();
+          elements.accessPanel.hidden = true;
         }
       });
 
@@ -3312,6 +3496,7 @@
       waitForGoogle();
       loadWikiAccess();
     </script>
+    <script src="wiki-wikitext.js"></script>
     <script src="wiki-editor.js"></script>
   </body>
 </html>

@@ -124,6 +124,7 @@ async function loadWikiSnapshot() {
       pendingResult,
       blocksResult,
       auditResult,
+      templatesResult,
     ] = await Promise.all([
       client.query(
         `SELECT visibility, editing_mode, review_mode, updated_at, updated_by_email
@@ -215,6 +216,17 @@ async function loadWikiSnapshot() {
          ORDER BY a.created_at DESC
          LIMIT 150`
       ),
+      client.query(
+        `SELECT t.id, t.slug, t.name, t.description, t.canvas_width, t.canvas_height,
+                t.created_at, t.updated_at,
+                r.id AS revision_id, r.revision_number, r.definition_json,
+                r.edit_summary, r.author_name, r.author_role, r.created_at AS revision_created_at
+         FROM wiki_templates t
+         LEFT JOIN wiki_template_revisions r ON r.id = t.current_revision_id
+         WHERE t.is_deleted = FALSE
+         ORDER BY t.updated_at DESC, t.name ASC
+         LIMIT 250`
+      ),
     ]);
 
     const settings = settingsResult.rows[0] || {};
@@ -279,6 +291,40 @@ async function loadWikiSnapshot() {
         sourceSlug: redirect.source_slug,
         targetSlug: redirect.target_slug,
       })),
+      templates: templatesResult.rows.map((template) => {
+        const definition = template.definition_json;
+        const seen = new Set();
+        const placeholders = [];
+        (Array.isArray(definition?.elements) ? definition.elements : []).forEach((element) => {
+          if (element?.type !== "placeholder" || !element.placeholderKey || seen.has(element.placeholderKey)) return;
+          seen.add(element.placeholderKey);
+          placeholders.push({
+            key: element.placeholderKey,
+            label: String(element.placeholderKey).replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+            defaultValue: element.defaultValue || "",
+          });
+        });
+        return {
+          id: template.id,
+          slug: template.slug,
+          name: template.name,
+          description: template.description || "",
+          canvas: { width: Number(template.canvas_width), height: Number(template.canvas_height) },
+          createdAt: isoDate(template.created_at),
+          updatedAt: isoDate(template.updated_at),
+          currentRevision: template.revision_id ? {
+            id: template.revision_id,
+            number: Number(template.revision_number),
+            definition,
+            editSummary: template.edit_summary || "",
+            authorName: template.author_name || null,
+            authorRole: template.author_role || "wiki_editor",
+            createdAt: isoDate(template.revision_created_at),
+          } : null,
+          placeholders,
+          permissions: { canEdit: true, canDelete: true },
+        };
+      }),
       moderation: {
         pendingEdits: pendingResult.rows.map((submission) => ({
           id: submission.id,
@@ -362,7 +408,7 @@ export default async function handler(request) {
 
     return json(
       {
-        schemaVersion: 4,
+        schemaVersion: 5,
         generatedAt: new Date().toISOString(),
         sourceOrigin: new URL(request.url).origin,
         roadmap,

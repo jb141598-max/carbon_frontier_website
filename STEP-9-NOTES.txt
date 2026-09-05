@@ -1,0 +1,41 @@
+CARBON FRONTIER WIKI — STEP 9
+Reusable templates and visual Template Studio
+
+WHAT WAS ADDED
+
+- A reusable wiki template library at wiki-templates.html and /wiki/templates.
+- A Google Drawings-style visual canvas for Wiki Editors, Admins, and Owners.
+- Draggable and resizable text, placeholder text, rectangles, circles, frames,
+  lines, and protected wiki images.
+- Object properties for position, size, rotation, opacity, fonts, text color,
+  alignment, fill, outline, corners, image fit, and layer order.
+- Snap-to-grid, keyboard nudging, duplicate, delete, undo, and redo tools.
+- Permanent independent template revisions with conflict protection.
+- A starter Machine Infobox template.
+- A Template button in article editing mode.
+- A picker that asks for page-specific placeholder values before insertion.
+- Double-click an inserted template while editing to change its values.
+- Articles keep a revision-safe template snapshot, while normal reading loads
+  the newest central template design so one design change updates every use.
+- Live Testing snapshots now include wiki templates (snapshot schema v5).
+- Template Studio works locally as the Cursor Owner and saves local-only edits.
+- The redundant Back to Wiki control was removed from Permissions; the normal
+  Wiki navigation button already returns to the front page.
+
+DEPLOYMENT
+
+Merge this folder into the website root and deploy once. The deployment is
+required because Step 9 adds a database migration, a Netlify Function, a new
+HTML/JavaScript editor page, and new routes. Netlify applies the template
+migration automatically.
+
+After deployment, local testing can use Refresh Live Data to download the live
+template library without another deployment. Local edits remain local until the
+files themselves are deployed or a change is saved on the production website.
+
+IMPORTANT
+
+The visual editor intentionally implements the practical wiki-template subset
+of Google Drawings rather than pretending to reproduce every Google Drawings
+feature. Its stored version-1 canvas format is extensible for future tools such
+as grouping, connectors, tables, and richer vector paths.

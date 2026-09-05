@@ -836,6 +836,9 @@
             <a class="secondary-button" id="import-wiki-button" href="wiki-import.html" hidden>
               Import
             </a>
+            <a class="secondary-button" id="templates-button" href="wiki-templates.html" hidden>
+              Templates
+            </a>
             <a class="primary-button" id="moderation-button" href="wiki-moderation.html" hidden>
               Moderation
             </a>
@@ -923,9 +926,6 @@
                     the public.
                   </p>
                 </div>
-                <a class="secondary-button" id="close-access-panel" href="wiki.html">
-                  Back to Wiki
-                </a>
               </div>
 
               <form id="settings-form">
@@ -1096,6 +1096,7 @@
         analyticsButton: document.getElementById("analytics-button"),
         moderationButton: document.getElementById("moderation-button"),
         importWikiButton: document.getElementById("import-wiki-button"),
+        templatesButton: document.getElementById("templates-button"),
         loadingView: document.getElementById("loading-view"),
         unavailableView: document.getElementById("unavailable-view"),
         unavailableHeading: document.getElementById("unavailable-heading"),
@@ -1107,7 +1108,6 @@
         viewerAccessTitle: document.getElementById("viewer-access-title"),
         viewerAccessCopy: document.getElementById("viewer-access-copy"),
         accessPanel: document.getElementById("access-panel"),
-        closeAccessPanel: document.getElementById("close-access-panel"),
         settingsForm: document.getElementById("settings-form"),
         visibilitySelect: document.getElementById("visibility-select"),
         editingSelect: document.getElementById("editing-select"),
@@ -1665,6 +1665,7 @@
           elements.analyticsButton.hidden = true;
           elements.moderationButton.hidden = true;
           elements.importWikiButton.hidden = true;
+          elements.templatesButton.hidden = true;
           elements.unavailableHeading.textContent = "Permissions not available";
           elements.accountPill.textContent = viewer?.authenticated
             ? "No permission access"
@@ -1682,6 +1683,7 @@
         elements.analyticsButton.hidden = !viewer.canManageSettings;
         elements.moderationButton.hidden = !viewer.canModerate;
         elements.importWikiButton.hidden = !viewer.canManageSettings;
+        elements.templatesButton.hidden = !viewer.isAssignedStaff;
         elements.accountPill.textContent = viewer.role
           ? `${roleLabel(viewer.role)} access`
           : viewer.canEdit

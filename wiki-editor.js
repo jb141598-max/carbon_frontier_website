@@ -7,8 +7,10 @@
     "carbon-frontier-wiki-local-pages-v1",
   ];
   const LOCAL_REDIRECTS_KEY = "carbon-frontier-wiki-local-redirects-v1";
+  const LOCAL_TEMPLATES_KEY = "carbon-frontier-wiki-local-templates-v1";
   const PAGE_ENDPOINTS = ["/api/wiki/pages", "/.netlify/functions/wiki-pages"];
   const MEDIA_ENDPOINTS = ["/api/wiki/media", "/.netlify/functions/wiki-media"];
+  const TEMPLATE_ENDPOINTS = ["/api/wiki/templates", "/.netlify/functions/wiki-templates"];
   const FONT_FAMILIES = new Map([
     ["play", "Play"],
     ["arial", "Arial"],
@@ -33,6 +35,9 @@
     "numbered-list",
     "callout",
     "image",
+    "template",
+    "heading1", "heading4", "heading5", "heading6",
+    "wiki-list", "table", "preformatted", "horizontal-rule", "comment",
   ]);
   const ALLOWED_INLINE_TAGS = new Set([
     "A",
@@ -45,10 +50,20 @@
     "S",
     "STRONG",
     "U",
+    "SUB", "SUP",
   ]);
 
   const ui = {
     topTools: document.getElementById("wiki-topbar-tools"),
+    modeVisual: document.getElementById("editor-mode-visual"),
+    modeWikitext: document.getElementById("editor-mode-wikitext"),
+    sourcePanel: document.getElementById("wikitext-panel"),
+    source: document.getElementById("wikitext-input"),
+    sourceStatus: document.getElementById("wikitext-status"),
+    sourcePreview: document.getElementById("wikitext-preview"),
+    sourcePreviewButton: document.getElementById("wikitext-preview-button"),
+    sourceHelp: document.getElementById("wikitext-help"),
+    sourceHelpButton: document.getElementById("wikitext-help-button"),
     topSearch: document.getElementById("wiki-top-search"),
     search: document.getElementById("wiki-search-input"),
     searchDialog: document.getElementById("wiki-search-dialog"),
@@ -79,6 +94,7 @@
     bullets: document.getElementById("toolbar-bullets"),
     numbers: document.getElementById("toolbar-numbers"),
     image: document.getElementById("toolbar-image"),
+    template: document.getElementById("toolbar-template"),
     imageOptions: document.getElementById("toolbar-image-options"),
     pageSettings: document.getElementById("toolbar-page-settings"),
     normalEditsField: document.getElementById("toolbar-permission-field"),
@@ -132,6 +148,15 @@
     closeImageOptions: document.getElementById("close-image-options-button"),
     cancelImageOptions: document.getElementById("cancel-image-options-button"),
     removeImage: document.getElementById("remove-image-button"),
+    templateDialog: document.getElementById("template-dialog"),
+    templateForm: document.getElementById("template-form"),
+    templateList: document.getElementById("template-picker-list"),
+    templateValues: document.getElementById("template-value-fields"),
+    templateFeedback: document.getElementById("template-picker-feedback"),
+    closeTemplate: document.getElementById("close-template-button"),
+    cancelTemplate: document.getElementById("cancel-template-button"),
+    insertTemplate: document.getElementById("insert-template-button"),
+    templateStudio: document.getElementById("open-template-studio-link"),
     managementDialog: document.getElementById("page-management-dialog"),
     managementTitle: document.getElementById("page-management-title"),
     managementNormalEdits: document.getElementById("management-normal-edits-input"),
@@ -165,7 +190,19 @@
     selectedImageLayout: "inline",
     draggingFigure: null,
     layeredDrag: null,
+    templates: [],
+    selectedTemplateId: "",
+    editingTemplateNode: null,
+    templateRemoteEndpoint: "",
+    templateLoadPromise: null,
+    editorMode: "visual",
+    sourceContent: null,
+    sourceReferences: {},
+    visualSignature: "",
+    switchingMode: false,
   };
+
+  const wikitext = window.CarbonFrontierWikitext;
 
   function core() {
     return window.CarbonFrontierWikiCore;
@@ -898,7 +935,273 @@
     figure.draggable = Boolean(app.editing && !["behind", "front"].includes(layout));
   }
 
-  function renderContent(container, content) {
+  function templateEndpoint(base, id = "") {
+    if (!id) return base;
+    return base.startsWith("/api/")
+      ? `${base}/${encodeURIComponent(id)}`
+      : `${base}?id=${encodeURIComponent(id)}`;
+  }
+
+  async function remoteTemplateRequest(id = "") {
+    let lastError = new Error("The wiki template service is unavailable.");
+    const bases = app.templateRemoteEndpoint
+      ? [app.templateRemoteEndpoint, ...TEMPLATE_ENDPOINTS.filter((item) => item !== app.templateRemoteEndpoint)]
+      : TEMPLATE_ENDPOINTS;
+    for (const base of bases) {
+      try {
+        const response = await core().fetchWithAuth(templateEndpoint(base, id));
+        const payload = await response.json().catch(() => null);
+        if (response.status === 404 && base.startsWith("/api/") && !id) {
+          lastError = new Error(payload?.error || "The wiki template Function was not found.");
+          continue;
+        }
+        if (!response.ok) {
+          const error = new Error(payload?.error || `Template request failed (${response.status}).`);
+          error.status = response.status;
+          throw error;
+        }
+        app.templateRemoteEndpoint = base;
+        return payload;
+      } catch (error) {
+        lastError = error;
+        if (error?.status && error.status !== 404) throw error;
+      }
+    }
+    throw lastError;
+  }
+
+  function localTemplates() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LOCAL_TEMPLATES_KEY) || "null");
+      const live = window.CarbonFrontierTestingSync?.getSection("wiki")?.templates;
+      const base = Array.isArray(live) && live.length ? live : [{
+        id: "template-machine-infobox",
+        slug: "machine-infobox",
+        name: "Machine Infobox",
+        description: "A reusable information card for Carbon Frontier machines.",
+        currentRevision: {
+          id: "template-machine-infobox-revision-1",
+          number: 1,
+          definition: {
+            version: 1,
+            canvas: { width: 420, height: 560, backgroundColor: "#0b0b0b" },
+            elements: [
+              { id: "frame", type: "frame", x: 8, y: 8, width: 404, height: 544, zIndex: 1, fill: "#111111", stroke: "#df2531", strokeWidth: 3, borderRadius: 22, opacity: 1 },
+              { id: "header", type: "shape", shape: "rectangle", x: 8, y: 8, width: 404, height: 88, zIndex: 2, fill: "#8f1922", stroke: "#df2531", strokeWidth: 0, borderRadius: 20, opacity: 1 },
+              { id: "name", type: "placeholder", placeholderKey: "machine_name", defaultValue: "Machine Name", x: 30, y: 29, width: 360, height: 48, zIndex: 3, fontFamily: "Play", fontSize: 30, fontWeight: 700, textAlign: "left", color: "#ffffff", opacity: 1 },
+              { id: "tier-label", type: "text", text: "TIER", x: 30, y: 126, width: 120, height: 24, zIndex: 3, fontFamily: "Play", fontSize: 13, fontWeight: 700, textAlign: "left", color: "#ff9ba2", opacity: 1 },
+              { id: "tier", type: "placeholder", placeholderKey: "tier", defaultValue: "Tier 1", x: 30, y: 154, width: 360, height: 35, zIndex: 3, fontFamily: "Play", fontSize: 22, fontWeight: 400, textAlign: "left", color: "#ffffff", opacity: 1 },
+              { id: "category-label", type: "text", text: "CATEGORY", x: 30, y: 214, width: 160, height: 24, zIndex: 3, fontFamily: "Play", fontSize: 13, fontWeight: 700, textAlign: "left", color: "#ff9ba2", opacity: 1 },
+              { id: "category", type: "placeholder", placeholderKey: "category", defaultValue: "Processing", x: 30, y: 242, width: 360, height: 35, zIndex: 3, fontFamily: "Play", fontSize: 22, fontWeight: 400, textAlign: "left", color: "#ffffff", opacity: 1 },
+              { id: "description-label", type: "text", text: "DESCRIPTION", x: 30, y: 310, width: 180, height: 24, zIndex: 3, fontFamily: "Play", fontSize: 13, fontWeight: 700, textAlign: "left", color: "#ff9ba2", opacity: 1 },
+              { id: "description", type: "placeholder", placeholderKey: "description", defaultValue: "Describe what this machine does.", x: 30, y: 342, width: 360, height: 150, zIndex: 3, fontFamily: "Play", fontSize: 18, fontWeight: 400, textAlign: "left", color: "#e6e6e6", opacity: 1 },
+            ],
+          },
+        },
+        placeholders: [
+          { key: "machine_name", label: "Machine Name", defaultValue: "Machine Name" },
+          { key: "tier", label: "Tier", defaultValue: "Tier 1" },
+          { key: "category", label: "Category", defaultValue: "Processing" },
+          { key: "description", label: "Description", defaultValue: "Describe what this machine does." },
+        ],
+      }];
+      if (!Array.isArray(saved)) return clone(base);
+      const overrides = new Map(saved.map((template) => [template.id, template]));
+      const merged = base.map((template) => overrides.get(template.id) || template);
+      saved.forEach((template) => {
+        if (!merged.some((current) => current.id === template.id)) merged.push(template);
+      });
+      return clone(merged.filter((template) => !template.isDeleted));
+    } catch (error) {
+      return [];
+    }
+  }
+
+  async function loadTemplates({ force = false } = {}) {
+    if (app.templates.length && !force) return app.templates;
+    if (app.templateLoadPromise && !force) return app.templateLoadPromise;
+    app.templateLoadPromise = (async () => {
+      if (isTesting()) app.templates = localTemplates();
+      else {
+        const payload = await remoteTemplateRequest();
+        app.templates = Array.isArray(payload.templates) ? payload.templates : [];
+      }
+      return app.templates;
+    })();
+    try {
+      return await app.templateLoadPromise;
+    } finally {
+      app.templateLoadPromise = null;
+    }
+  }
+
+  async function loadTemplate(id) {
+    if (!app.templates.length) await loadTemplates();
+    const local = app.templates.find((template) => template.id === id || template.slug === id);
+    if (isTesting() || local) return local || null;
+    try {
+      const payload = await remoteTemplateRequest(id);
+      if (payload?.template) {
+        const index = app.templates.findIndex((template) => template.id === payload.template.id);
+        if (index >= 0) app.templates[index] = payload.template;
+        else app.templates.push(payload.template);
+      }
+      return payload?.template || local || null;
+    } catch (error) {
+      return local || null;
+    }
+  }
+
+  function safeTemplateColor(value, fallback = "transparent") {
+    const color = String(value || "").trim();
+    return color === "transparent" || /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+  }
+
+  function drawTemplateObject(raw, values) {
+    const element = raw && typeof raw === "object" ? raw : {};
+    const node = document.createElement("div");
+    const type = ["text", "placeholder", "shape", "frame", "line", "image"].includes(element.type)
+      ? element.type
+      : "shape";
+    node.className = `wiki-template-object${["text", "placeholder"].includes(type) ? " is-text" : ""}${["shape", "frame"].includes(type) ? " is-shape" : ""}${type === "line" ? " is-line" : ""}`;
+    Object.assign(node.style, {
+      left: `${clampNumber(element.x, -1600, 3200, 0)}px`,
+      top: `${clampNumber(element.y, -1600, 3200, 0)}px`,
+      width: `${clampNumber(element.width, 2, 3200, 20)}px`,
+      height: type === "line" ? "0" : `${clampNumber(element.height, 2, 3200, 20)}px`,
+      zIndex: String(Math.round(clampNumber(element.zIndex, -1000, 1000, 1))),
+    });
+    node.style.setProperty("--object-rotation", `${clampNumber(element.rotation, -360, 360, 0)}deg`);
+    node.style.setProperty("--object-opacity", String(clampNumber(element.opacity, 0.05, 1, 1)));
+    if (type === "text" || type === "placeholder") {
+      const key = String(element.placeholderKey || "");
+      node.textContent = type === "placeholder"
+        ? String(values?.[key] ?? element.defaultValue ?? `{{${key}}}`).slice(0, 1000)
+        : String(element.text || "").slice(0, 1000);
+      Object.assign(node.style, {
+        fontFamily: FONT_FAMILIES.has(String(element.fontFamily || "").toLowerCase())
+          ? FONT_FAMILIES.get(String(element.fontFamily).toLowerCase())
+          : "Play",
+        fontSize: `${clampNumber(element.fontSize, 8, 144, 24)}px`,
+        fontWeight: Number(element.fontWeight) >= 700 ? "700" : "400",
+        fontStyle: element.fontStyle === "italic" ? "italic" : "normal",
+        textAlign: ["left", "center", "right"].includes(element.textAlign) ? element.textAlign : "left",
+        color: safeTemplateColor(element.color, "#ffffff"),
+      });
+    } else if (type === "line") {
+      node.style.borderTopColor = safeTemplateColor(element.stroke, "#ffffff");
+      node.style.borderTopWidth = `${clampNumber(element.strokeWidth, 1, 24, 3)}px`;
+    } else if (type === "image") {
+      const image = document.createElement("img");
+      image.alt = String(element.alt || "Template image").slice(0, 240);
+      image.style.objectFit = element.fit === "contain" ? "contain" : "cover";
+      image.style.borderRadius = `${clampNumber(element.borderRadius, 0, 200, 0)}px`;
+      const url = String(element.url || "");
+      if (/^(?:data:image\/|blob:|https:\/\/)/i.test(url)) image.src = url;
+      else if (element.mediaId) image.dataset.wikiMediaId = String(element.mediaId);
+      node.append(image);
+    } else {
+      node.dataset.shape = type === "frame" ? "rounded" : String(element.shape || "rectangle");
+      node.style.background = safeTemplateColor(element.fill, type === "frame" ? "transparent" : "#df2531");
+      node.style.borderColor = safeTemplateColor(element.stroke, "#ffffff");
+      node.style.borderWidth = `${clampNumber(element.strokeWidth, 0, 24, type === "frame" ? 3 : 1)}px`;
+      node.style.borderRadius = `${clampNumber(element.borderRadius, 0, 200, type === "frame" ? 16 : 0)}px`;
+    }
+    return node;
+  }
+
+  function renderTemplateInto(instance, template, values, fallbackDefinition = null) {
+    const definition = template?.currentRevision?.definition || fallbackDefinition;
+    if (!definition?.canvas) {
+      instance.textContent = "This template is unavailable.";
+      return;
+    }
+    const width = Math.round(clampNumber(definition.canvas.width, 240, 1600, 720));
+    const height = Math.round(clampNumber(definition.canvas.height, 120, 1600, 420));
+    instance.style.setProperty("--template-width", `${width}px`);
+    instance.dataset.templateRevisionId = template?.currentRevision?.id || instance.dataset.templateRevisionId || "";
+    const stage = document.createElement("div");
+    stage.className = "wiki-template-stage";
+    stage.style.setProperty("--template-width", `${width}px`);
+    stage.style.setProperty("--template-height", `${height}px`);
+    stage.style.background = safeTemplateColor(definition.canvas.backgroundColor, "#111111");
+    stage.replaceChildren(...(Array.isArray(definition.elements) ? definition.elements : []).map((element) => drawTemplateObject(element, values)));
+    instance.replaceChildren(stage);
+    const size = () => {
+      const available = instance.clientWidth || width;
+      const scale = Math.min(1, available / width);
+      instance.style.setProperty("--template-scale", String(scale));
+      instance.style.height = `${Math.ceil(height * scale)}px`;
+    };
+    size();
+    window.requestAnimationFrame(() => {
+      if (!instance.isConnected) return;
+      size();
+      if (window.ResizeObserver) {
+        instance.__templateResizeObserver?.disconnect?.();
+        instance.__templateResizeObserver = new ResizeObserver(size);
+        instance.__templateResizeObserver.observe(instance);
+      }
+    });
+    hydrateMediaImages(instance);
+  }
+
+  function createTemplateInstance(block, live = true) {
+    const instance = document.createElement("div");
+    instance.className = "wiki-template-instance";
+    instance.contentEditable = "false";
+    instance.dataset.wikiTemplateId = String(block.templateId || "");
+    instance.dataset.wikiTemplateSlug = String(block.templateSlug || "");
+    instance.__wikiTemplateBlock = clone(block);
+    instance.dataset.templateBlock = JSON.stringify(block);
+    renderTemplateInto(instance, null, block.values || {}, block.snapshot || null);
+    if (live) loadTemplate(block.templateId || block.templateSlug).then((template) => {
+      if (!template || !instance.isConnected) return;
+      renderTemplateInto(instance, template, instance.__wikiTemplateBlock.values || {}, block.snapshot || null);
+    }).catch(() => { /* The saved snapshot remains readable when templates cannot be fetched. */ });
+    return instance;
+  }
+
+  function drawWikiList(entries) {
+    const root = document.createElement("div"); root.className = "wiki-nested-list";
+    let stack = [];
+    for (const entry of (entries || []).slice(0,2000)) {
+      const path = String(entry.path || "*").replace(/[^*#]/g, "").slice(0,12) || "*";
+      let common = 0;
+      while (common < stack.length && common < path.length && stack[common].kind === path[common]) common++;
+      stack = stack.slice(0,common);
+      for (let depth = common; depth < path.length; depth++) {
+        const list = document.createElement(path[depth] === "#" ? "ol" : "ul");
+        if (!depth) root.append(list);
+        else {
+          const parent = stack[depth-1];
+          if (!parent.last) { parent.last = document.createElement("li"); parent.list.append(parent.last); }
+          parent.last.append(list);
+        }
+        stack.push({kind:path[depth],list,last:null});
+      }
+      const item = document.createElement("li"); setInlineContent(item,entry);
+      stack[stack.length-1].list.append(item); stack[stack.length-1].last=item;
+    }
+    return root;
+  }
+
+  function drawWikiTable(block) {
+    const table = document.createElement("table");
+    if (block.caption?.html || block.caption?.text) { const caption = document.createElement("caption"); setInlineContent(caption,block.caption); table.append(caption); }
+    const body = document.createElement("tbody");
+    (block.rows || []).slice(0,200).forEach(row => {
+      const tr = document.createElement("tr");
+      row.slice(0,30).forEach(cell => {
+        const td = document.createElement(cell.header ? "th" : "td");
+        td.colSpan = Math.round(clampNumber(cell.colspan,1,20,1)); td.rowSpan = Math.round(clampNumber(cell.rowspan,1,20,1));
+        setInlineContent(td,cell); tr.append(td);
+      }); body.append(tr);
+    }); table.append(body); return table;
+  }
+
+  function renderContent(container, content, { liveTemplates = true } = {}) {
+    container.querySelectorAll(".wiki-template-instance").forEach(node => node.__templateResizeObserver?.disconnect());
     container.replaceChildren();
     const blocks = Array.isArray(content?.blocks) ? content.blocks : [];
     if (!blocks.length) {
@@ -910,9 +1213,24 @@
     }
 
     blocks.forEach((block) => {
-      const type = BLOCK_TYPES.has(block?.type) ? block.type : "paragraph";
+      const type = BLOCK_TYPES.has(block?.type) ? block.type : "preserved";
       let element;
-      if (type === "image") {
+      if (type === "template") {
+        element = createTemplateInstance(block, liveTemplates);
+      } else if (type === "table") {
+        element = drawWikiTable(block);
+      } else if (type === "wiki-list") {
+        element = drawWikiList(block.entries);
+      } else if (type === "preformatted") {
+        element = document.createElement("pre"); element.textContent = block.text || "";
+      } else if (type === "horizontal-rule") {
+        element = document.createElement("hr");
+      } else if (type === "comment" || type === "preserved") {
+        element = document.createElement("div"); element.contentEditable = "false";
+        element.className = type === "comment" ? "wiki-source-comment" : "wiki-source-preserved";
+        element.dataset.preservedBlock = JSON.stringify(block);
+        element.textContent = type === "comment" ? "Source comment: " + (block.text || "") : (block.text || "Visual block — preserved in wikitext mode.");
+      } else if (type === "image") {
         element = document.createElement("figure");
         element.contentEditable = "false";
         element.dataset.wikiMediaId = String(block.mediaId || "");
@@ -937,9 +1255,10 @@
           caption.textContent = String(block.caption).trim().slice(0, 300);
           element.append(caption);
         }
-      } else if (type === "heading2" || type === "heading3") {
-        element = document.createElement(type === "heading2" ? "h2" : "h3");
+      } else if (/^heading[1-6]$/.test(type)) {
+        element = document.createElement("h" + type.slice(-1));
         setInlineContent(element, block);
+        element.id = wikitext.slugify(element.textContent);
       } else if (type === "bullet-list" || type === "numbered-list") {
         element = document.createElement(type === "bullet-list" ? "ul" : "ol");
         const items = Array.isArray(block.items)
@@ -964,6 +1283,7 @@
         element = document.createElement("p");
         setInlineContent(element, block);
       }
+      if (block.id) element.dataset.blockId = block.id;
       container.append(element);
     });
     hydrateMediaImages(container);
@@ -984,6 +1304,22 @@
     };
   }
 
+  function serializeWikiList(root) {
+    const entries=[];
+    function walk(list,path) {
+      for (const item of list.children) {
+        if (item.tagName !== "LI") continue;
+        const own = item.cloneNode(true);
+        own.querySelectorAll("ul,ol").forEach(child => child.remove());
+        entries.push({path,...serializeInlineElement(own)});
+        [...item.children].filter(child=>["UL","OL"].includes(child.tagName)).forEach(child=>walk(child,path+(child.tagName === "UL" ? "*" : "#")));
+      }
+    }
+    if (["UL","OL"].includes(root.tagName)) walk(root,root.tagName === "UL" ? "*" : "#");
+    else [...root.children].filter(child=>["UL","OL"].includes(child.tagName)).forEach(child=>walk(child,child.tagName === "UL" ? "*" : "#"));
+    return entries;
+  }
+
   function serializeEditorContent() {
     const blocks = [];
     [...ui.content.childNodes].forEach((node, index) => {
@@ -999,11 +1335,35 @@
       }
 
       const tag = node.tagName;
-      if (tag === "FIGURE" && node.dataset.wikiMediaId) {
+      const blockId = node.dataset.blockId || (node.dataset.blockId = randomId("block"));
+      if (node.dataset.preservedBlock) {
+        blocks.push({...JSON.parse(node.dataset.preservedBlock),id:blockId});
+        return;
+      }
+      if (node.classList.contains("wiki-template-instance")) {
+        const saved = node.__wikiTemplateBlock || JSON.parse(node.dataset.templateBlock || "null");
+        if (!saved) throw new Error("This template could not be read. Reinsert it before saving.");
+        blocks.push({ ...clone(saved), id:blockId, type: "template" });
+        return;
+      }
+      if (tag === "TABLE") {
+        blocks.push({id:blockId,type:"table",caption:node.caption ? serializeInlineElement(node.caption) : {text:"",html:""},
+          rows:[...node.rows].map(row=>[...row.cells].map(cell=>({header:cell.tagName === "TH",colspan:cell.colSpan,rowspan:cell.rowSpan,...serializeInlineElement(cell)})))});
+        return;
+      }
+      if (tag === "PRE" || tag === "HR") {
+        blocks.push({id:blockId,type:tag === "PRE" ? "preformatted" : "horizontal-rule",...(tag === "PRE" ? {text:node.textContent} : {})});
+        return;
+      }
+      if (node.classList.contains("wiki-nested-list") || ((tag === "UL" || tag === "OL") && node.querySelector("li ul,li ol"))) {
+        blocks.push({id:blockId,type:"wiki-list",entries:serializeWikiList(node)});
+        return;
+      }
+      if (tag === "FIGURE" && (node.dataset.wikiMediaId || node.dataset.wikiMediaUrl)) {
         const image = node.querySelector("img");
         const caption = node.querySelector("figcaption");
         blocks.push({
-          id: randomId(`block-${index}`),
+          id: blockId,
           type: "image",
           mediaId: node.dataset.wikiMediaId,
           url: node.dataset.wikiMediaUrl || "",
@@ -1018,21 +1378,19 @@
       }
       if (tag === "UL" || tag === "OL") {
         blocks.push({
-          id: randomId(`block-${index}`),
+          id: blockId,
           type: tag === "UL" ? "bullet-list" : "numbered-list",
           items: [...node.querySelectorAll(":scope > li")].map((item) => serializeInlineElement(item)),
         });
         return;
       }
-      const type = tag === "H2"
-        ? "heading2"
-        : tag === "H3"
-          ? "heading3"
+      const type = /^H[1-6]$/.test(tag)
+        ? "heading" + tag.slice(-1)
           : tag === "BLOCKQUOTE" || node.classList.contains("article-callout")
             ? "callout"
             : "paragraph";
       blocks.push({
-        id: randomId(`block-${index}`),
+        id: blockId,
         type,
         ...serializeInlineElement(node),
       });
@@ -1049,7 +1407,7 @@
 
   function contentPlainText(content) {
     const temporary = document.createElement("div");
-    renderContent(temporary, content);
+    renderContent(temporary, content, {liveTemplates:false});
     return temporary.textContent.replace(/\s+/g, " ").trim();
   }
 
@@ -1238,6 +1596,91 @@
     setDialog(ui.newDialog, false);
   }
 
+  function contentSignature(content) {
+    return JSON.stringify(content?.blocks || [], (key,value) => key === "id" ? undefined : value);
+  }
+
+  function sourceContext() {
+    return {preserved:app.sourceReferences, templates:app.templates, pages:app.pages};
+  }
+
+  function updateEditorMode() {
+    const source = app.editing && app.editorMode === "wikitext";
+    ui.modeVisual.setAttribute("aria-pressed", String(!source));
+    ui.modeWikitext.setAttribute("aria-pressed", String(source));
+    ui.sourcePanel.hidden = !source;
+    ui.content.hidden = source;
+    ui.content.contentEditable = String(app.editing && !source);
+    [ui.undo,ui.redo,ui.blockStyle,ui.fontFamily,ui.bold,ui.italic,ui.underline,ui.link,ui.bullets,ui.numbers,ui.image,ui.template,ui.imageOptions].forEach(control=>{
+      control.disabled = source;
+    });
+  }
+
+  function readEditedContent() {
+    const base = app.editingBasePage?.currentRevision?.content || {};
+    if (app.editorMode === "wikitext") {
+      // Keeping a conversion untouched must not remove visual-only fields.
+      if (app.sourceContent && ui.source.value === app.sourceContent.wikitext?.source) return clone(app.sourceContent);
+      return {...clone(base), ...wikitext.parse(ui.source.value,sourceContext())};
+    }
+    const visual = serializeEditorContent();
+    if (app.sourceContent && contentSignature(visual) === app.visualSignature) return clone(app.sourceContent);
+    const generated = wikitext.format(visual,sourceContext());
+    return {...clone(base),...visual,version:3,wikitext:{version:1,source:generated.source}};
+  }
+
+  async function switchEditorMode(mode) {
+    if (!app.editing || app.switchingMode || mode === app.editorMode) return;
+    const editingPage = app.editingBasePage;
+    app.switchingMode=true; ui.modeVisual.disabled=true; ui.modeWikitext.disabled=true; ui.savePage.disabled=true;
+    try {
+      if (mode === "wikitext") {
+        try { await loadTemplates(); } catch { /* Plain wikitext and existing template snapshots still work. */ }
+        if (!app.editing || app.editingBasePage !== editingPage) return;
+        const visual = serializeEditorContent();
+        const previous = app.sourceContent;
+        const unchanged = previous && contentSignature(visual) === app.visualSignature;
+        const generated = wikitext.format(unchanged ? previous : visual,sourceContext());
+        app.sourceReferences=generated.preserved;
+        const source = unchanged && previous.wikitext?.version === 1 ? previous.wikitext.source : generated.source;
+        app.sourceContent={...(unchanged ? clone(previous) : {...clone(editingPage.currentRevision.content),...visual}),wikitext:{version:1,source}};
+        app.visualSignature=contentSignature(visual);
+        ui.source.value=source; ui.sourcePreview.hidden=true; ui.sourcePreviewButton.setAttribute("aria-expanded","false");
+        ui.linkPopover.hidden=true; clearSelectedFigure();
+        setFeedback(ui.sourceStatus,"Ready. Preview checks your markup before you save.");
+      } else {
+        const parsed=readEditedContent();
+        renderContent(ui.content,parsed);
+        app.sourceContent=clone(parsed);
+        app.sourceReferences=wikitext.references(parsed);
+        app.visualSignature=contentSignature(serializeEditorContent());
+        app.savedSelection=null;
+      }
+      app.editorMode=mode; updateEditorMode();
+      if(mode === "visual") ui.content.querySelectorAll("figure").forEach(figure=>configureFigure(figure));
+      (mode === "wikitext" ? ui.source : ui.content).focus();
+      setFeedback(ui.feedback,mode === "wikitext" ? "Wikitext mode. Preview or save when ready." : "Visual mode. Your source changes are ready to edit.");
+    } catch(error) {
+      setFeedback(ui.sourceStatus,error.message,true);
+      setFeedback(ui.feedback,error.message,true);
+      ui.source.focus();
+    } finally {
+      app.switchingMode=false; ui.modeVisual.disabled=false; ui.modeWikitext.disabled=false; ui.savePage.disabled=false;
+    }
+  }
+
+  function previewWikitext() {
+    try {
+      const content=readEditedContent();
+      renderContent(ui.sourcePreview,content);
+      ui.sourcePreview.hidden=false; ui.sourcePreviewButton.setAttribute("aria-expanded","true");
+      setFeedback(ui.sourceStatus,"Preview updated. These changes have not been saved yet.");
+    } catch(error) {
+      ui.sourcePreview.hidden=true; ui.sourcePreviewButton.setAttribute("aria-expanded","false");
+      setFeedback(ui.sourceStatus,error.message,true);
+    }
+  }
+
   function enterEditing() {
     const page = app.currentPage;
     if (!page?.permissions?.canEdit || app.editing) {
@@ -1245,6 +1688,9 @@
     }
     app.editing = true;
     app.editingBasePage = clone(page);
+    app.editorMode = "visual";
+    app.sourceContent = clone(page.currentRevision?.content || {type:"document",version:2,blocks:[]});
+    app.sourceReferences = wikitext.references(app.sourceContent);
     ui.articleSurface.classList.add("is-editing");
     ui.documentToolbar.hidden = false;
     ui.title.hidden = true;
@@ -1263,6 +1709,8 @@
     ui.content.setAttribute("role", "textbox");
     ui.content.setAttribute("aria-multiline", "true");
     normalizeEditableRoot();
+    app.visualSignature = contentSignature(serializeEditorContent());
+    updateEditorMode();
     [...ui.content.querySelectorAll("figure[data-wiki-media-id]")].forEach((figure) => {
       configureFigure(figure);
     });
@@ -1278,6 +1726,11 @@
       return;
     }
     app.editing = false;
+    app.editorMode = "visual";
+    app.sourceContent = null;
+    app.sourceReferences = {};
+    app.visualSignature = "";
+    updateEditorMode();
     ui.articleSurface.classList.remove("is-editing");
     ui.documentToolbar.hidden = true;
     ui.linkPopover.hidden = true;
@@ -1301,7 +1754,7 @@
   }
 
   function executeEditorCommand(command, value = null) {
-    if (!app.editing) {
+    if (!app.editing || app.editorMode !== "visual") {
       return;
     }
     ui.content.focus();
@@ -1313,7 +1766,7 @@
   }
 
   function updateToolbarState() {
-    if (!app.editing) {
+    if (!app.editing || app.editorMode !== "visual") {
       return;
     }
     [
@@ -1468,6 +1921,7 @@
   }
 
   async function saveEditing() {
+    if (!app.editing || app.switchingMode || ui.savePage.disabled) return;
     const page = app.editingBasePage;
     if (!page?.currentRevision?.id) {
       setFeedback(ui.feedback, "This page has no revision to edit.", true);
@@ -1483,6 +1937,10 @@
     ui.savePage.disabled = true;
     setFeedback(ui.feedback, "Saving a new revision...");
     try {
+      const content = readEditedContent();
+      if (new TextEncoder().encode(JSON.stringify(content)).length > 250000) {
+        throw new Error("This page is too large to save. Shorten the text or split it into smaller pages.");
+      }
       if (
         page.permissions?.canChangePageSettings &&
         Boolean(page.allowNormalEdits) !== ui.normalEdits.checked
@@ -1495,7 +1953,7 @@
 
       const payload = await mutatePage(page.slug, {
         title,
-        content: serializeEditorContent(),
+        content,
         editSummary: ui.editSummary.value.trim(),
         baseRevisionId: page.currentRevision.id,
       });
@@ -1515,6 +1973,7 @@
       await refreshPageList();
       setFeedback(ui.feedback, `Revision ${payload.page.currentRevision.number} saved.`);
     } catch (error) {
+      if (app.editorMode === "wikitext") setFeedback(ui.sourceStatus, error.message || "The revision could not be saved.", true);
       const conflict = error?.code === "revision_conflict" || error?.status === 409;
       setFeedback(
         ui.feedback,
@@ -1605,6 +2064,22 @@
     }
   }
 
+  function insertDocumentBlock(element) {
+    const selection = window.getSelection();
+    const anchor = restoreSavedSelection() && selection.rangeCount
+      ? directContentChild(selection.getRangeAt(0).endContainer) : null;
+    if (anchor) anchor.after(element);
+    else ui.content.append(element);
+    const paragraph = document.createElement("p");
+    paragraph.append(document.createElement("br"));
+    element.after(paragraph);
+    const range = document.createRange();
+    range.setStart(paragraph, 0);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
   function insertUploadedImage(media, { alt, caption }) {
     const figure = document.createElement("figure");
     figure.contentEditable = "false";
@@ -1621,25 +2096,148 @@
       figure.append(captionElement);
     }
 
-    const selection = window.getSelection();
-    if (restoreSavedSelection() && selection.rangeCount) {
-      const range = selection.getRangeAt(0);
-      range.collapse(false);
-      range.insertNode(figure);
-      const paragraph = document.createElement("p");
-      paragraph.append(document.createElement("br"));
-      figure.after(paragraph);
-      range.setStart(paragraph, 0);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    } else {
-      ui.content.append(figure);
-    }
+    insertDocumentBlock(figure);
     closeMediaDialog();
     ui.content.focus();
     selectFigure(figure);
     setFeedback(ui.feedback, "Image inserted. Drag it to reorder, or choose Image Options for wrapping, size, and layering.");
+  }
+
+  function renderTemplateChoices() {
+    ui.templateList.replaceChildren();
+    if (!app.templates.length) {
+      const empty = document.createElement("p");
+      empty.className = "wiki-list-state";
+      empty.textContent = "No templates have been created yet. Open Template Studio to create one.";
+      ui.templateList.append(empty);
+      return;
+    }
+    app.templates.forEach((template) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `template-picker-option${template.id === app.selectedTemplateId ? " is-selected" : ""}`;
+      button.dataset.templateId = template.id;
+      const title = document.createElement("strong");
+      title.textContent = template.name;
+      const detail = document.createElement("span");
+      const placeholderCount = Array.isArray(template.placeholders) ? template.placeholders.length : 0;
+      detail.textContent = `${placeholderCount} placeholder${placeholderCount === 1 ? "" : "s"} · Revision ${template.currentRevision?.number || 1}`;
+      button.append(title, detail);
+      ui.templateList.append(button);
+    });
+  }
+
+  function selectedTemplate() {
+    return app.templates.find((template) => template.id === app.selectedTemplateId) || null;
+  }
+
+  function renderTemplateValueFields(values = {}) {
+    const template = selectedTemplate();
+    ui.templateValues.replaceChildren();
+    if (!template) {
+      ui.insertTemplate.disabled = true;
+      return;
+    }
+    const placeholders = Array.isArray(template.placeholders) ? template.placeholders : [];
+    if (!placeholders.length) {
+      const note = document.createElement("p");
+      note.className = "template-picker-note";
+      note.textContent = "This design has no placeholders. It will be inserted exactly as drawn.";
+      ui.templateValues.append(note);
+    } else {
+      placeholders.forEach((placeholder) => {
+        const label = document.createElement("label");
+        const caption = document.createElement("span");
+        caption.className = "field-label";
+        caption.textContent = placeholder.label || String(placeholder.key).replaceAll("_", " ");
+        const input = document.createElement(String(placeholder.defaultValue || "").length > 100 ? "textarea" : "input");
+        if (input.tagName === "TEXTAREA") input.rows = 3;
+        input.dataset.templateValue = placeholder.key;
+        input.maxLength = 1000;
+        input.value = String(values?.[placeholder.key] ?? placeholder.defaultValue ?? "");
+        input.placeholder = String(placeholder.defaultValue || "Enter a value");
+        label.append(caption, input);
+        ui.templateValues.append(label);
+      });
+    }
+    ui.insertTemplate.disabled = false;
+  }
+
+  async function chooseTemplate(templateId, values = {}) {
+    app.selectedTemplateId = templateId;
+    renderTemplateChoices();
+    const template = await loadTemplate(templateId);
+    if (template) {
+      const index = app.templates.findIndex((item) => item.id === template.id);
+      if (index >= 0) app.templates[index] = template;
+      renderTemplateChoices();
+    }
+    renderTemplateValueFields(values);
+  }
+
+  async function openTemplateDialog(templateNode = null) {
+    if (!app.editing) return;
+    if (!templateNode) saveCurrentSelection();
+    app.editingTemplateNode = templateNode;
+    app.selectedTemplateId = templateNode?.__wikiTemplateBlock?.templateId || "";
+    ui.templateStudio.hidden = !viewer()?.isAssignedStaff;
+    setFeedback(ui.templateFeedback, "Loading reusable templates...");
+    setDialog(ui.templateDialog, true);
+    try {
+      await loadTemplates({ force: true });
+      renderTemplateChoices();
+      if (app.selectedTemplateId) {
+        await chooseTemplate(app.selectedTemplateId, templateNode?.__wikiTemplateBlock?.values || {});
+      } else if (app.templates[0]) {
+        await chooseTemplate(app.templates[0].id);
+      } else {
+        renderTemplateValueFields();
+      }
+      setFeedback(ui.templateFeedback, "");
+    } catch (error) {
+      ui.templateList.replaceChildren();
+      setFeedback(ui.templateFeedback, error?.message || "Templates could not be loaded.", true);
+    }
+  }
+
+  function closeTemplateDialog() {
+    setDialog(ui.templateDialog, false);
+    app.editingTemplateNode = null;
+    app.selectedTemplateId = "";
+  }
+
+  function templateValuesFromForm() {
+    const values = {};
+    ui.templateValues.querySelectorAll("[data-template-value]").forEach((input) => {
+      values[input.dataset.templateValue] = input.value.slice(0, 1000);
+    });
+    return values;
+  }
+
+  function insertTemplateBlock(event) {
+    event.preventDefault();
+    const template = selectedTemplate();
+    if (!template?.currentRevision?.definition) {
+      setFeedback(ui.templateFeedback, "Choose a template first.", true);
+      return;
+    }
+    const block = {
+      type: "template",
+      templateId: template.id,
+      templateSlug: template.slug,
+      templateRevisionId: template.currentRevision.id,
+      values: templateValuesFromForm(),
+      snapshot: clone(template.currentRevision.definition),
+    };
+    const instance = createTemplateInstance(block);
+    if (app.editingTemplateNode?.isConnected) {
+      app.editingTemplateNode.replaceWith(instance);
+    } else {
+      insertDocumentBlock(instance);
+    }
+    closeTemplateDialog();
+    ui.content.focus();
+    setFeedback(ui.feedback, `“${template.name}” inserted. Double-click it to change this page's placeholder values.`);
   }
 
   async function handleMediaUpload(event) {
@@ -1879,8 +2477,8 @@
       ui.historySelectionMeta.textContent = `${formatDate(payload.revision.createdAt)} · ${
         authorLabel(payload.revision)
       } · ${payload.revision.editSummary || "No edit summary"}`;
-      renderContent(ui.selectedPreview, payload.revision.content);
-      renderContent(ui.currentPreview, app.currentPage.currentRevision?.content);
+      renderContent(ui.selectedPreview, payload.revision.content, { liveTemplates: false });
+      renderContent(ui.currentPreview, app.currentPage.currentRevision?.content, { liveTemplates: false });
       ui.historyDiffSummary.textContent = compareContents(
         payload.revision.content,
         app.currentPage.currentRevision?.content
@@ -2098,6 +2696,18 @@
   ui.editPage.addEventListener("click", enterEditing);
   ui.historyButton.addEventListener("click", openHistory);
   ui.savePage.addEventListener("click", saveEditing);
+  ui.modeVisual.addEventListener("click", () => switchEditorMode("visual"));
+  ui.modeWikitext.addEventListener("click", () => switchEditorMode("wikitext"));
+  ui.sourcePreviewButton.addEventListener("click", previewWikitext);
+  ui.sourceHelpButton.addEventListener("click", () => {
+    ui.sourceHelp.hidden = !ui.sourceHelp.hidden;
+    ui.sourceHelpButton.setAttribute("aria-expanded", String(!ui.sourceHelp.hidden));
+  });
+  ui.source.addEventListener("input", () => {
+    ui.sourcePreview.hidden = true;
+    ui.sourcePreviewButton.setAttribute("aria-expanded", "false");
+    setFeedback(ui.sourceStatus, "Unsaved changes. Preview to check your markup.");
+  });
   ui.cancelEditor.addEventListener("click", () => {
     exitEditing({ restorePage: true });
     setFeedback(ui.feedback, "Changes discarded.");
@@ -2110,6 +2720,7 @@
   ui.bullets.addEventListener("click", () => executeEditorCommand("insertUnorderedList"));
   ui.numbers.addEventListener("click", () => executeEditorCommand("insertOrderedList"));
   ui.image.addEventListener("click", openMediaDialog);
+  ui.template.addEventListener("click", () => openTemplateDialog());
   ui.pageSettings.addEventListener("click", openPageManagement);
   ui.blockStyle.addEventListener("change", () => executeEditorCommand("formatBlock", ui.blockStyle.value));
   ui.fontFamily.addEventListener("change", () => executeEditorCommand("fontName", ui.fontFamily.value));
@@ -2142,6 +2753,12 @@
     else clearSelectedFigure();
   });
   ui.content.addEventListener("dblclick", (event) => {
+    const template = event.target.closest(".wiki-template-instance");
+    if (app.editing && template?.parentElement === ui.content) {
+      event.preventDefault();
+      openTemplateDialog(template);
+      return;
+    }
     const figure = event.target.closest("figure[data-wiki-media-id]");
     if (app.editing && figure?.parentElement === ui.content) {
       event.preventDefault();
@@ -2241,6 +2858,14 @@
   ui.cancelImageOptions.addEventListener("click", closeImageOptions);
   ui.removeImage.addEventListener("click", removeSelectedImage);
 
+  ui.templateList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-template-id]");
+    if (button) chooseTemplate(button.dataset.templateId, {});
+  });
+  ui.templateForm.addEventListener("submit", insertTemplateBlock);
+  ui.closeTemplate.addEventListener("click", closeTemplateDialog);
+  ui.cancelTemplate.addEventListener("click", closeTemplateDialog);
+
   ui.closeManagement.addEventListener("click", closePageManagement);
   ui.managementNormalEdits.addEventListener("change", updateManagedEditingPermission);
   ui.moveSlug.addEventListener("input", () => {
@@ -2263,6 +2888,7 @@
     ui.historyDialog,
     ui.mediaDialog,
     ui.imageOptionsDialog,
+    ui.templateDialog,
     ui.managementDialog,
     ui.trashDialog,
   ].forEach((dialog) => {
@@ -2271,6 +2897,7 @@
         if (dialog === ui.searchDialog) closeSearchResults();
         else if (dialog === ui.mediaDialog) closeMediaDialog();
         else if (dialog === ui.imageOptionsDialog) closeImageOptions();
+        else if (dialog === ui.templateDialog) closeTemplateDialog();
         else if (dialog === ui.managementDialog) closePageManagement();
         else if (dialog === ui.trashDialog) closeTrashDialog();
         else setDialog(dialog, false);
@@ -2297,6 +2924,8 @@
       closeMediaDialog();
     } else if (!ui.imageOptionsDialog.hidden) {
       closeImageOptions();
+    } else if (!ui.templateDialog.hidden) {
+      closeTemplateDialog();
     } else if (!ui.managementDialog.hidden) {
       closePageManagement();
     } else if (!ui.trashDialog.hidden) {
@@ -2322,6 +2951,8 @@
     if (!isTesting() || !viewer()?.canView) {
       return;
     }
+    app.templates = [];
+    app.templateLoadPromise = null;
     await refreshPageList();
     await openPage(app.currentSlug, { push: false });
   });

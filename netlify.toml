@@ -74,6 +74,22 @@
   to = "/wiki-import.html"
   status = 200
 
+# Reusable template library and visual Google Drawings-style editor.
+[[redirects]]
+  from = "/wiki/templates"
+  to = "/wiki-templates.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/templates/"
+  to = "/wiki-templates.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/templates/*"
+  to = "/wiki-templates.html"
+  status = 200
+
 [[redirects]]
   from = "/wiki/*"
   to = "/wiki.html"

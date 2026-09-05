@@ -1,0 +1,52 @@
+Carbon Frontier Wiki — Step 10 / v15
+
+INSTALL
+Apply this ZIP over the existing Step 9 / v14 website folder. It contains only
+new or changed files, so merge it into your project; do not replace the whole
+project folder with this patch. Keep every other existing project file.
+
+Files in this patch:
+  wiki.html
+  wiki-editor.js
+  wiki-wikitext.js (new)
+  wiki-moderation.js
+  STEP-10-NOTES.txt (new)
+
+Local testing: refresh wiki.html after replacing the files. Live Testing still
+keeps your edits local. No Netlify deployment is needed to try this locally.
+Live website: deploy the updated files to enable this editor on Netlify.
+This patch needs no database migrations, dependencies, or environment variables.
+
+HOW TO USE
+Open a wiki page, click Edit Page, then click Wikitext in the top toolbar.
+Use Preview to check the result. Syntax Guide contains examples. Click Visual
+to return to the visual editor, or Save to create a revision directly from source.
+Cancel discards the draft. The normal edit-summary and page-permission controls
+still apply. History remains visible only in editing mode.
+
+SUPPORTED MARKUP
+Headings, bold/italic, underline, strike-through, subscript/superscript, supported
+fonts, internal/external links, bullet/numbered/nested lists, tables, note boxes,
+line breaks, rules, preformatted text, nowiki, source comments, uploaded images,
+HTTPS images, and named placeholder values in Template Studio templates.
+
+This is a subset of MediaWiki syntax. It is not a MediaWiki runtime: Lua, parser
+functions, nested templates, category assignment, arbitrary HTML, and MediaWiki
+extensions are not implemented. Templates must already exist in Template Studio.
+Each image/template call goes on its own line. Image widths use percentages.
+
+Existing image positions and template snapshots use cf-ref values. CFBlock
+markers preserve visual blocks that cannot be expressed directly in this dialect.
+Leave these IDs intact. Unchanged source is retained exactly with its revision;
+editing visually can normalize the source formatting. Old pages remain readable.
+
+Malformed supported constructs show an error and leave the draft open. Saves use
+the existing revision-conflict checks, permissions, and moderation API. Source
+and rendered blocks together must fit the existing 250,000-byte content limit.
+
+VALIDATION
+Nine parser and DOM integration tests passed: syntax, escaping, conversion,
+preview, switching, saving/reloading, cancel, layered images, template snapshots,
+revision restoration, and conflict handling. Local tests made no live requests.
+JavaScript syntax checks passed. Browser visual verification was unavailable
+because the browser could not access the local preview URL in this workspace.
