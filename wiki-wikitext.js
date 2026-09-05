@@ -96,9 +96,24 @@
       : Object.values(context.preserved || {}).find((b) => b.type === "template" && normalizeName(b.templateSlug) === key);
     const template = (context.templates || []).find((t) => normalizeName(t.name) === key || normalizeName(t.slug) === key);
     if (!template && !original) throw new Error('Template "' + name + '" does not exist. Create it in Template Studio first.');
+    let hasPlacement = Boolean(original && (original.layout !== undefined || original.widthPercent !== undefined));
+    let layout = ["inline","wrap-left","wrap-right","break","behind","front"].includes(original?.layout) ? original.layout : "wrap-right";
+    let widthPercent = Math.min(100, Math.max(20, Number(original?.widthPercent) || 46));
+    let xPercent = Math.min(85, Math.max(0, Number(original?.xPercent) || 0));
+    let yPixels = Math.min(5000, Math.max(0, Number(original?.yPixels) || 0));
     const values = Object.create(null);
     for (const part of parts) {
-      if (part.trim().startsWith("cf-ref=")) continue;
+      const option = part.trim();
+      if (option.startsWith("cf-ref=")) continue;
+      if (option.startsWith("cf-object-layout=")) {
+        hasPlacement = true;
+        const candidate = option.slice(17);
+        if (["inline","wrap-left","wrap-right","break","behind","front"].includes(candidate)) layout = candidate;
+        continue;
+      }
+      if (option.startsWith("cf-object-width=")) { hasPlacement = true; widthPercent = Math.min(100,Math.max(20,Number(option.slice(16)) || 46)); continue; }
+      if (option.startsWith("cf-object-x=")) { hasPlacement = true; xPercent = Math.min(85,Math.max(0,Number(option.slice(12)) || 0)); continue; }
+      if (option.startsWith("cf-object-y=")) { hasPlacement = true; yPixels = Math.min(5000,Math.max(0,Number(option.slice(12)) || 0)); continue; }
       const eq = part.indexOf("=");
       if (eq < 1) throw new Error("Use named template values, such as machine_name=Coal Drill.");
       const param = part.slice(0,eq).trim(); if (!/^[a-zA-Z0-9_-]{1,60}$/.test(param)) throw new Error("Use letters, numbers, or underscores for a placeholder name.");
@@ -107,15 +122,17 @@
       if (value.length > 1000) throw new Error("Template values must be 1,000 characters or fewer.");
       values[param] = decode(value.replace(/<nowiki>([\s\S]*?)<\/nowiki>/gi, "$1"));
     }
-    return {...(original ? copy(original) : {}),type:"template", templateId:original?.templateId || template.id, templateSlug:original?.templateSlug || template.slug,
+    const result = {...(original ? copy(original) : {}),type:"template", templateId:original?.templateId || template.id, templateSlug:original?.templateSlug || template.slug,
       templateRevisionId:original?.templateRevisionId || template?.currentRevision?.id || "", values,
       snapshot:copy(original?.snapshot || template?.currentRevision?.definition || null)};
+    if (hasPlacement) Object.assign(result,{layout,widthPercent,xPercent,yPixels});
+    return result;
   }
   function imageBlock(source, context) {
     const parts = splitOutside(source.slice(2,-2),"|"); const target = decode(parts.shift().replace(/^(?:File|Image):/i,""));
     const reference = parts.find((p) => p.trim().startsWith("cf-ref="))?.trim().slice(7);
     const original = context.preserved?.[reference];
-    const block = original?.type === "image" ? copy(original) : {type:"image", mediaId:"", url:"", alt:"", caption:"", layout:"inline", widthPercent:72, xPercent:0, yPixels:0};
+    const block = original?.type === "image" ? copy(original) : {type:"image", mediaId:"", url:"", alt:"", caption:"", layout:"wrap-right", widthPercent:46, xPercent:0, yPixels:0};
     if (/^https:\/\//i.test(target)) { block.url = target; block.mediaId = original?.url === target ? original.mediaId : ""; }
     else { block.mediaId = target; if (original?.mediaId !== target) block.url = ""; }
     if (!target || (/^[a-z]+:/i.test(target) && !/^https:/i.test(target))) throw new Error("Images require an uploaded media ID or an HTTPS image URL.");
@@ -279,7 +296,14 @@
           const template = (context.templates||[]).find(t=>t.id === block.templateId);
           const name = template?.slug || block.templateSlug;
           if(!name) throw new Error("Unnamed template");
-          const params=["|cf-ref="+block.id,...Object.entries(block.values || {}).map(([key,value])=>"|"+key+"="+literal(value))];
+          const params=["|cf-ref="+block.id];
+          if (block.layout !== undefined || block.widthPercent !== undefined) params.push(
+            "|cf-object-layout="+(["inline","wrap-left","wrap-right","break","behind","front"].includes(block.layout) ? block.layout : "wrap-right"),
+            "|cf-object-width="+Math.min(100,Math.max(20,Number(block.widthPercent)||46)),
+            "|cf-object-x="+Math.min(85,Math.max(0,Number(block.xPercent)||0)),
+            "|cf-object-y="+Math.min(5000,Math.max(0,Number(block.yPixels)||0))
+          );
+          params.push(...Object.entries(block.values || {}).map(([key,value])=>"|"+key+"="+literal(value)));
           parts.push("{{"+name+(params.length ? "\n"+params.join("\n")+"\n" : "")+"}}");
         } else if(block.type === "image") {
           const target = block.mediaId || (/^https:\/\//i.test(block.url) ? block.url : "");

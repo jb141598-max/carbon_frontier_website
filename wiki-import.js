@@ -507,6 +507,7 @@
       id: crypto.randomUUID(), type: "template", templateId: template.id,
       templateSlug: template.slug, templateRevisionId: template.currentRevision?.id || "",
       values, snapshot: template.currentRevision?.definition || null,
+      layout: "wrap-right", widthPercent: 46, xPercent: 0, yPixels: 0,
     };
   }
 
@@ -540,8 +541,8 @@
         const token = `@@LOCALIMAGE${tokens.length}@@`;
         tokens.push(url ? {
           id: crypto.randomUUID(), type: "image", mediaId: `imported-${crypto.randomUUID()}`, url,
-          alt: caption || name, caption, layout: /\bright\b/i.test(options) ? "wrap-right" : /\bleft\b/i.test(options) ? "wrap-left" : "inline",
-          widthPercent: 72, xPercent: 0, yPixels: 0,
+          alt: caption || name, caption, layout: /\bleft\b/i.test(options) ? "wrap-left" : "wrap-right",
+          widthPercent: 46, xPercent: 0, yPixels: 0,
         } : { id: crypto.randomUUID(), type: "paragraph", text: `[Image from Miraheze: ${name}]` });
         return `\n${token}\n`;
       });

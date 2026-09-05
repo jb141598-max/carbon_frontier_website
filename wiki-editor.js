@@ -146,12 +146,17 @@
     closeMedia: document.getElementById("close-media-button"),
     cancelMedia: document.getElementById("cancel-media-button"),
     imageOptionsDialog: document.getElementById("image-options-dialog"),
+    imageOptionsTitle: document.getElementById("image-options-title"),
     imageOptionsForm: document.getElementById("image-options-form"),
     imageLayoutGrid: document.getElementById("image-layout-grid"),
     imageWidth: document.getElementById("image-width-input"),
     imageWidthOutput: document.getElementById("image-width-output"),
+    imageWidthLabel: document.getElementById("image-width-label"),
+    imageAltField: document.getElementById("image-options-alt-field"),
+    imageCaptionField: document.getElementById("image-options-caption-field"),
     imageAlt: document.getElementById("image-alt-input"),
     imageCaption: document.getElementById("image-caption-input"),
+    imageDragNote: document.getElementById("image-drag-note"),
     imageOptionsFeedback: document.getElementById("image-options-feedback"),
     closeImageOptions: document.getElementById("close-image-options-button"),
     cancelImageOptions: document.getElementById("cancel-image-options-button"),
@@ -206,9 +211,12 @@
     mediaTargetDisplay: null,
     mediaTargetButton: null,
     selectedFigure: null,
+    selectedObject: null,
     selectedImageLayout: "inline",
     draggingFigure: null,
+    draggingObject: null,
     layeredDrag: null,
+    objectResize: null,
     templates: [],
     selectedTemplateId: "",
     editingTemplateNode: null,
@@ -865,6 +873,8 @@
   async function hydrateMediaImages(container) {
     const images = [...container.querySelectorAll("img[data-wiki-media-id]")];
     await Promise.all(images.map(async (imageElement) => {
+      imageElement.loading = "lazy";
+      imageElement.decoding = "async";
       if (imageElement.dataset.mediaLoading === "1" || imageElement.src) {
         return;
       }
@@ -889,23 +899,85 @@
     return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
   }
 
-  function normalizeImageLayout(value) {
-    return IMAGE_LAYOUTS.has(value) ? value : "inline";
+  function normalizeImageLayout(value, fallback = "wrap-right") {
+    return IMAGE_LAYOUTS.has(value) ? value : fallback;
   }
 
   function configureFigure(figure, block = {}) {
-    const layout = normalizeImageLayout(block.layout || figure.dataset.imageLayout);
-    const width = clampNumber(block.widthPercent ?? figure.dataset.imageWidth, 20, 100, 72);
+    let layout = normalizeImageLayout(block.layout || figure.dataset.imageLayout);
+    let width = clampNumber(block.widthPercent ?? figure.dataset.imageWidth, 20, 100, 46);
+    if (block.id && !block.placementVersion && layout === "inline" && width === 72) {
+      layout = "wrap-right";
+      width = 46;
+    }
     const x = clampNumber(block.xPercent ?? figure.dataset.imageX, 0, 85, 0);
     const y = clampNumber(block.yPixels ?? figure.dataset.imageY, 0, 5000, 0);
+    figure.classList.add("wiki-placed-object", "wiki-image-object");
+    figure.dataset.objectKind = "image";
+    figure.dataset.objectLayout = layout;
+    figure.dataset.objectWidth = String(width);
+    figure.dataset.objectX = String(x);
+    figure.dataset.objectY = String(y);
     figure.dataset.imageLayout = layout;
     figure.dataset.imageWidth = String(width);
     figure.dataset.imageX = String(x);
     figure.dataset.imageY = String(y);
-    figure.style.setProperty("--wiki-image-width", `${width}%`);
-    figure.style.setProperty("--wiki-image-x", String(x));
-    figure.style.setProperty("--wiki-image-y", String(y));
+    figure.style.setProperty("--wiki-object-width", `${width}%`);
+    figure.style.setProperty("--wiki-object-x", String(x));
+    figure.style.setProperty("--wiki-object-y", String(y));
     figure.draggable = Boolean(app.editing && !["behind", "front"].includes(layout));
+    figure.tabIndex = app.editing ? 0 : -1;
+    figure.setAttribute("role", "group");
+    figure.setAttribute("aria-label", "Wiki image. Click to select; drag to move.");
+  }
+
+  function configureTemplateInstance(instance, block = {}) {
+    if (block.layout !== undefined || block.widthPercent !== undefined) {
+      instance.dataset.objectPlacementExplicit = "1";
+    } else if (instance.dataset.objectPlacementExplicit === undefined) {
+      instance.dataset.objectPlacementExplicit = "0";
+    }
+    const layout = normalizeImageLayout(block.layout || instance.dataset.templateLayout);
+    const width = clampNumber(block.widthPercent ?? instance.dataset.templateWidth, 20, 100, 46);
+    const x = clampNumber(block.xPercent ?? instance.dataset.templateX, 0, 85, 0);
+    const y = clampNumber(block.yPixels ?? instance.dataset.templateY, 0, 5000, 0);
+    instance.classList.add("wiki-placed-object");
+    instance.dataset.objectKind = "template";
+    instance.dataset.objectLayout = layout;
+    instance.dataset.objectWidth = String(width);
+    instance.dataset.objectX = String(x);
+    instance.dataset.objectY = String(y);
+    instance.dataset.templateLayout = layout;
+    instance.dataset.templateWidth = String(width);
+    instance.dataset.templateX = String(x);
+    instance.dataset.templateY = String(y);
+    instance.style.setProperty("--wiki-object-width", `${width}%`);
+    instance.style.setProperty("--wiki-object-x", String(x));
+    instance.style.setProperty("--wiki-object-y", String(y));
+    instance.draggable = Boolean(app.editing && !["behind", "front"].includes(layout));
+    instance.tabIndex = app.editing ? 0 : -1;
+    instance.setAttribute("role", "group");
+    instance.setAttribute("aria-label", "Wiki template. Click to select; drag to move; double-click to edit values.");
+  }
+
+  function isPlacedObject(node) {
+    return Boolean(node?.classList?.contains("wiki-placed-object") && node.parentElement === ui.content);
+  }
+
+  function objectLayout(node) {
+    return normalizeImageLayout(node?.dataset?.objectLayout);
+  }
+
+  function objectWidth(node) {
+    return clampNumber(node?.dataset?.objectWidth, 20, 100, 46);
+  }
+
+  function configurePlacedObject(node, block = {}) {
+    if (node?.dataset?.objectKind === "template" || node?.classList?.contains("wiki-template-instance")) {
+      configureTemplateInstance(node, block);
+    } else {
+      configureFigure(node, block);
+    }
   }
 
   function templateEndpoint(base, id = "") {
@@ -1119,6 +1191,7 @@
     stage.style.background = safeTemplateColor(definition.canvas.backgroundColor, "#111111");
     stage.replaceChildren(...(Array.isArray(definition.elements) ? definition.elements : []).map((element) => drawTemplateObject(element, values)));
     instance.replaceChildren(stage);
+    if (app.selectedObject === instance) addResizeHandles(instance);
     const size = () => {
       const available = instance.clientWidth || width;
       const scale = Math.min(1, available / width);
@@ -1146,6 +1219,7 @@
     instance.dataset.wikiTemplateSlug = String(block.templateSlug || "");
     instance.__wikiTemplateBlock = clone(block);
     instance.dataset.templateBlock = JSON.stringify(block);
+    configureTemplateInstance(instance, block);
     renderTemplateInto(instance, null, block.values || {}, block.snapshot || null);
     if (live) loadTemplate(block.templateId || block.templateSlug).then((template) => {
       if (!template || !instance.isConnected) return;
@@ -1229,6 +1303,8 @@
         element.dataset.wikiMediaUrl = String(block.url || "");
         configureFigure(element, block);
         const image = document.createElement("img");
+        image.loading = "lazy";
+        image.decoding = "async";
         image.alt = String(block.alt || "").slice(0, 240);
         image.dataset.wikiMediaId = String(block.mediaId || "");
         const directUrl = String(block.url || "");
@@ -1335,7 +1411,16 @@
       if (node.classList.contains("wiki-template-instance")) {
         const saved = node.__wikiTemplateBlock || JSON.parse(node.dataset.templateBlock || "null");
         if (!saved) throw new Error("This template could not be read. Reinsert it before saving.");
-        blocks.push({ ...clone(saved), id:blockId, type: "template" });
+        const templateBlock = {
+          ...clone(saved),
+          id: blockId,
+          type: "template",
+        };
+        if (node.dataset.objectPlacementExplicit === "1") Object.assign(templateBlock, {
+          layout: objectLayout(node), widthPercent: objectWidth(node),
+          xPercent: clampNumber(node.dataset.objectX, 0, 85, 0), yPixels: clampNumber(node.dataset.objectY, 0, 5000, 0),
+        });
+        blocks.push(templateBlock);
         return;
       }
       if (tag === "TABLE") {
@@ -1361,8 +1446,8 @@
           url: node.dataset.wikiMediaUrl || "",
           alt: String(image?.alt || "").slice(0, 240),
           caption: String(caption?.textContent || "").trim().slice(0, 300),
-          layout: normalizeImageLayout(node.dataset.imageLayout),
-          widthPercent: clampNumber(node.dataset.imageWidth, 20, 100, 72),
+          layout: objectLayout(node),
+          widthPercent: objectWidth(node),
           xPercent: clampNumber(node.dataset.imageX, 0, 85, 0),
           yPixels: clampNumber(node.dataset.imageY, 0, 5000, 0),
         });
@@ -1432,6 +1517,18 @@
 
   function updateDocumentTitle(page) {
     document.title = `${page.title} | Carbon Frontier Wiki`;
+    const summary = String(ui.content.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 155) || `Read ${page.title} on the Carbon Frontier Wiki.`;
+    const description = document.querySelector('meta[name="description"]');
+    const openGraphTitle = document.querySelector('meta[property="og:title"]');
+    const openGraphDescription = document.querySelector('meta[property="og:description"]');
+    const canonical = document.querySelector('link[rel="canonical"]');
+    if (description) description.content = summary;
+    if (openGraphTitle) openGraphTitle.content = `${page.title} | Carbon Frontier Wiki`;
+    if (openGraphDescription) openGraphDescription.content = summary;
+    if (canonical) canonical.href = `wiki.html?page=${encodeURIComponent(page.slug)}`;
   }
 
   function categoryDirectory() {
@@ -1608,6 +1705,7 @@
       ? `Revision ${revision.number} · ${formatDate(revision.createdAt)} · ${author}`
       : "No saved revision.";
     renderContent(ui.content, revision?.content);
+    ui.articleSurface.setAttribute("aria-busy", "false");
     renderPageCategories(page);
     ui.editPage.hidden = !page.permissions?.canEdit;
     ui.historyButton.hidden = true;
@@ -1630,6 +1728,7 @@
     message.className = "article-empty";
     message.textContent = error?.message || "This wiki page could not be loaded.";
     ui.content.append(message);
+    ui.articleSurface.setAttribute("aria-busy", "false");
   }
 
   async function refreshPageList() {
@@ -1652,6 +1751,7 @@
       exitEditing({ restorePage: true });
     }
     app.currentSlug = normalized;
+    ui.articleSurface.setAttribute("aria-busy", "true");
     if (push) {
       updateBrowserAddress(normalized);
     }
@@ -1751,7 +1851,9 @@
         app.savedSelection=null;
       }
       app.editorMode=mode; updateEditorMode();
-      if(mode === "visual") ui.content.querySelectorAll("figure").forEach(figure=>configureFigure(figure));
+      if (mode === "visual") {
+        ui.content.querySelectorAll(".wiki-placed-object").forEach((object) => configurePlacedObject(object));
+      }
       (mode === "wikitext" ? ui.source : ui.content).focus();
       setFeedback(ui.feedback,mode === "wikitext" ? "Wikitext mode. Preview or save when ready." : "Visual mode. Your source changes are ready to edit.");
     } catch(error) {
@@ -1805,9 +1907,7 @@
     normalizeEditableRoot();
     app.visualSignature = contentSignature(serializeEditorContent());
     updateEditorMode();
-    [...ui.content.querySelectorAll("figure[data-wiki-media-id]")].forEach((figure) => {
-      configureFigure(figure);
-    });
+    [...ui.content.querySelectorAll(".wiki-placed-object")].forEach((object) => configurePlacedObject(object));
     ui.search.disabled = true;
     ui.newPage.disabled = true;
     closeSearchResults();
@@ -1879,26 +1979,50 @@
     ui.fontFamily.value = FONT_FAMILIES.get(activeFont) || "Play";
   }
 
-  function clearSelectedFigure() {
-    if (app.selectedFigure?.isConnected) {
-      app.selectedFigure.classList.remove("is-image-selected");
-    }
-    app.selectedFigure = null;
-    if (ui.imageOptions) {
-      ui.imageOptions.hidden = true;
-    }
+  function removeResizeHandles(node) {
+    node?.querySelectorAll(":scope > .object-resize-handle").forEach((handle) => handle.remove());
   }
 
-  function selectFigure(figure) {
-    if (!app.editing || !figure || figure.parentElement !== ui.content) {
-      return;
+  function addResizeHandles(node) {
+    if (!app.editing || !isPlacedObject(node)) return;
+    removeResizeHandles(node);
+    ["nw", "ne", "sw", "se"].forEach((corner) => {
+      const handle = document.createElement("button");
+      handle.type = "button";
+      handle.className = `object-resize-handle object-resize-${corner}`;
+      handle.dataset.resizeCorner = corner;
+      handle.contentEditable = "false";
+      handle.setAttribute("aria-label", `Resize ${node.dataset.objectKind} from ${corner.toUpperCase()} corner`);
+      node.append(handle);
+    });
+  }
+
+  function clearSelectedFigure() {
+    const selected = app.selectedObject || app.selectedFigure;
+    if (selected?.isConnected) {
+      selected.classList.remove("is-object-selected", "is-image-selected");
+      removeResizeHandles(selected);
     }
-    if (app.selectedFigure && app.selectedFigure !== figure) {
-      app.selectedFigure.classList.remove("is-image-selected");
+    app.selectedObject = null;
+    app.selectedFigure = null;
+    if (ui.imageOptions) ui.imageOptions.hidden = true;
+  }
+
+  function selectFigure(object) {
+    if (!app.editing || !isPlacedObject(object)) return;
+    const previous = app.selectedObject || app.selectedFigure;
+    if (previous && previous !== object) {
+      previous.classList.remove("is-object-selected", "is-image-selected");
+      removeResizeHandles(previous);
     }
-    app.selectedFigure = figure;
-    figure.classList.add("is-image-selected");
+    app.selectedObject = object;
+    app.selectedFigure = object.dataset.objectKind === "image" ? object : null;
+    object.classList.add("is-object-selected");
+    if (object.dataset.objectKind === "image") object.classList.add("is-image-selected");
+    if (!object.querySelector(":scope > .object-resize-handle")) addResizeHandles(object);
     ui.imageOptions.hidden = false;
+    ui.imageOptions.textContent = "Layout Options";
+    ui.imageOptions.title = `Change the selected ${object.dataset.objectKind}`;
   }
 
   function setImageLayoutChoice(layout) {
@@ -1910,16 +2034,28 @@
   }
 
   function openImageOptions() {
-    const figure = app.selectedFigure;
-    if (!app.editing || !figure?.isConnected) {
-      setFeedback(ui.feedback, "Click an image first, then choose Image Options.", true);
+    const object = app.selectedObject;
+    if (!app.editing || !object?.isConnected) {
+      setFeedback(ui.feedback, "Click an image or template first, then choose Layout Options.", true);
       return;
     }
-    setImageLayoutChoice(figure.dataset.imageLayout);
-    ui.imageWidth.value = String(clampNumber(figure.dataset.imageWidth, 20, 100, 72));
+    const isTemplate = object.dataset.objectKind === "template";
+    setImageLayoutChoice(objectLayout(object));
+    ui.imageWidth.value = String(objectWidth(object));
     ui.imageWidthOutput.textContent = `${ui.imageWidth.value}%`;
-    ui.imageAlt.value = String(figure.querySelector("img")?.alt || "");
-    ui.imageCaption.value = String(figure.querySelector("figcaption")?.textContent || "");
+    ui.imageOptionsTitle.textContent = isTemplate ? "Template layout" : "Image layout";
+    ui.imageWidthLabel.textContent = isTemplate ? "Template width" : "Image width";
+    ui.imageAltField.hidden = isTemplate;
+    ui.imageCaptionField.hidden = isTemplate;
+    ui.imageAlt.disabled = isTemplate;
+    ui.imageCaption.disabled = isTemplate;
+    ui.imageAlt.required = !isTemplate;
+    ui.removeImage.textContent = isTemplate ? "Remove Template" : "Remove Image";
+    ui.imageDragNote.textContent = `Drag this ${isTemplate ? "template" : "image"} to move it between paragraphs. Wrapped objects sit beside text; layered objects can move freely across the page. Use the corner handles for quick resizing.`;
+    if (!isTemplate) {
+      ui.imageAlt.value = String(object.querySelector("img")?.alt || "");
+      ui.imageCaption.value = String(object.querySelector("figcaption")?.textContent || "");
+    }
     setFeedback(ui.imageOptionsFeedback, "");
     setDialog(ui.imageOptionsDialog, true);
   }
@@ -1930,53 +2066,58 @@
 
   function applyImageOptions(event) {
     event.preventDefault();
-    const figure = app.selectedFigure;
-    if (!figure?.isConnected) {
+    const object = app.selectedObject;
+    if (!object?.isConnected) {
       closeImageOptions();
       return;
     }
+    const isTemplate = object.dataset.objectKind === "template";
     const alt = ui.imageAlt.value.trim();
-    if (!alt) {
+    if (!isTemplate && !alt) {
       setFeedback(ui.imageOptionsFeedback, "Add alt text describing the image.", true);
       ui.imageAlt.focus();
       return;
     }
     const layout = app.selectedImageLayout;
     const isBecomingLayered = ["behind", "front"].includes(layout) &&
-      !["behind", "front"].includes(figure.dataset.imageLayout);
-    configureFigure(figure, {
+      !["behind", "front"].includes(objectLayout(object));
+    configurePlacedObject(object, {
       layout,
       widthPercent: ui.imageWidth.value,
-      xPercent: isBecomingLayered ? 8 : figure.dataset.imageX,
-      yPixels: isBecomingLayered ? Math.max(0, figure.offsetTop - 36) : figure.dataset.imageY,
+      xPercent: isBecomingLayered ? 8 : object.dataset.objectX,
+      yPixels: isBecomingLayered ? Math.max(0, object.offsetTop - 36) : object.dataset.objectY,
     });
-    figure.querySelector("img").alt = alt.slice(0, 240);
-    const captionText = ui.imageCaption.value.trim().slice(0, 300);
-    let caption = figure.querySelector("figcaption");
-    if (captionText && !caption) {
-      caption = document.createElement("figcaption");
-      figure.append(caption);
-    }
-    if (caption) {
-      if (captionText) caption.textContent = captionText;
-      else caption.remove();
+    if (!isTemplate) {
+      object.querySelector("img").alt = alt.slice(0, 240);
+      const captionText = ui.imageCaption.value.trim().slice(0, 300);
+      let caption = object.querySelector("figcaption");
+      if (captionText && !caption) {
+        caption = document.createElement("figcaption");
+        object.append(caption);
+      }
+      if (caption) {
+        if (captionText) caption.textContent = captionText;
+        else caption.remove();
+      }
     }
     closeImageOptions();
-    selectFigure(figure);
-    setFeedback(ui.feedback, "Image layout updated. Save the page to publish it.");
+    if (app.selectedObject !== object) selectFigure(object);
+    setFeedback(ui.feedback, `${isTemplate ? "Template" : "Image"} layout updated. Save the page to publish it.`);
   }
 
   function removeSelectedImage() {
-    const figure = app.selectedFigure;
-    if (!figure?.isConnected) {
+    const object = app.selectedObject;
+    if (!object?.isConnected) {
       closeImageOptions();
       return;
     }
-    figure.remove();
+    const label = object.dataset.objectKind === "template" ? "Template" : "Image";
+    object.__templateResizeObserver?.disconnect?.();
+    object.remove();
     closeImageOptions();
     clearSelectedFigure();
     normalizeEditableRoot();
-    setFeedback(ui.feedback, "Image removed from this draft. Save the page to publish the change.");
+    setFeedback(ui.feedback, `${label} removed from this draft. Save the page to publish the change.`);
   }
 
   function saveCurrentSelection() {
@@ -2259,7 +2400,7 @@
     figure.contentEditable = "false";
     figure.dataset.wikiMediaId = media.id;
     figure.dataset.wikiMediaUrl = "";
-    configureFigure(figure, { layout: "inline", widthPercent: 72, xPercent: 0, yPixels: 0 });
+    configureFigure(figure, { layout: "wrap-right", widthPercent: 46, xPercent: 0, yPixels: 0 });
     const image = document.createElement("img");
     image.alt = alt;
     image.src = app.mediaObjectUrls.get(media.id) || "";
@@ -2274,7 +2415,7 @@
     closeMediaDialog();
     ui.content.focus();
     selectFigure(figure);
-    setFeedback(ui.feedback, "Image inserted. Drag it to reorder, or choose Image Options for wrapping, size, and layering.");
+    setFeedback(ui.feedback, "Image inserted beside the text. Drag it to move, use its corner handles to resize, or open Layout Options.");
   }
 
   function renderTemplateChoices() {
@@ -2420,6 +2561,7 @@
       setFeedback(ui.templateFeedback, "Choose a template first.", true);
       return;
     }
+    const previous = app.editingTemplateNode;
     const block = {
       type: "template",
       templateId: template.id,
@@ -2427,16 +2569,22 @@
       templateRevisionId: template.currentRevision.id,
       values: templateValuesFromForm(),
       snapshot: clone(template.currentRevision.definition),
+      layout: previous ? objectLayout(previous) : "wrap-right",
+      widthPercent: previous ? objectWidth(previous) : 46,
+      xPercent: previous ? clampNumber(previous.dataset.objectX, 0, 85, 0) : 0,
+      yPixels: previous ? clampNumber(previous.dataset.objectY, 0, 5000, 0) : 0,
     };
     const instance = createTemplateInstance(block);
-    if (app.editingTemplateNode?.isConnected) {
-      app.editingTemplateNode.replaceWith(instance);
+    if (previous?.isConnected) {
+      previous.__templateResizeObserver?.disconnect?.();
+      previous.replaceWith(instance);
     } else {
       insertDocumentBlock(instance);
     }
     closeTemplateDialog();
     ui.content.focus();
-    setFeedback(ui.feedback, `“${template.name}” inserted. Double-click it to change this page's placeholder values.`);
+    selectFigure(instance);
+    setFeedback(ui.feedback, `“${template.name}” inserted beside the text. Drag it to move, resize with the corner handles, or double-click it to change values.`);
   }
 
   async function handleMediaUpload(event) {
@@ -2801,33 +2949,80 @@
     return element?.parentElement === ui.content ? element : null;
   }
 
-  function beginLayeredImageDrag(event, figure) {
-    const layout = normalizeImageLayout(figure.dataset.imageLayout);
+  function beginObjectResize(event, handle) {
+    const object = handle?.closest(".wiki-placed-object");
+    if (!app.editing || !isPlacedObject(object) || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (app.selectedObject !== object) selectFigure(object);
+    app.objectResize = {
+      object,
+      pointerId: event.pointerId,
+      corner: handle.dataset.resizeCorner || "se",
+      startClientX: event.clientX,
+      startWidth: objectWidth(object),
+      contentWidth: Math.max(1, ui.content.getBoundingClientRect().width),
+    };
+    object.draggable = false;
+    object.classList.add("is-object-resizing");
+    handle.setPointerCapture?.(event.pointerId);
+  }
+
+  function resizePlacedObject(event) {
+    const resize = app.objectResize;
+    if (!resize || resize.pointerId !== event.pointerId || !resize.object.isConnected) return;
+    event.preventDefault();
+    const direction = resize.corner.includes("w") ? -1 : 1;
+    const width = clampNumber(
+      resize.startWidth + direction * ((event.clientX - resize.startClientX) / resize.contentWidth) * 100,
+      20,
+      100,
+      resize.startWidth
+    );
+    configurePlacedObject(resize.object, {
+      layout: objectLayout(resize.object),
+      widthPercent: width,
+      xPercent: resize.object.dataset.objectX,
+      yPixels: resize.object.dataset.objectY,
+    });
+  }
+
+  function finishObjectResize(event) {
+    const resize = app.objectResize;
+    if (!resize || (event?.pointerId !== undefined && resize.pointerId !== event.pointerId)) return;
+    resize.object.classList.remove("is-object-resizing");
+    configurePlacedObject(resize.object);
+    app.objectResize = null;
+    setFeedback(ui.feedback, `${resize.object.dataset.objectKind === "template" ? "Template" : "Image"} resized. Save the page to publish it.`);
+  }
+
+  function beginLayeredImageDrag(event, object) {
+    const layout = objectLayout(object);
     if (!app.editing || !["behind", "front"].includes(layout) || event.button !== 0) {
       return;
     }
     event.preventDefault();
-    selectFigure(figure);
+    selectFigure(object);
     const contentRect = ui.content.getBoundingClientRect();
     app.layeredDrag = {
-      figure,
+      object,
       pointerId: event.pointerId,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      startX: clampNumber(figure.dataset.imageX, 0, 85, 0),
-      startY: clampNumber(figure.dataset.imageY, 0, 5000, 0),
+      startX: clampNumber(object.dataset.objectX, 0, 85, 0),
+      startY: clampNumber(object.dataset.objectY, 0, 5000, 0),
       contentWidth: Math.max(1, contentRect.width),
     };
-    figure.classList.add("is-image-dragging");
-    figure.setPointerCapture?.(event.pointerId);
+    object.classList.add("is-object-dragging", "is-image-dragging");
+    object.setPointerCapture?.(event.pointerId);
   }
 
   function moveLayeredImage(event) {
     const drag = app.layeredDrag;
-    if (!drag || drag.pointerId !== event.pointerId || !drag.figure.isConnected) {
+    if (!drag || drag.pointerId !== event.pointerId || !drag.object.isConnected) {
       return;
     }
-    const width = clampNumber(drag.figure.dataset.imageWidth, 20, 100, 45);
+    const width = objectWidth(drag.object);
     const maximumX = Math.max(0, 100 - Math.min(width, 85));
     const x = clampNumber(
       drag.startX + ((event.clientX - drag.startClientX) / drag.contentWidth) * 100,
@@ -2841,8 +3036,8 @@
       5000,
       drag.startY
     );
-    configureFigure(drag.figure, {
-      layout: drag.figure.dataset.imageLayout,
+    configurePlacedObject(drag.object, {
+      layout: objectLayout(drag.object),
       widthPercent: width,
       xPercent: x,
       yPixels: y,
@@ -2854,10 +3049,11 @@
     if (!drag || (event?.pointerId !== undefined && drag.pointerId !== event.pointerId)) {
       return;
     }
-    drag.figure.classList.remove("is-image-dragging");
-    drag.figure.releasePointerCapture?.(drag.pointerId);
+    const kind = drag.object.dataset.objectKind === "template" ? "Template" : "Image";
+    drag.object.classList.remove("is-object-dragging", "is-image-dragging");
+    drag.object.releasePointerCapture?.(drag.pointerId);
     app.layeredDrag = null;
-    setFeedback(ui.feedback, "Image position updated. Save the page to publish it.");
+    setFeedback(ui.feedback, `${kind} position updated. Save the page to publish it.`);
   }
 
   async function initialize() {
@@ -2982,8 +3178,8 @@
   ui.content.addEventListener("mouseup", updateToolbarState);
   ui.content.addEventListener("click", (event) => {
     if (!app.editing) return;
-    const figure = event.target.closest("figure[data-wiki-media-id]");
-    if (figure?.parentElement === ui.content) selectFigure(figure);
+    const object = event.target.closest(".wiki-placed-object");
+    if (isPlacedObject(object)) selectFigure(object);
     else clearSelectedFigure();
   });
   ui.content.addEventListener("dblclick", (event) => {
@@ -2994,51 +3190,85 @@
       return;
     }
     const figure = event.target.closest("figure[data-wiki-media-id]");
-    if (app.editing && figure?.parentElement === ui.content) {
+    if (app.editing && isPlacedObject(figure)) {
       event.preventDefault();
       selectFigure(figure);
       openImageOptions();
     }
   });
   ui.content.addEventListener("dragstart", (event) => {
-    const figure = event.target.closest("figure[data-wiki-media-id]");
-    if (!app.editing || !figure || ["behind", "front"].includes(figure.dataset.imageLayout)) {
+    const object = event.target.closest(".wiki-placed-object");
+    if (!app.editing || !isPlacedObject(object) || ["behind", "front"].includes(objectLayout(object))) {
       event.preventDefault();
       return;
     }
-    app.draggingFigure = figure;
-    figure.classList.add("is-image-dragging");
+    app.draggingObject = object;
+    app.draggingFigure = object.dataset.objectKind === "image" ? object : null;
+    object.classList.add("is-object-dragging", "is-image-dragging");
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", figure.dataset.wikiMediaId || "wiki-image");
+    event.dataTransfer.setData("text/plain", object.dataset.wikiMediaId || object.dataset.wikiTemplateId || "wiki-object");
   });
   ui.content.addEventListener("dragover", (event) => {
-    if (!app.draggingFigure) return;
+    if (!app.draggingObject) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   });
   ui.content.addEventListener("drop", (event) => {
-    const figure = app.draggingFigure;
-    if (!figure) return;
+    const object = app.draggingObject;
+    if (!object) return;
     event.preventDefault();
     const target = directContentChild(event.target);
-    if (target && target !== figure) {
+    if (target && target !== object) {
       const bounds = target.getBoundingClientRect();
-      target.insertAdjacentElement(event.clientY < bounds.top + bounds.height / 2 ? "beforebegin" : "afterend", figure);
+      target.insertAdjacentElement(event.clientY < bounds.top + bounds.height / 2 ? "beforebegin" : "afterend", object);
     } else if (!target) {
-      ui.content.append(figure);
+      ui.content.append(object);
     }
-    figure.classList.remove("is-image-dragging");
+    const label = object.dataset.objectKind === "template" ? "Template" : "Image";
+    object.classList.remove("is-object-dragging", "is-image-dragging");
+    app.draggingObject = null;
     app.draggingFigure = null;
-    selectFigure(figure);
-    setFeedback(ui.feedback, "Image moved. Save the page to publish its new position.");
+    selectFigure(object);
+    setFeedback(ui.feedback, `${label} moved. Save the page to publish its new position.`);
   });
   ui.content.addEventListener("dragend", () => {
-    app.draggingFigure?.classList.remove("is-image-dragging");
+    app.draggingObject?.classList.remove("is-object-dragging", "is-image-dragging");
+    app.draggingObject = null;
     app.draggingFigure = null;
   });
   ui.content.addEventListener("pointerdown", (event) => {
-    const figure = event.target.closest("figure[data-wiki-media-id]");
-    if (figure?.parentElement === ui.content) beginLayeredImageDrag(event, figure);
+    const handle = event.target.closest(".object-resize-handle");
+    if (handle) {
+      beginObjectResize(event, handle);
+      return;
+    }
+    const object = event.target.closest(".wiki-placed-object");
+    if (isPlacedObject(object)) beginLayeredImageDrag(event, object);
+  });
+  ui.content.addEventListener("keydown", (event) => {
+    const object = app.selectedObject;
+    if (!isPlacedObject(object)) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      openImageOptions();
+      return;
+    }
+    if ((event.key === "Backspace" || event.key === "Delete") && event.target === object) {
+      event.preventDefault();
+      removeSelectedImage();
+      return;
+    }
+    if (event.shiftKey && ["ArrowLeft", "ArrowRight"].includes(event.key)) {
+      event.preventDefault();
+      configurePlacedObject(object, {
+        layout: objectLayout(object),
+        widthPercent: objectWidth(object) + (event.key === "ArrowRight" ? 5 : -5),
+        xPercent: object.dataset.objectX,
+        yPixels: object.dataset.objectY,
+      });
+      addResizeHandles(object);
+      setFeedback(ui.feedback, `${object.dataset.objectKind === "template" ? "Template" : "Image"} width ${Math.round(objectWidth(object))}%.`);
+    }
   });
   ui.content.addEventListener("paste", (event) => {
     if (!app.editing) {
@@ -3190,9 +3420,18 @@
     }
   });
 
-  document.addEventListener("pointermove", moveLayeredImage);
-  document.addEventListener("pointerup", finishLayeredImageDrag);
-  document.addEventListener("pointercancel", finishLayeredImageDrag);
+  document.addEventListener("pointermove", (event) => {
+    if (app.objectResize) resizePlacedObject(event);
+    else moveLayeredImage(event);
+  });
+  document.addEventListener("pointerup", (event) => {
+    if (app.objectResize) finishObjectResize(event);
+    else finishLayeredImageDrag(event);
+  });
+  document.addEventListener("pointercancel", (event) => {
+    if (app.objectResize) finishObjectResize(event);
+    else finishLayeredImageDrag(event);
+  });
 
   window.addEventListener("popstate", () => {
     app.currentSlug = slugFromLocation();

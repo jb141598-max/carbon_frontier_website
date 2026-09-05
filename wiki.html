@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <title>Carbon Frontier Wiki</title>
+    <meta name="description" content="Explore the Carbon Frontier community knowledge base." />
+    <meta name="theme-color" content="#080808" />
+    <meta name="color-scheme" content="dark" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Carbon Frontier Wiki" />
+    <meta property="og:description" content="Explore the Carbon Frontier community knowledge base." />
+    <link rel="canonical" href="wiki.html" />
     <meta
       name="google-signin-client_id"
       content="609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com"
@@ -74,6 +81,20 @@
       [hidden] {
         display: none !important;
       }
+
+      .skip-link {
+        position: fixed;
+        z-index: 1000;
+        top: 10px;
+        left: 10px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        color: #fff;
+        background: #8f1922;
+        transform: translateY(-150%);
+      }
+
+      .skip-link:focus { transform: translateY(0); }
 
       .page-shell {
         position: relative;
@@ -775,7 +796,7 @@
 
       .article-content figure {
         position: relative;
-        width: min(var(--wiki-image-width, 72%), 920px);
+        width: min(var(--wiki-object-width, 46%), 920px);
         margin: 28px auto;
         text-align: center;
         clear: both;
@@ -801,9 +822,9 @@
       .article-content figure[data-image-layout="behind"],
       .article-content figure[data-image-layout="front"] {
         position: absolute;
-        left: clamp(0%, calc(var(--wiki-image-x, 0) * 1%), 85%);
-        top: max(0px, calc(var(--wiki-image-y, 0) * 1px));
-        width: min(var(--wiki-image-width, 45%), 920px);
+        left: clamp(0%, calc(var(--wiki-object-x, 0) * 1%), 85%);
+        top: max(0px, calc(var(--wiki-object-y, 0) * 1px));
+        width: min(var(--wiki-object-width, 46%), 920px);
         margin: 0;
         clear: none;
       }
@@ -880,12 +901,42 @@
       .wiki-template-instance {
         position: relative;
         display: block;
-        width: min(100%, var(--template-width, 720px));
+        width: min(var(--wiki-object-width, 46%), var(--template-width, 720px));
         margin: 28px auto;
-        overflow: hidden;
+        overflow: visible;
         border-radius: 14px;
         isolation: isolate;
       }
+
+      .wiki-template-instance[data-object-layout="wrap-left"] {
+        float: left;
+        clear: left;
+        margin: 8px 28px 18px 0;
+      }
+
+      .wiki-template-instance[data-object-layout="wrap-right"] {
+        float: right;
+        clear: right;
+        margin: 8px 0 18px 28px;
+      }
+
+      .wiki-template-instance[data-object-layout="inline"],
+      .wiki-template-instance[data-object-layout="break"] {
+        clear: both;
+      }
+
+      .wiki-template-instance[data-object-layout="behind"],
+      .wiki-template-instance[data-object-layout="front"] {
+        position: absolute;
+        left: clamp(0%, calc(var(--wiki-object-x, 0) * 1%), 85%);
+        top: max(0px, calc(var(--wiki-object-y, 0) * 1px));
+        width: min(var(--wiki-object-width, 46%), var(--template-width, 720px));
+        margin: 0;
+        clear: none;
+      }
+
+      .wiki-template-instance[data-object-layout="behind"] { z-index: 0; opacity: 0.72; }
+      .wiki-template-instance[data-object-layout="front"] { z-index: 8; filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.5)); }
 
       .wiki-template-stage {
         position: relative;
@@ -920,9 +971,44 @@
       .wiki-template-object.is-image-placeholder span { padding: 10px; color: var(--cf-soft); font-size: 0.72rem; text-align: center; }
 
       .article-surface.is-editing .wiki-template-instance {
-        cursor: default;
+        cursor: grab;
         outline: 1px dashed rgba(255, 255, 255, 0.24);
         outline-offset: 5px;
+      }
+
+      .article-surface.is-editing .wiki-placed-object:active { cursor: grabbing; }
+
+      .article-surface.is-editing .wiki-placed-object.is-object-selected {
+        outline: 3px solid rgba(223, 37, 49, 0.9);
+        outline-offset: 5px;
+      }
+
+      .article-surface.is-editing .wiki-placed-object.is-object-dragging,
+      .article-surface.is-editing .wiki-placed-object.is-object-resizing {
+        opacity: 0.68;
+      }
+
+      .object-resize-handle {
+        position: absolute;
+        z-index: 40;
+        width: 15px;
+        height: 15px;
+        padding: 0;
+        border: 2px solid #fff;
+        border-radius: 4px;
+        background: var(--cf-red);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+        touch-action: none;
+      }
+
+      .object-resize-nw { top: -10px; left: -10px; cursor: nwse-resize; }
+      .object-resize-ne { top: -10px; right: -10px; cursor: nesw-resize; }
+      .object-resize-sw { bottom: -10px; left: -10px; cursor: nesw-resize; }
+      .object-resize-se { right: -10px; bottom: -10px; cursor: nwse-resize; }
+
+      .object-resize-handle:focus-visible {
+        outline: 3px solid #fff;
+        outline-offset: 2px;
       }
 
       .article-surface.is-editing .wiki-template-instance::after {
@@ -1794,6 +1880,25 @@
         line-height: 1.6;
       }
 
+      a:focus-visible,
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible,
+      textarea:focus-visible,
+      [tabindex]:focus-visible {
+        outline: 3px solid #ff9ba2 !important;
+        outline-offset: 3px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          scroll-behavior: auto !important;
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
       @media (max-width: 900px) {
         .intro-grid,
         .settings-grid {
@@ -1948,6 +2053,17 @@
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
+        .article-content .wiki-placed-object[data-object-layout="wrap-left"],
+        .article-content .wiki-placed-object[data-object-layout="wrap-right"] {
+          width: min(var(--wiki-object-width, 64%), 76%);
+          max-width: 76%;
+        }
+
+        .object-resize-handle {
+          width: 20px;
+          height: 20px;
+        }
+
         .history-comparison-header {
           align-items: stretch;
           flex-direction: column;
@@ -1956,6 +2072,7 @@
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#wiki-main">Skip to wiki article</a>
     <div class="page-shell">
       <div class="content">
         <header class="topbar">
@@ -2034,7 +2151,7 @@
           </div>
         </header>
 
-        <main>
+        <main id="wiki-main">
           <section class="loading-card" id="loading-view">
             <h1>Wiki</h1>
             <p>Checking the current wiki visibility and your access.</p>
@@ -2105,7 +2222,7 @@
                     <div class="toolbar-group" aria-label="Page tools">
                       <button class="toolbar-button" id="toolbar-image" type="button" title="Import an image from the catalog">Import Image</button>
                       <button class="toolbar-button" id="toolbar-template" type="button" title="Insert a reusable wiki template">Template</button>
-                      <button class="toolbar-button" id="toolbar-image-options" type="button" title="Change the selected image" hidden>Image Options</button>
+                      <button class="toolbar-button" id="toolbar-image-options" type="button" title="Change the selected image or template" hidden>Layout Options</button>
                       <button class="toolbar-button" id="toolbar-page-settings" type="button" title="Move, protect, or trash this page" hidden>Page Settings</button>
                     </div>
                     <div class="toolbar-spacer"></div>
@@ -2400,7 +2517,7 @@
                 <div class="dialog-body">
                   <div>
                     <span class="field-label">Text layout</span>
-                    <div class="image-layout-grid" id="image-layout-grid" role="group" aria-label="Image text layout">
+                    <div class="image-layout-grid" id="image-layout-grid" role="group" aria-label="Object text layout">
                       <button class="image-layout-option" type="button" data-image-layout="inline">In line</button>
                       <button class="image-layout-option" type="button" data-image-layout="wrap-left">Wrap left</button>
                       <button class="image-layout-option" type="button" data-image-layout="wrap-right">Wrap right</button>
@@ -2410,22 +2527,22 @@
                     </div>
                   </div>
                   <label>
-                    <span class="field-label">Image width</span>
+                    <span class="field-label" id="image-width-label">Image width</span>
                     <span class="image-size-row">
                       <input id="image-width-input" type="range" min="20" max="100" step="5" value="70" />
                       <output class="image-size-output" id="image-width-output">70%</output>
                     </span>
                   </label>
-                  <label>
+                  <label id="image-options-alt-field">
                     <span class="field-label">Alt text</span>
                     <input id="image-alt-input" maxlength="240" required />
                   </label>
-                  <label>
+                  <label id="image-options-caption-field">
                     <span class="field-label">Caption (optional)</span>
                     <input id="image-caption-input" maxlength="300" />
                   </label>
-                  <p class="image-drag-note">
-                    Drag an in-line or wrapping image to reorder it between paragraphs. Layered images can be dragged freely across the page.
+                  <p class="image-drag-note" id="image-drag-note">
+                    Drag an image to move it between paragraphs. Wrapped images sit beside text; layered images can move freely across the page. Use the corner handles for quick resizing.
                   </p>
                   <p class="wiki-feedback" id="image-options-feedback" aria-live="polite"></p>
                   <div class="form-actions">

@@ -323,6 +323,10 @@ function templateBlock(invocation, template, importedMedia) {
     templateRevisionId: template.currentRevision?.id || "",
     values,
     snapshot: template.currentRevision?.definition || null,
+    layout: "wrap-right",
+    widthPercent: 46,
+    xPercent: 0,
+    yPixels: 0,
   };
 }
 
@@ -363,8 +367,8 @@ export function convertWikitextToDocument(wikitext, importedMedia = new Map(), t
       url: `/api/wiki/media/${encodeURIComponent(media.id)}`,
       alt: cleanTitle(caption || name).slice(0, 240),
       caption: cleanTitle(caption).slice(0, 300),
-      layout: /\bright\b/i.test(options) ? "wrap-right" : /\bleft\b/i.test(options) ? "wrap-left" : "inline",
-      widthPercent: 72,
+      layout: /\bleft\b/i.test(options) ? "wrap-left" : "wrap-right",
+      widthPercent: 46,
       xPercent: 0,
       yPixels: 0,
     } : {
