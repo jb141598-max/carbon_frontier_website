@@ -4,6 +4,7 @@
   const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
   const LOCAL_PAGES_KEY = "carbon-frontier-wiki-local-pages-v3";
   const LOCAL_REDIRECTS_KEY = "carbon-frontier-wiki-local-redirects-v1";
+  const LOCAL_TEMPLATES_KEY = "carbon-frontier-wiki-local-templates-v1";
   const IMPORT_ENDPOINTS = ["/api/wiki/import", "/.netlify/functions/wiki-import"];
   const ACCESS_ENDPOINTS = ["/api/wiki-access", "/.netlify/functions/wiki-access"];
   const CURSOR_ACCOUNT = { email: "jb141598@gmail.com", name: "Cursor Testing Owner", idToken: "" };
@@ -355,12 +356,134 @@
       .replace(/&#039;&#039;(.+?)&#039;&#039;/g, "<em>$1</em>");
   }
 
-  async function localImageMap(wikitexts) {
+  function normalizeTemplateIdentifier(value) {
+    return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/^template\s*:/i, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+
+  function normalizedParameterKey(value) {
+    return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+
+  function templatePlaceholders(template) {
+    const seen = new Set();
+    return (Array.isArray(template?.placeholders) && template.placeholders.length
+      ? template.placeholders
+      : (template?.currentRevision?.definition?.elements || []).filter((element) =>
+        ["placeholder", "image-placeholder"].includes(element?.type)
+      ).map((element) => ({
+        key: element.placeholderKey,
+        kind: element.type === "image-placeholder" ? "image" : "text",
+      })))
+      .filter((placeholder) => {
+        const key = normalizedParameterKey(placeholder?.key);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
+
+  function parseTemplateInvocation(raw) {
+    const source = String(raw || "").trim();
+    if (!source.startsWith("{{") || !source.endsWith("}}")) return null;
+    const inner = source.slice(2, -2).trim();
+    const nameMatch = inner.match(/^([^|]*?)(?=\s+[A-Za-z][A-Za-z0-9_-]*\s*=|\||$)/);
+    const name = String(nameMatch?.[1] || "").trim().replace(/^Template\s*:/i, "");
+    if (!name) return null;
+    const parameterSource = inner.slice(nameMatch[0].length).replace(/^\s*\|?\s*/, "");
+    const matches = [];
+    const pattern = /(?:^|[|\s])([A-Za-z][A-Za-z0-9_-]*)\s*=/g;
+    let match;
+    while ((match = pattern.exec(parameterSource))) {
+      matches.push({ key: match[1], start: match.index, valueStart: pattern.lastIndex });
+    }
+    const parameters = {};
+    matches.forEach((item, index) => {
+      const end = matches[index + 1]?.start ?? parameterSource.length;
+      parameters[item.key] = parameterSource.slice(item.valueStart, end)
+        .replace(/[|\s]+$/g, "").trim().slice(0, 1000);
+    });
+    return { name, parameters, raw: source };
+  }
+
+  function topLevelTemplateInvocations(wikitext) {
+    const source = String(wikitext || "");
+    const calls = [];
+    let depth = 0;
+    let start = -1;
+    for (let index = 0; index < source.length - 1; index += 1) {
+      const pair = source.slice(index, index + 2);
+      if (pair === "{{") {
+        if (depth === 0) start = index;
+        depth += 1;
+        index += 1;
+      } else if (pair === "}}" && depth > 0) {
+        depth -= 1;
+        if (depth === 0 && start >= 0) {
+          const end = index + 2;
+          const invocation = parseTemplateInvocation(source.slice(start, end));
+          if (invocation) calls.push({ ...invocation, start, end });
+          start = -1;
+        }
+        index += 1;
+      }
+    }
+    return calls.slice(0, 100);
+  }
+
+  function readLocalTemplates() {
+    let saved = [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(LOCAL_TEMPLATES_KEY) || "[]");
+      if (Array.isArray(parsed)) saved = parsed;
+    } catch (error) { /* Use synchronized templates when local data is unavailable. */ }
+    const synchronized = window.CarbonFrontierTestingSync?.getSection("wiki")?.templates;
+    const templates = new Map();
+    if (Array.isArray(synchronized)) synchronized.forEach((template) => templates.set(template.id, template));
+    saved.forEach((template) => templates.set(template.id, template));
+    return [...templates.values()].filter((template) => !template.isDeleted);
+  }
+
+  function matchingTemplate(invocation, templates) {
+    const wanted = normalizeTemplateIdentifier(invocation?.name);
+    return templates.find((template) => [template.name, template.slug]
+      .some((value) => normalizeTemplateIdentifier(value) === wanted)) || null;
+  }
+
+  function normalizedFileTitle(value) {
+    const cleaned = String(value || "").replace(/^\[\[(?:File|Image):/i, "")
+      .replace(/\]\]$/g, "").split("|")[0].replace(/^File:/i, "").trim().replaceAll("_", " ");
+    return cleaned ? `File:${cleaned}` : "";
+  }
+
+  function localCategories(wikitext) {
+    const unique = new Map();
+    String(wikitext || "").replace(/\[\[Category:([^|\]]+)(?:\|[^\]]*)?\]\]/gi, (_match, value) => {
+      const name = String(value || "").trim().replace(/\s+/g, " ").slice(0, 80);
+      const slug = slugify(name).slice(0, 80);
+      if (name && slug && !unique.has(slug)) unique.set(slug, { id: `local-category-${slug}`, slug, name });
+      return _match;
+    });
+    return [...unique.values()].slice(0, 20);
+  }
+
+  async function localImageMap(wikitexts, templates) {
     const names = [];
-    wikitexts.join("\n").replace(/\[\[(?:File|Image):([^|\]]+)/gi, (_match, name) => {
+    const combined = wikitexts.join("\n");
+    combined.replace(/\[\[(?:File|Image):([^|\]]+)/gi, (_match, name) => {
       const title = `File:${String(name).trim().replaceAll("_", " ")}`;
       if (!names.some((item) => item.toLowerCase() === title.toLowerCase())) names.push(title);
       return _match;
+    });
+    topLevelTemplateInvocations(combined).forEach((invocation) => {
+      const template = matchingTemplate(invocation, templates);
+      if (!template) return;
+      const parameters = new Map(Object.entries(invocation.parameters)
+        .map(([key, value]) => [normalizedParameterKey(key), value]));
+      templatePlaceholders(template).filter((placeholder) => placeholder.kind === "image").forEach((placeholder) => {
+        const title = normalizedFileTitle(parameters.get(normalizedParameterKey(placeholder.key)));
+        if (title && !names.some((item) => item.toLowerCase() === title.toLowerCase())) names.push(title);
+      });
     });
     if (!names.length) return new Map();
     const payload = await directMediaWikiRequest({ prop: "imageinfo", titles: names.slice(0, 24).join("|"), iiprop: "url|mime|size", iilimit: 1 });
@@ -369,9 +492,45 @@
     ));
   }
 
-  function localDocument(wikitext, images) {
+  function localTemplateBlock(invocation, template, images) {
+    const parameters = new Map(Object.entries(invocation.parameters)
+      .map(([key, value]) => [normalizedParameterKey(key), String(value || "").trim()]));
+    const values = {};
+    templatePlaceholders(template).forEach((placeholder) => {
+      const raw = parameters.get(normalizedParameterKey(placeholder.key));
+      if (raw === undefined) return;
+      values[placeholder.key] = placeholder.kind === "image"
+        ? images.get(normalizedFileTitle(raw).toLowerCase()) || ""
+        : raw.slice(0, 1000);
+    });
+    return {
+      id: crypto.randomUUID(), type: "template", templateId: template.id,
+      templateSlug: template.slug, templateRevisionId: template.currentRevision?.id || "",
+      values, snapshot: template.currentRevision?.definition || null,
+    };
+  }
+
+  function localDocument(wikitext, images, templates) {
     const tokens = [];
-    const source = String(wikitext || "").replace(/<!--[^]*?-->/g, "")
+    const templateTokens = [];
+    let source = String(wikitext || "").replace(/<!--[^]*?-->/g, "")
+      .replace(/\[\[Category:[^\]]+\]\]/gi, "");
+    const calls = topLevelTemplateInvocations(source);
+    if (calls.length && templates.length) {
+      let output = "";
+      let cursor = 0;
+      calls.forEach((invocation) => {
+        const template = matchingTemplate(invocation, templates);
+        if (!template) return;
+        output += source.slice(cursor, invocation.start);
+        const token = `@@LOCALTEMPLATE${templateTokens.length}@@`;
+        templateTokens.push(localTemplateBlock(invocation, template, images));
+        output += `\n${token}\n`;
+        cursor = invocation.end;
+      });
+      source = `${output}${source.slice(cursor)}`;
+    }
+    source = source
       .replace(/\[\[Category:[^\]]+\]\]/gi, "")
       .replace(/\[\[(?:File|Image):([^|\]]+)(?:\|([^\]]*))?\]\]/gi, (_match, name, options = "") => {
         const title = `File:${String(name).trim().replaceAll("_", " ")}`;
@@ -402,6 +561,8 @@
       const line = raw.trim();
       const image = line.match(/^@@LOCALIMAGE(\d+)@@$/);
       if (image) { flushParagraph(); flushList(); blocks.push(tokens[Number(image[1])]); return; }
+      const template = line.match(/^@@LOCALTEMPLATE(\d+)@@$/);
+      if (template) { flushParagraph(); flushList(); blocks.push(templateTokens[Number(template[1])]); return; }
       if (!line) { flushParagraph(); flushList(); return; }
       const heading = line.match(/^(={2,4})\s*(.*?)\s*\1$/);
       if (heading) {
@@ -437,7 +598,8 @@
       const revision = page.revisions?.[0] || {};
       return { title: page.title, wikitext: revision.slots?.main?.content ?? revision.content ?? "", user: revision.user || "Unknown editor" };
     });
-    const images = await localImageMap(sourcePages.map((page) => page.wikitext));
+    const templates = readLocalTemplates();
+    const images = await localImageMap(sourcePages.map((page) => page.wikitext), templates);
     const overrides = readJson(LOCAL_PAGES_KEY);
     const redirects = readJson(LOCAL_REDIRECTS_KEY);
     const results = [];
@@ -457,19 +619,24 @@
         return;
       }
       const previousNumber = Number(existing?.currentRevision?.number || 0);
+      const converted = localDocument(sourcePage.wikitext, images, templates);
       const revision = {
         id: `local-import-revision-${crypto.randomUUID()}`, number: previousNumber + 1, title,
-        content: localDocument(sourcePage.wikitext, images), editSummary: "Import current revision from Miraheze",
+        content: converted, editSummary: "Import current revision from Miraheze",
         authorEmail: "system", authorName: `Imported from Miraheze · ${sourcePage.user}`, authorRole: "contributor", createdAt: now,
       };
       const page = {
         id: existing?.id || `local-import-page-${crypto.randomUUID()}`, slug, title,
         allowNormalEdits: existing?.allowNormalEdits ?? true, createdAt: existing?.createdAt || now, updatedAt: now,
+        categories: localCategories(sourcePage.wikitext),
         createdBy: existing?.createdBy || "system", updatedBy: "system", currentRevision: revision,
         localRevisions: [...(existing?.localRevisions || (existing?.currentRevision ? [existing.currentRevision] : [])), revision],
       };
       overrides[slug] = page;
-      results.push({ title, slug, status: existing ? "updated" : "imported", revisionNumber: revision.number });
+      results.push({
+        title, slug, status: existing ? "updated" : "imported", revisionNumber: revision.number,
+        matchedTemplates: converted.blocks.filter((block) => block.type === "template").length,
+      });
     });
     localStorage.setItem(LOCAL_PAGES_KEY, JSON.stringify(overrides));
     localStorage.setItem(LOCAL_REDIRECTS_KEY, JSON.stringify(redirects));
@@ -490,7 +657,7 @@
       const title = document.createElement("strong");
       title.textContent = item.title || item.slug || "Wiki page";
       const status = document.createElement("span");
-      status.textContent = item.status.replaceAll("_", " ");
+      status.textContent = `${item.status.replaceAll("_", " ")}${item.matchedTemplates ? ` · ${item.matchedTemplates} CF template${item.matchedTemplates === 1 ? "" : "s"}` : ""}`;
       row.append(title, status);
       ui.resultList.append(row);
     });
@@ -504,6 +671,7 @@
     for (let index = 0; index < titles.length; index += BATCH_SIZE) batches.push(titles.slice(index, index + BATCH_SIZE));
     const results = [];
     let importedImages = 0;
+    let matchedTemplates = 0;
     state.importing = true;
     updateSelectionUi();
     ui.preview.disabled = true;
@@ -523,11 +691,14 @@
             });
         results.push(...(payload.results || []));
         importedImages += Number(payload.importedImages || 0);
+        matchedTemplates += Number(payload.matchedTemplates || (payload.results || []).reduce(
+          (total, item) => total + Number(item.matchedTemplates || 0), 0
+        ));
         ui.progress.value += batch.length;
       }
       renderResults(results);
       setFeedback(ui.importFeedback,
-        `${results.length} page result${results.length === 1 ? "" : "s"} completed · ${importedImages} image${importedImages === 1 ? "" : "s"} imported.${state.testing ? " These changes are in the Cursor testing copy only." : ""}`);
+        `${results.length} page result${results.length === 1 ? "" : "s"} completed · ${importedImages} image${importedImages === 1 ? "" : "s"} imported · ${matchedTemplates} matching CF template${matchedTemplates === 1 ? "" : "s"} inserted.${state.testing ? " These changes are in the Cursor testing copy only." : ""}`);
     } catch (error) {
       if (results.length) renderResults(results);
       setFeedback(ui.importFeedback, `${error?.message || "The import stopped."} Completed batches were kept.`, true);

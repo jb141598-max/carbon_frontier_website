@@ -1,0 +1,48 @@
+CARBON FRONTIER WIKI — STEP 12
+Template-aware Miraheze Import + Wiki Organization
+
+DEPLOYMENT
+1. Merge every file in this patch ZIP into the matching location in your site.
+2. Keep the netlify/functions folder structure exactly as shown.
+3. Deploy once to Netlify so the updated import, page, and testing-sync Functions are live.
+4. To repair a page imported before this fix, import it again and choose
+   "Add as a new revision" under "When a page exists".
+
+MIRAHEZE TEMPLATE IMPORT
+- A Miraheze {{TemplateName ...}} call is compared with templates already in
+  Carbon Frontier Template Studio.
+- Template names match without caring about capitalization, spaces, underscores,
+  or hyphens. For example, MachineInfoBox matches Machine InfoBox.
+- Only matching Carbon Frontier templates are instantiated. Unknown foreign
+  templates remain readable source text and are not silently installed.
+- Same-named attributes fill the matching text and image placeholders.
+- Both standard |attribute=value syntax and the CF space-separated attribute
+  style are supported.
+- Images used by matching image placeholders are imported into the shared image
+  catalog and the template receives the new catalog image ID.
+- Each import result reports how many matching CF templates were inserted.
+
+WIKI ORGANIZATION
+- Page categories appear as clickable chips below each article.
+- Assigned Wiki Editors, Admins, and Owners can add, rename, or remove a page's
+  categories from Page Settings while editing.
+- The existing top search menu now contains All Pages, Categories, and Redirects.
+- Category browsing lists every category and its page count, then opens the pages
+  inside the selected category.
+- Redirect browsing shows old addresses and their current target page.
+- Imported Miraheze categories automatically appear in these new views.
+- Refresh Live Data now carries categories into Cursor testing as well.
+
+REMAINING ROADMAP
+After Step 12, two planned finishing steps remain:
+- Step 13: production polish and hardening (mobile/accessibility, loading and
+  error states, performance, SEO for public pages, and a security review).
+- Step 14: migration and launch readiness (full import validation, export/backup,
+  final deployment checklist, and end-to-end production testing).
+
+TESTING COMPLETED
+- JavaScript syntax checks for every changed browser and Function script.
+- 9 Step 10 visual/wikitext regression tests.
+- 4 Step 11 image catalog/template interaction regression tests.
+- 3 Step 12 template-import and organization tests.
+- 16 automated tests passed in total.

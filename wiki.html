@@ -1206,6 +1206,12 @@
         border-bottom: 1px solid var(--cf-border);
       }
 
+      .search-menu-actions [aria-pressed="true"] {
+        border-color: rgba(223, 37, 49, 0.7);
+        color: #fff;
+        background: rgba(223, 37, 49, 0.22);
+      }
+
       .wiki-search-results {
         min-height: 220px;
         max-height: min(500px, 56vh);
@@ -1289,6 +1295,42 @@
         border-top: 1px solid var(--cf-border);
         color: var(--cf-soft);
         font-size: 0.7rem;
+      }
+
+      .article-categories {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 clamp(24px, 5vw, 48px) 34px;
+        padding-top: 18px;
+        border-top: 1px solid var(--cf-border);
+      }
+
+      .article-categories-label {
+        align-self: center;
+        margin-right: 3px;
+        color: var(--cf-soft);
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .category-chip {
+        padding: 7px 11px;
+        border: 1px solid rgba(223, 37, 49, 0.35);
+        border-radius: 999px;
+        color: #ffb5ba;
+        background: rgba(223, 37, 49, 0.09);
+        font-family: "Play", sans-serif;
+        font-size: 0.76rem;
+        font-weight: 400;
+      }
+
+      .category-chip:hover,
+      .category-chip:focus-visible {
+        border-color: rgba(223, 37, 49, 0.8);
+        background: rgba(223, 37, 49, 0.18);
+        outline: none;
       }
 
       .page-management-grid {
@@ -2107,6 +2149,7 @@
                   <div class="article-content" id="article-content">
                     <p class="reader-loading">Loading page content...</p>
                   </div>
+                  <div class="article-categories" id="article-categories" aria-label="Page categories" hidden></div>
                   <section class="wikitext-panel" id="wikitext-panel" aria-label="Wikitext editor" hidden>
                     <div class="wikitext-panel-header">
                       <p>Write wiki markup, preview it, then save your revision.</p>
@@ -2220,6 +2263,9 @@
                   <button class="icon-button" id="close-search-button" type="button" aria-label="Close wiki search">×</button>
                 </div>
                 <div class="search-menu-actions" id="search-menu-actions">
+                  <button class="secondary-button" id="browse-all-pages-button" type="button" aria-pressed="false">All Pages</button>
+                  <button class="secondary-button" id="browse-categories-button" type="button" aria-pressed="false">Categories</button>
+                  <button class="secondary-button" id="browse-redirects-button" type="button" aria-pressed="false">Redirects</button>
                   <button class="primary-button" id="new-page-button" type="button" hidden>+ New Page</button>
                   <button class="secondary-button" id="open-trash-button" type="button" hidden>Trash</button>
                 </div>
@@ -2438,6 +2484,14 @@
                     <div class="management-inline">
                       <input id="move-page-slug-input" maxlength="100" placeholder="new-page-address" />
                       <button class="secondary-button" id="move-page-button" type="button">Move Page</button>
+                    </div>
+                  </section>
+                  <section class="management-card">
+                    <h3>Categories</h3>
+                    <p>Separate category names with commas. Categories appear below the article and in the wiki search menu.</p>
+                    <div class="management-inline">
+                      <input id="page-categories-input" maxlength="900" placeholder="Machines, Groundwater, Tier 1" />
+                      <button class="secondary-button" id="save-page-categories-button" type="button">Save Categories</button>
                     </div>
                   </section>
                   <section class="management-card">

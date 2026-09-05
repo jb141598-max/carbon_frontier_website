@@ -175,7 +175,13 @@ async function loadWikiSnapshot() {
            r.author_email,
            r.author_name,
            r.author_role,
-           r.created_at AS revision_created_at
+           r.created_at AS revision_created_at,
+           COALESCE((
+             SELECT jsonb_agg(jsonb_build_object('id', c.id, 'slug', c.slug, 'name', c.name) ORDER BY c.name)
+             FROM wiki_page_categories pc
+             INNER JOIN wiki_categories c ON c.id = pc.category_id
+             WHERE pc.page_id = p.id
+           ), '[]'::jsonb) AS categories_json
          FROM wiki_pages p
          LEFT JOIN wiki_revisions r ON r.id = p.current_revision_id
          ORDER BY p.updated_at DESC`
@@ -298,6 +304,7 @@ async function loadWikiSnapshot() {
         updatedBy: page.updated_by_email,
         createdAt: isoDate(page.created_at),
         updatedAt: isoDate(page.updated_at),
+        categories: Array.isArray(page.categories_json) ? page.categories_json : [],
         currentRevision: page.revision_id
           ? {
               id: page.revision_id,

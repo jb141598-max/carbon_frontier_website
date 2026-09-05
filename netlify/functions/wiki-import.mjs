@@ -130,7 +130,131 @@ function formatInline(value) {
   return text;
 }
 
-function imageReferences(wikitext) {
+function normalizeTemplateIdentifier(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/^template\s*:/i, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizedParameterKey(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function templatePlaceholders(definition) {
+  const seen = new Set();
+  return (Array.isArray(definition?.elements) ? definition.elements : [])
+    .filter((element) => ["placeholder", "image-placeholder"].includes(element?.type))
+    .map((element) => ({
+      key: String(element.placeholderKey || "").trim(),
+      kind: element.type === "image-placeholder" ? "image" : "text",
+    }))
+    .filter((placeholder) => {
+      const normalized = normalizedParameterKey(placeholder.key);
+      if (!normalized || seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
+}
+
+export function parseMirahezeTemplateInvocation(raw) {
+  const source = String(raw || "").trim();
+  if (!source.startsWith("{{") || !source.endsWith("}}")) return null;
+  const inner = source.slice(2, -2).trim();
+  const nameMatch = inner.match(/^([^|]*?)(?=\s+[A-Za-z][A-Za-z0-9_-]*\s*=|\||$)/);
+  const name = cleanTitle(nameMatch?.[1] || "").replace(/^Template\s*:/i, "");
+  if (!name) return null;
+  const parameterSource = inner.slice(nameMatch[0].length).replace(/^\s*\|?\s*/, "");
+  const matches = [];
+  const pattern = /(?:^|[|\s])([A-Za-z][A-Za-z0-9_-]*)\s*=/g;
+  let match;
+  while ((match = pattern.exec(parameterSource))) {
+    matches.push({
+      key: match[1],
+      start: match.index,
+      valueStart: pattern.lastIndex,
+    });
+  }
+  const parameters = {};
+  matches.forEach((item, index) => {
+    const end = matches[index + 1]?.start ?? parameterSource.length;
+    const value = parameterSource.slice(item.valueStart, end).replace(/[|\s]+$/g, "").trim();
+    parameters[item.key] = value.slice(0, 1000);
+  });
+  return { name, parameters, raw: source };
+}
+
+function topLevelTemplateInvocations(wikitext) {
+  const source = String(wikitext || "");
+  const calls = [];
+  let depth = 0;
+  let start = -1;
+  for (let index = 0; index < source.length - 1; index += 1) {
+    const pair = source.slice(index, index + 2);
+    if (pair === "{{") {
+      if (depth === 0) start = index;
+      depth += 1;
+      index += 1;
+    } else if (pair === "}}" && depth > 0) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        const end = index + 2;
+        const invocation = parseMirahezeTemplateInvocation(source.slice(start, end));
+        if (invocation) calls.push({ ...invocation, start, end });
+        start = -1;
+      }
+      index += 1;
+    }
+  }
+  return calls.slice(0, 100);
+}
+
+function templateIndex(templates) {
+  const index = new Map();
+  for (const template of Array.isArray(templates) ? templates : []) {
+    [template.name, template.slug].forEach((candidate) => {
+      const key = normalizeTemplateIdentifier(candidate);
+      if (key && !index.has(key)) index.set(key, template);
+    });
+  }
+  return index;
+}
+
+function matchingTemplate(invocation, templates) {
+  return templateIndex(templates).get(normalizeTemplateIdentifier(invocation?.name)) || null;
+}
+
+function normalizedFileTitle(value) {
+  const cleaned = String(value || "")
+    .replace(/^\[\[(?:File|Image):/i, "")
+    .replace(/\]\]$/g, "")
+    .split("|")[0]
+    .replace(/^File:/i, "")
+    .trim()
+    .replaceAll("_", " ");
+  return cleaned ? `File:${cleaned}` : "";
+}
+
+function templateImageReferences(wikitext, templates) {
+  const references = [];
+  for (const invocation of topLevelTemplateInvocations(wikitext)) {
+    const template = matchingTemplate(invocation, templates);
+    if (!template) continue;
+    const parameters = new Map(Object.entries(invocation.parameters)
+      .map(([key, value]) => [normalizedParameterKey(key), value]));
+    for (const placeholder of template.placeholders || templatePlaceholders(template.currentRevision?.definition)) {
+      if (placeholder.kind !== "image") continue;
+      const value = parameters.get(normalizedParameterKey(placeholder.key));
+      const fileTitle = normalizedFileTitle(value);
+      if (fileTitle) references.push({ fileTitle, alt: fileTitle.slice(5), caption: "" });
+    }
+  }
+  return references;
+}
+
+function imageReferences(wikitext, templates = []) {
   const references = [];
   const pattern = /\[\[(?:File|Image):([^|\]]+)(?:\|([^\]]*))?\]\]/gi;
   String(wikitext || "").replace(pattern, (_match, name, options = "") => {
@@ -145,7 +269,13 @@ function imageReferences(wikitext) {
     });
     return _match;
   });
-  return references.slice(0, MAX_IMAGES_PER_BATCH);
+  references.push(...templateImageReferences(wikitext, templates));
+  const unique = new Map();
+  references.forEach((reference) => {
+    const key = reference.fileTitle.toLowerCase();
+    if (!unique.has(key)) unique.set(key, reference);
+  });
+  return [...unique.values()].slice(0, MAX_IMAGES_PER_BATCH);
 }
 
 function extractCategories(wikitext) {
@@ -169,10 +299,56 @@ function stripMigrationMarkup(wikitext) {
     .replace(/\[\[Category:[^\]]+\]\]/gi, "");
 }
 
-export function convertWikitextToDocument(wikitext, importedMedia = new Map()) {
+function templateBlock(invocation, template, importedMedia) {
+  const parameters = new Map(Object.entries(invocation.parameters)
+    .map(([key, value]) => [normalizedParameterKey(key), String(value || "").trim()]));
+  const placeholders = template.placeholders || templatePlaceholders(template.currentRevision?.definition);
+  const values = {};
+  for (const placeholder of placeholders) {
+    const rawValue = parameters.get(normalizedParameterKey(placeholder.key));
+    if (rawValue === undefined) continue;
+    if (placeholder.kind === "image") {
+      const fileTitle = normalizedFileTitle(rawValue);
+      const media = importedMedia.get(fileTitle.toLowerCase());
+      values[placeholder.key] = media?.id || "";
+    } else {
+      values[placeholder.key] = rawValue.slice(0, 1000);
+    }
+  }
+  return {
+    id: crypto.randomUUID(),
+    type: "template",
+    templateId: template.id,
+    templateSlug: template.slug,
+    templateRevisionId: template.currentRevision?.id || "",
+    values,
+    snapshot: template.currentRevision?.definition || null,
+  };
+}
+
+function tokenizeKnownTemplates(source, templates, importedMedia, templateTokens) {
+  const calls = topLevelTemplateInvocations(source);
+  if (!calls.length || !templates.length) return source;
+  let output = "";
+  let cursor = 0;
+  for (const invocation of calls) {
+    const template = matchingTemplate(invocation, templates);
+    if (!template) continue;
+    output += source.slice(cursor, invocation.start);
+    const token = `@@CFTEMPLATE${templateTokens.length}@@`;
+    templateTokens.push(templateBlock(invocation, template, importedMedia));
+    output += `\n${token}\n`;
+    cursor = invocation.end;
+  }
+  return `${output}${source.slice(cursor)}`;
+}
+
+export function convertWikitextToDocument(wikitext, importedMedia = new Map(), templates = []) {
   const source = stripMigrationMarkup(wikitext);
   const imageTokens = [];
-  const withTokens = source.replace(/\[\[(?:File|Image):([^|\]]+)(?:\|([^\]]*))?\]\]/gi, (_match, name, options = "") => {
+  const templateTokens = [];
+  const withTemplateTokens = tokenizeKnownTemplates(source, templates, importedMedia, templateTokens);
+  const withTokens = withTemplateTokens.replace(/\[\[(?:File|Image):([^|\]]+)(?:\|([^\]]*))?\]\]/gi, (_match, name, options = "") => {
     const fileTitle = `File:${String(name).trim().replaceAll("_", " ")}`;
     const media = importedMedia.get(fileTitle.toLowerCase());
     const parts = String(options).split("|").map((part) => part.trim()).filter(Boolean);
@@ -230,6 +406,14 @@ export function convertWikitextToDocument(wikitext, importedMedia = new Map()) {
       flushList();
       const imageBlock = imageTokens[Number(imageMatch[1])];
       if (imageBlock) blocks.push(imageBlock);
+      continue;
+    }
+    const templateMatch = line.match(/^@@CFTEMPLATE(\d+)@@$/);
+    if (templateMatch) {
+      flushParagraph();
+      flushList();
+      const block = templateTokens[Number(templateMatch[1])];
+      if (block) blocks.push(block);
       continue;
     }
     if (!line) {
@@ -354,6 +538,33 @@ async function loadImageInfo(source, references) {
   })).filter((item) => item.url);
 }
 
+async function loadCarbonFrontierTemplates() {
+  const client = await database().pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT t.id, t.slug, t.name,
+              r.id AS revision_id, r.revision_number, r.definition_json
+       FROM wiki_templates t
+       INNER JOIN wiki_template_revisions r ON r.id = t.current_revision_id
+       WHERE t.is_deleted = FALSE
+       ORDER BY t.name ASC`
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      currentRevision: {
+        id: row.revision_id,
+        number: Number(row.revision_number),
+        definition: row.definition_json,
+      },
+      placeholders: templatePlaceholders(row.definition_json),
+    }));
+  } finally {
+    client.release();
+  }
+}
+
 async function importRemoteImage(client, account, sourceHostname, info, createdBlobKeys) {
   const reportedType = String(info.mime || "").toLowerCase();
   if (!ALLOWED_IMAGE_TYPES.has(reportedType) || Number(info.size) > MAX_IMAGE_BYTES) return null;
@@ -405,7 +616,7 @@ async function syncCategories(client, pageId, categories) {
   }
 }
 
-async function importPage(client, account, source, page, importedMedia, options) {
+async function importPage(client, account, source, page, importedMedia, templates, options) {
   const title = cleanTitle(page.title);
   const slug = options.mapMainPage && title.toLowerCase() === "main page" ? "front-page" : slugify(title);
   if (!title || !slug) return { title, status: "failed", message: "The page title could not become a valid address." };
@@ -432,7 +643,8 @@ async function importPage(client, account, source, page, importedMedia, options)
   const pageId = existing?.id || crypto.randomUUID();
   const revisionId = crypto.randomUUID();
   const revisionNumber = existing ? Number(existing.revision_number || 0) + 1 : 1;
-  const document = convertWikitextToDocument(page.wikitext, importedMedia);
+  const document = convertWikitextToDocument(page.wikitext, importedMedia, templates);
+  const matchedTemplates = document.blocks.filter((block) => block.type === "template").length;
   const serializedDocument = JSON.stringify(document);
   if (new TextEncoder().encode(serializedDocument).length > MAX_CONTENT_BYTES) {
     return { title, slug, status: "failed", message: "The converted page is larger than the 250 KB article limit." };
@@ -481,7 +693,7 @@ async function importPage(client, account, source, page, importedMedia, options)
       revisionNumber,
     },
   });
-  return { title, slug, status: existing ? "updated" : "imported", revisionNumber };
+  return { title, slug, status: existing ? "updated" : "imported", revisionNumber, matchedTemplates };
 }
 
 async function createRedirect(client, account, source, item) {
@@ -519,7 +731,8 @@ async function runImport(source, account, body) {
   const conflictMode = body?.conflictMode === "new_revision" ? "new_revision" : "skip";
   const options = { conflictMode, mapMainPage: body?.mapMainPage !== false };
   const pages = await loadPageSources(source, titles);
-  const references = pages.flatMap((page) => imageReferences(page.wikitext));
+  const templates = await loadCarbonFrontierTemplates();
+  const references = pages.flatMap((page) => imageReferences(page.wikitext, templates));
   const imageInfo = await loadImageInfo(source, references);
   const client = await database().pool.connect();
   const createdBlobKeys = [];
@@ -534,7 +747,7 @@ async function runImport(source, account, body) {
     const results = [];
     const redirects = [];
     for (const page of pages) {
-      const result = await importPage(client, account, source, page, importedMedia, options);
+      const result = await importPage(client, account, source, page, importedMedia, templates, options);
       if (result.status === "redirect") redirects.push(result);
       else results.push(result);
     }
@@ -548,6 +761,7 @@ async function runImport(source, account, body) {
       source: source.origin,
       results,
       importedImages: importedMedia.size,
+      matchedTemplates: results.reduce((total, item) => total + Number(item.matchedTemplates || 0), 0),
       requested: titles.length,
     });
   } finally {

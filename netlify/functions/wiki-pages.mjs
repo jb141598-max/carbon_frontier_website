@@ -59,6 +59,48 @@ function validateContent(value) {
   return { ok: true, serialized };
 }
 
+function normalizeCategories(value) {
+  if (!Array.isArray(value)) return null;
+  const unique = new Map();
+  for (const item of value) {
+    const name = normalizeTitle(item).slice(0, 80);
+    const slug = name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[’']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+    if (name && slug && !unique.has(slug)) unique.set(slug, { slug, name });
+  }
+  return [...unique.values()].slice(0, 20);
+}
+
+function categoriesFromRow(row) {
+  let value = row.categories_json;
+  if (typeof value === "string") {
+    try { value = JSON.parse(value); } catch (error) { value = []; }
+  }
+  return (Array.isArray(value) ? value : []).map((category) => ({
+    id: String(category.id || ""),
+    slug: String(category.slug || ""),
+    name: String(category.name || ""),
+  })).filter((category) => category.slug && category.name);
+}
+
+async function replacePageCategories(client, pageId, categories) {
+  await client.query(`DELETE FROM wiki_page_categories WHERE page_id = $1`, [pageId]);
+  for (const category of categories) {
+    await client.query(
+      `INSERT INTO wiki_categories (id, slug, name)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name`,
+      [crypto.randomUUID(), category.slug, category.name]
+    );
+    await client.query(
+      `INSERT INTO wiki_page_categories (page_id, category_id)
+       SELECT $1, id FROM wiki_categories WHERE slug = $2
+       ON CONFLICT DO NOTHING`,
+      [pageId, category.slug]
+    );
+  }
+}
+
 function pageFromRow(row, viewer) {
   const canEditThisPage =
     !row.is_deleted &&
@@ -72,6 +114,7 @@ function pageFromRow(row, viewer) {
     deletedAt: row.deleted_at ? new Date(row.deleted_at).toISOString() : null,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
+    categories: categoriesFromRow(row),
     currentRevision: row.revision_id
       ? {
           id: row.revision_id,
@@ -133,7 +176,13 @@ async function selectPage(client, slug, { lock = false, includeDeleted = false }
        r.edit_summary,
        r.author_name,
        r.author_role,
-       r.created_at AS revision_created_at
+       r.created_at AS revision_created_at,
+       COALESCE((
+         SELECT jsonb_agg(jsonb_build_object('id', c.id, 'slug', c.slug, 'name', c.name) ORDER BY c.name)
+         FROM wiki_page_categories pc
+         INNER JOIN wiki_categories c ON c.id = pc.category_id
+         WHERE pc.page_id = p.id
+       ), '[]'::jsonb) AS categories_json
      FROM wiki_pages p
      LEFT JOIN wiki_revisions r ON r.id = p.current_revision_id
      WHERE p.slug = $1 AND ($2 = TRUE OR p.is_deleted = FALSE)
@@ -161,7 +210,13 @@ async function selectRedirectPage(client, sourceSlug) {
        r.edit_summary,
        r.author_name,
        r.author_role,
-       r.created_at AS revision_created_at
+       r.created_at AS revision_created_at,
+       COALESCE((
+         SELECT jsonb_agg(jsonb_build_object('id', c.id, 'slug', c.slug, 'name', c.name) ORDER BY c.name)
+         FROM wiki_page_categories pc
+         INNER JOIN wiki_categories c ON c.id = pc.category_id
+         WHERE pc.page_id = p.id
+       ), '[]'::jsonb) AS categories_json
      FROM wiki_redirects d
      INNER JOIN wiki_pages p ON p.id = d.target_page_id
      LEFT JOIN wiki_revisions r ON r.id = p.current_revision_id
@@ -218,7 +273,13 @@ async function handleGet(request, account) {
            p.updated_at,
            r.revision_number,
            r.edit_summary,
-           r.author_name
+           r.author_name,
+           COALESCE((
+             SELECT jsonb_agg(jsonb_build_object('id', c.id, 'slug', c.slug, 'name', c.name) ORDER BY c.name)
+             FROM wiki_page_categories pc
+             INNER JOIN wiki_categories c ON c.id = pc.category_id
+             WHERE pc.page_id = p.id
+           ), '[]'::jsonb) AS categories_json
          FROM wiki_pages p
          LEFT JOIN wiki_revisions r ON r.id = p.current_revision_id
          WHERE p.is_deleted = FALSE
@@ -226,6 +287,14 @@ async function handleGet(request, account) {
          ORDER BY p.updated_at DESC, p.title ASC
          LIMIT 250`,
         [search, searchPattern]
+      );
+      const redirects = await client.query(
+        `SELECT d.source_slug, p.slug AS target_slug, p.title AS target_title
+         FROM wiki_redirects d
+         INNER JOIN wiki_pages p ON p.id = d.target_page_id
+         WHERE p.is_deleted = FALSE
+         ORDER BY d.source_slug ASC
+         LIMIT 250`
       );
       return json({
         ok: true,
@@ -246,6 +315,12 @@ async function handleGet(request, account) {
           revisionNumber: row.revision_number ? Number(row.revision_number) : null,
           editSummary: row.edit_summary || "",
           authorName: row.author_name || null,
+          categories: categoriesFromRow(row),
+        })),
+        redirects: redirects.rows.map((row) => ({
+          sourceSlug: row.source_slug,
+          targetSlug: row.target_slug,
+          targetTitle: row.target_title,
         })),
       });
     }
@@ -625,6 +700,27 @@ async function handlePageMutation(request, account, body, slug) {
         actorEmail: account.email,
         pageId: pageRow.id,
         details: { allowNormalEdits: body.allowNormalEdits },
+      });
+      await client.query("COMMIT");
+      committed = true;
+      const updated = await selectPage(client, slug);
+      return json({ ok: true, page: pageFromRow(updated, viewer) });
+    }
+
+    if (body?.action === "update_page_categories") {
+      if (!viewer.isAssignedStaff) {
+        return json({ error: "Only assigned wiki staff can organize page categories." }, 403);
+      }
+      const categories = normalizeCategories(body?.categories);
+      if (!categories) {
+        return json({ error: "Send categories as a list of names." }, 400);
+      }
+      await replacePageCategories(client, pageRow.id, categories);
+      await insertAuditEntry(client, {
+        action: "page_categories_changed",
+        actorEmail: account.email,
+        pageId: pageRow.id,
+        details: { categories: categories.map((category) => category.name) },
       });
       await client.query("COMMIT");
       committed = true;

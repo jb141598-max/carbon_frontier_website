@@ -71,6 +71,9 @@
     searchResults: document.getElementById("wiki-search-results"),
     closeSearch: document.getElementById("close-search-button"),
     searchActions: document.getElementById("search-menu-actions"),
+    browseAllPages: document.getElementById("browse-all-pages-button"),
+    browseCategories: document.getElementById("browse-categories-button"),
+    browseRedirects: document.getElementById("browse-redirects-button"),
     newPage: document.getElementById("new-page-button"),
     openTrash: document.getElementById("open-trash-button"),
     articleSurface: document.getElementById("article-surface"),
@@ -79,6 +82,7 @@
     titleInput: document.getElementById("editor-title-input"),
     meta: document.getElementById("article-meta"),
     content: document.getElementById("article-content"),
+    categories: document.getElementById("article-categories"),
     editPage: document.getElementById("edit-page-button"),
     historyButton: document.getElementById("history-button"),
     feedback: document.getElementById("wiki-feedback"),
@@ -164,6 +168,8 @@
     managementDialog: document.getElementById("page-management-dialog"),
     managementTitle: document.getElementById("page-management-title"),
     managementNormalEdits: document.getElementById("management-normal-edits-input"),
+    managementCategories: document.getElementById("page-categories-input"),
+    saveCategories: document.getElementById("save-page-categories-button"),
     moveSlug: document.getElementById("move-page-slug-input"),
     movePage: document.getElementById("move-page-button"),
     trashPage: document.getElementById("trash-page-button"),
@@ -187,6 +193,9 @@
     selectedRevision: null,
     restoreArmedRevisionId: "",
     searchIndex: -1,
+    searchMode: "recent",
+    selectedCategory: "",
+    redirects: [],
     pageListPermissions: {},
     trashArmedSlug: "",
     media: [],
@@ -441,6 +450,7 @@
       slug: "front-page",
       title: "Carbon Frontier Wiki",
       allowNormalEdits: true,
+      categories: [],
       createdAt,
       updatedAt: createdAt,
       createdBy: "system",
@@ -474,6 +484,7 @@
   function withTestingPermissions(page) {
     return {
       ...ensureLocalHistory(page),
+      categories: Array.isArray(page.categories) ? page.categories : [],
       permissions: {
         canEdit: true,
         canChangePageSettings: true,
@@ -514,6 +525,7 @@
       editSummary: page.currentRevision?.editSummary || "",
       authorName: page.currentRevision?.authorName || null,
       authorEmail: page.currentRevision?.authorEmail || null,
+      categories: Array.isArray(page.categories) ? clone(page.categories) : [],
     };
   }
 
@@ -523,6 +535,11 @@
         ok: true,
         permissions: { canCreate: true, isAssignedStaff: true, canManageTrash: true },
         pages: testingPages().map(pageSummary),
+        redirects: Object.entries(testingRedirects()).map(([sourceSlug, targetSlug]) => ({
+          sourceSlug,
+          targetSlug,
+          targetTitle: testingPages().find((page) => page.slug === targetSlug)?.title || targetSlug,
+        })),
       };
     }
     return remoteRequest();
@@ -634,6 +651,7 @@
       slug: body.slug,
       title: body.title,
       allowNormalEdits: true,
+      categories: [],
       createdAt: now,
       updatedAt: now,
       createdBy: revision.authorEmail,
@@ -700,6 +718,18 @@
       page.updatedBy = actorEmail;
     } else if (body.action === "update_page_settings") {
       page.allowNormalEdits = Boolean(body.allowNormalEdits);
+      page.updatedAt = now;
+      page.updatedBy = actorEmail;
+    } else if (body.action === "update_page_categories") {
+      const unique = new Map();
+      (Array.isArray(body.categories) ? body.categories : []).forEach((value) => {
+        const name = String(value || "").trim().replace(/\s+/g, " ").slice(0, 80);
+        const categorySlug = slugify(name).slice(0, 80);
+        if (name && categorySlug && !unique.has(categorySlug)) {
+          unique.set(categorySlug, { id: `local-category-${categorySlug}`, slug: categorySlug, name });
+        }
+      });
+      page.categories = [...unique.values()].slice(0, 20);
       page.updatedAt = now;
       page.updatedBy = actorEmail;
     } else if (body.action === "restore_revision") {
@@ -1052,7 +1082,8 @@
       node.style.borderRadius = `${clampNumber(element.borderRadius, 0, 200, 18)}px`;
       if (mediaId) {
         const image = document.createElement("img");
-        image.dataset.wikiMediaId = mediaId;
+        if (/^(?:data:image\/|blob:|https:\/\/)/i.test(mediaId)) image.src = mediaId;
+        else image.dataset.wikiMediaId = mediaId;
         image.alt = String(element.defaultAlt || "Template image").slice(0, 240);
         image.style.objectFit = element.fit === "contain" ? "contain" : "cover";
         node.append(image);
@@ -1403,49 +1434,118 @@
     document.title = `${page.title} | Carbon Frontier Wiki`;
   }
 
+  function categoryDirectory() {
+    const categories = new Map();
+    app.pages.forEach((page) => (page.categories || []).forEach((category) => {
+      if (!categories.has(category.slug)) categories.set(category.slug, { ...category, pages: [] });
+      categories.get(category.slug).pages.push(page);
+    }));
+    return [...categories.values()].sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  function appendSearchResult({ icon, title, meta, hint, slug = "", categorySlug = "" }) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `wiki-search-result${slug === app.currentSlug ? " is-active" : ""}`;
+    if (slug) button.dataset.slug = slug;
+    if (categorySlug) button.dataset.categorySlug = categorySlug;
+    const mark = document.createElement("span");
+    mark.className = "search-result-icon";
+    mark.textContent = icon;
+    const copy = document.createElement("span");
+    copy.className = "search-result-copy";
+    const heading = document.createElement("strong");
+    heading.textContent = title;
+    const detail = document.createElement("span");
+    detail.textContent = meta;
+    copy.append(heading, detail);
+    const openHint = document.createElement("small");
+    openHint.textContent = hint;
+    button.append(mark, copy, openHint);
+    ui.searchResults.append(button);
+  }
+
+  function updateSearchModeButtons() {
+    ui.browseAllPages.setAttribute("aria-pressed", String(app.searchMode === "all"));
+    ui.browseCategories.setAttribute("aria-pressed", String(app.searchMode === "categories"));
+    ui.browseRedirects.setAttribute("aria-pressed", String(app.searchMode === "redirects"));
+  }
+
   function renderSearchResults() {
-    const query = ui.searchMenuInput.value.trim().toLowerCase();
-    const visiblePages = [...app.pages]
-      .filter((page) => `${page.title} ${page.slug}`.toLowerCase().includes(query))
-      .sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt))
-      .slice(0, query ? 40 : 12);
+    const rawQuery = ui.searchMenuInput.value.trim();
+    const query = rawQuery.toLowerCase();
     ui.searchResults.replaceChildren();
     app.searchIndex = -1;
-
+    updateSearchModeButtons();
     const label = document.createElement("p");
     label.className = "search-results-label";
-    label.textContent = query ? `Results for “${ui.searchMenuInput.value.trim()}”` : "Recently updated";
     ui.searchResults.append(label);
+
+    if (!query && app.searchMode === "categories" && !app.selectedCategory) {
+      const categories = categoryDirectory();
+      label.textContent = "Categories";
+      if (!categories.length) {
+        const empty = document.createElement("p");
+        empty.className = "wiki-list-state";
+        empty.textContent = "No pages have categories yet. Assigned staff can add them from Page Settings while editing.";
+        ui.searchResults.append(empty);
+        return;
+      }
+      categories.forEach((category) => appendSearchResult({
+        icon: "#", title: category.name,
+        meta: `${category.pages.length} page${category.pages.length === 1 ? "" : "s"}`,
+        hint: "Browse →", categorySlug: category.slug,
+      }));
+      return;
+    }
+
+    if (!query && app.searchMode === "redirects") {
+      label.textContent = "Redirects";
+      if (!app.redirects.length) {
+        const empty = document.createElement("p");
+        empty.className = "wiki-list-state";
+        empty.textContent = "No redirect addresses have been created yet.";
+        ui.searchResults.append(empty);
+        return;
+      }
+      app.redirects.forEach((redirect) => appendSearchResult({
+        icon: "↪", title: redirect.sourceSlug,
+        meta: `Redirects to ${redirect.targetTitle || redirect.targetSlug}`,
+        hint: "Follow →", slug: redirect.sourceSlug,
+      }));
+      return;
+    }
+
+    let visiblePages = [...app.pages];
+    if (query) {
+      visiblePages = visiblePages.filter((page) => `${page.title} ${page.slug} ${(page.categories || []).map((category) => category.name).join(" ")}`
+        .toLowerCase().includes(query));
+      label.textContent = `Results for “${rawQuery}”`;
+    } else if (app.searchMode === "categories" && app.selectedCategory) {
+      const category = categoryDirectory().find((item) => item.slug === app.selectedCategory);
+      visiblePages = category?.pages || [];
+      label.textContent = category ? `${category.name} · ${visiblePages.length} page${visiblePages.length === 1 ? "" : "s"}` : "Category";
+    } else if (app.searchMode === "all") {
+      visiblePages.sort((left, right) => left.title.localeCompare(right.title));
+      label.textContent = `All pages · ${visiblePages.length}`;
+    } else {
+      visiblePages.sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt));
+      visiblePages = visiblePages.slice(0, 12);
+      label.textContent = "Recently updated";
+    }
 
     if (!visiblePages.length) {
       const empty = document.createElement("p");
       empty.className = "wiki-list-state";
-      empty.textContent = query ? "No wiki pages match that search." : "No wiki pages exist yet.";
+      empty.textContent = query ? "No wiki pages match that search." : "No wiki pages are in this section yet.";
       ui.searchResults.append(empty);
-    } else {
-      visiblePages.forEach((page) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = `wiki-search-result${page.slug === app.currentSlug ? " is-active" : ""}`;
-        button.dataset.slug = page.slug;
-        const icon = document.createElement("span");
-        icon.className = "search-result-icon";
-        icon.textContent = "▤";
-        const copy = document.createElement("span");
-        copy.className = "search-result-copy";
-        const title = document.createElement("strong");
-        title.textContent = page.title;
-        const meta = document.createElement("span");
-        meta.textContent = page.revisionNumber
-          ? `Revision ${page.revisionNumber} · ${formatDate(page.updatedAt)}`
-          : `Updated ${formatDate(page.updatedAt)}`;
-        copy.append(title, meta);
-        const openHint = document.createElement("small");
-        openHint.textContent = page.slug === app.currentSlug ? "Current" : "Open →";
-        button.append(icon, copy, openHint);
-        ui.searchResults.append(button);
-      });
+      return;
     }
+    visiblePages.slice(0, query ? 40 : 250).forEach((page) => appendSearchResult({
+      icon: "▤", title: page.title,
+      meta: page.revisionNumber ? `Revision ${page.revisionNumber} · ${formatDate(page.updatedAt)}` : `Updated ${formatDate(page.updatedAt)}`,
+      hint: page.slug === app.currentSlug ? "Current" : "Open →", slug: page.slug,
+    }));
   }
 
   function openSearchMenu() {
@@ -1453,6 +1553,8 @@
       return;
     }
     ui.searchMenuInput.value = "";
+    app.searchMode = "recent";
+    app.selectedCategory = "";
     renderSearchResults();
     setDialog(ui.searchDialog, true);
     ui.search.blur();
@@ -1468,6 +1570,33 @@
     app.searchIndex = -1;
   }
 
+  function browseSearchMode(mode) {
+    app.searchMode = mode;
+    app.selectedCategory = "";
+    ui.searchMenuInput.value = "";
+    renderSearchResults();
+    ui.searchMenuInput.focus({ preventScroll: true });
+  }
+
+  function renderPageCategories(page) {
+    ui.categories.replaceChildren();
+    const categories = Array.isArray(page.categories) ? page.categories : [];
+    ui.categories.hidden = !categories.length;
+    if (!categories.length) return;
+    const label = document.createElement("span");
+    label.className = "article-categories-label";
+    label.textContent = "Categories";
+    ui.categories.append(label);
+    categories.forEach((category) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "category-chip";
+      button.dataset.openCategory = category.slug;
+      button.textContent = category.name;
+      ui.categories.append(button);
+    });
+  }
+
   function renderPage(page) {
     app.currentPage = page;
     clearSelectedFigure();
@@ -1479,6 +1608,7 @@
       ? `Revision ${revision.number} · ${formatDate(revision.createdAt)} · ${author}`
       : "No saved revision.";
     renderContent(ui.content, revision?.content);
+    renderPageCategories(page);
     ui.editPage.hidden = !page.permissions?.canEdit;
     ui.historyButton.hidden = true;
     ui.pageSettings.hidden = true;
@@ -1494,6 +1624,8 @@
     ui.editPage.hidden = true;
     ui.historyButton.hidden = true;
     ui.content.replaceChildren();
+    ui.categories.replaceChildren();
+    ui.categories.hidden = true;
     const message = document.createElement("p");
     message.className = "article-empty";
     message.textContent = error?.message || "This wiki page could not be loaded.";
@@ -1503,11 +1635,12 @@
   async function refreshPageList() {
     const payload = await listPages();
     app.pages = Array.isArray(payload.pages) ? payload.pages : [];
+    app.redirects = Array.isArray(payload.redirects) ? payload.redirects : [];
     app.pageListPermissions = payload.permissions || {};
     ui.topTools.hidden = false;
     ui.newPage.hidden = !payload.permissions?.canCreate;
     ui.openTrash.hidden = !payload.permissions?.canManageTrash;
-    ui.searchActions.hidden = ui.newPage.hidden && ui.openTrash.hidden;
+    ui.searchActions.hidden = false;
     if (!ui.searchDialog.hidden) {
       renderSearchResults();
     }
@@ -2342,6 +2475,7 @@
     }
     ui.managementTitle.textContent = `${page.title} settings`;
     ui.managementNormalEdits.checked = Boolean(page.allowNormalEdits);
+    ui.managementCategories.value = (page.categories || []).map((category) => category.name).join(", ");
     ui.moveSlug.value = page.slug;
     ui.moveSlug.disabled = page.slug === "front-page";
     ui.movePage.disabled = page.slug === "front-page";
@@ -2380,6 +2514,30 @@
       setFeedback(ui.managementFeedback, error?.message || "The page permission could not be changed.", true);
     } finally {
       ui.managementNormalEdits.disabled = false;
+    }
+  }
+
+  async function updateManagedCategories() {
+    const page = app.currentPage;
+    if (!page?.permissions?.canManagePage) return;
+    const categories = ui.managementCategories.value.split(",")
+      .map((value) => value.trim().replace(/\s+/g, " "))
+      .filter(Boolean);
+    ui.saveCategories.disabled = true;
+    setFeedback(ui.managementFeedback, "Saving categories...");
+    try {
+      const payload = await mutatePage(page.slug, { action: "update_page_categories", categories });
+      app.currentPage = payload.page;
+      if (app.editingBasePage) app.editingBasePage.categories = clone(payload.page.categories || []);
+      renderPageCategories(payload.page);
+      await refreshPageList();
+      setFeedback(ui.managementFeedback, categories.length
+        ? `${payload.page.categories.length} categor${payload.page.categories.length === 1 ? "y" : "ies"} saved.`
+        : "All categories removed from this page.");
+    } catch (error) {
+      setFeedback(ui.managementFeedback, error?.message || "The categories could not be saved.", true);
+    } finally {
+      ui.saveCategories.disabled = false;
     }
   }
 
@@ -2733,7 +2891,7 @@
   });
   ui.searchMenuInput.addEventListener("input", renderSearchResults);
   ui.searchMenuInput.addEventListener("keydown", (event) => {
-    const buttons = [...ui.searchResults.querySelectorAll("[data-slug]")];
+    const buttons = [...ui.searchResults.querySelectorAll("[data-slug], [data-category-slug]")];
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       app.searchIndex = event.key === "ArrowDown"
@@ -2749,6 +2907,14 @@
     }
   });
   ui.searchResults.addEventListener("click", (event) => {
+    const category = event.target.closest("[data-category-slug]");
+    if (category) {
+      app.searchMode = "categories";
+      app.selectedCategory = category.dataset.categorySlug;
+      renderSearchResults();
+      ui.searchMenuInput.focus({ preventScroll: true });
+      return;
+    }
     const button = event.target.closest("[data-slug]");
     if (button) {
       openPage(button.dataset.slug);
@@ -2756,6 +2922,9 @@
   });
 
   ui.newPage.addEventListener("click", openNewPageDialog);
+  ui.browseAllPages.addEventListener("click", () => browseSearchMode("all"));
+  ui.browseCategories.addEventListener("click", () => browseSearchMode("categories"));
+  ui.browseRedirects.addEventListener("click", () => browseSearchMode("redirects"));
   ui.openTrash.addEventListener("click", openTrashDialog);
   ui.closeSearch.addEventListener("click", closeSearchResults);
   ui.editPage.addEventListener("click", enterEditing);
@@ -2940,6 +3109,7 @@
 
   ui.closeManagement.addEventListener("click", closePageManagement);
   ui.managementNormalEdits.addEventListener("change", updateManagedEditingPermission);
+  ui.saveCategories.addEventListener("click", updateManagedCategories);
   ui.moveSlug.addEventListener("input", () => {
     ui.moveSlug.value = slugify(ui.moveSlug.value);
   });
@@ -2952,6 +3122,15 @@
     if (button) {
       restoreTrashedPage(button.dataset.restoreSlug, button);
     }
+  });
+
+  ui.categories.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-open-category]");
+    if (!button || app.editing) return;
+    openSearchMenu();
+    app.searchMode = "categories";
+    app.selectedCategory = button.dataset.openCategory;
+    renderSearchResults();
   });
 
   [
