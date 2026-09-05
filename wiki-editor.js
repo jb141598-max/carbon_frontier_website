@@ -128,10 +128,14 @@
     restoreRevision: document.getElementById("restore-revision-button"),
     historyFeedback: document.getElementById("history-feedback"),
     mediaDialog: document.getElementById("media-dialog"),
+    mediaDialogTitle: document.getElementById("media-dialog-title"),
     mediaForm: document.getElementById("media-form"),
-    mediaFile: document.getElementById("media-file-input"),
+    mediaCatalogSearch: document.getElementById("media-catalog-search"),
+    mediaCatalogGrid: document.getElementById("media-catalog-grid"),
     mediaAlt: document.getElementById("media-alt-input"),
+    mediaAltField: document.getElementById("media-alt-field"),
     mediaCaption: document.getElementById("media-caption-input"),
+    mediaCaptionField: document.getElementById("media-caption-field"),
     mediaPreview: document.getElementById("media-preview"),
     mediaFeedback: document.getElementById("media-feedback"),
     uploadMedia: document.getElementById("upload-media-button"),
@@ -185,7 +189,13 @@
     searchIndex: -1,
     pageListPermissions: {},
     trashArmedSlug: "",
-    mediaPreviewUrl: "",
+    media: [],
+    selectedMediaId: "",
+    mediaSearchTimer: 0,
+    mediaObjectUrls: new Map(),
+    mediaTargetInput: null,
+    mediaTargetDisplay: null,
+    mediaTargetButton: null,
     selectedFigure: null,
     selectedImageLayout: "inline",
     draggingFigure: null,
@@ -203,6 +213,10 @@
   };
 
   const wikitext = window.CarbonFrontierWikitext;
+  const mediaClient = window.CarbonFrontierWikiMedia.create({
+    testing: Boolean(window.CarbonFrontierWikiCore?.isTestingEnvironment?.()),
+    fetcher: (endpoint, options) => window.CarbonFrontierWikiCore.fetchWithAuth(endpoint, options),
+  });
 
   function core() {
     return window.CarbonFrontierWikiCore;
@@ -344,79 +358,8 @@
     throw lastError;
   }
 
-  async function uploadMediaFile(file) {
-    if (isTesting()) {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.addEventListener("load", () => resolve(String(reader.result || "")), { once: true });
-        reader.addEventListener("error", () => reject(new Error("The local image could not be read.")), { once: true });
-        reader.readAsDataURL(file);
-      });
-      return {
-        ok: true,
-        media: {
-          id: randomId("local-media"),
-          originalName: file.name,
-          contentType: file.type,
-          sizeBytes: file.size,
-          url: dataUrl,
-        },
-      };
-    }
-
-    let lastError = new Error("The wiki image service is unavailable.");
-    for (const endpoint of MEDIA_ENDPOINTS) {
-      try {
-        const form = new FormData();
-        form.append("file", file);
-        const response = await core().fetchWithAuth(endpoint, { method: "POST", body: form });
-        const payload = await response.json().catch(() => null);
-        if (response.status === 404 && endpoint.startsWith("/api/")) {
-          lastError = new Error(payload?.error || "The wiki image service was not found.");
-          continue;
-        }
-        if (!response.ok) {
-          const error = new Error(payload?.error || `Image upload failed (${response.status}).`);
-          error.status = response.status;
-          throw error;
-        }
-        return payload;
-      } catch (error) {
-        lastError = error;
-        if (error?.status && error.status !== 404) {
-          throw error;
-        }
-      }
-    }
-    throw lastError;
-  }
-
-  async function fetchProtectedMedia(mediaId) {
-    let lastError = new Error("The wiki image could not be loaded.");
-    for (const base of MEDIA_ENDPOINTS) {
-      const endpoint = base.startsWith("/api/")
-        ? `${base}/${encodeURIComponent(mediaId)}`
-        : `${base}?id=${encodeURIComponent(mediaId)}`;
-      try {
-        const response = await core().fetchWithAuth(endpoint);
-        if (response.status === 404 && base.startsWith("/api/")) {
-          continue;
-        }
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          const error = new Error(payload?.error || `Image request failed (${response.status}).`);
-          error.status = response.status;
-          throw error;
-        }
-        return response.blob();
-      } catch (error) {
-        lastError = error;
-        if (error?.status && error.status !== 404) {
-          throw error;
-        }
-      }
-    }
-    throw lastError;
+  function fetchProtectedMedia(mediaId) {
+    return mediaClient.getBlob(mediaId);
   }
 
   function readLocalOverrides() {
@@ -1060,10 +1003,10 @@
   function drawTemplateObject(raw, values) {
     const element = raw && typeof raw === "object" ? raw : {};
     const node = document.createElement("div");
-    const type = ["text", "placeholder", "shape", "frame", "line", "image"].includes(element.type)
+    const type = ["text", "placeholder", "image-placeholder", "shape", "frame", "line", "image"].includes(element.type)
       ? element.type
       : "shape";
-    node.className = `wiki-template-object${["text", "placeholder"].includes(type) ? " is-text" : ""}${["shape", "frame"].includes(type) ? " is-shape" : ""}${type === "line" ? " is-line" : ""}`;
+    node.className = `wiki-template-object${["text", "placeholder"].includes(type) ? " is-text" : ""}${["shape", "frame"].includes(type) ? " is-shape" : ""}${type === "line" ? " is-line" : ""}${type === "image-placeholder" ? " is-image-placeholder" : ""}`;
     Object.assign(node.style, {
       left: `${clampNumber(element.x, -1600, 3200, 0)}px`,
       top: `${clampNumber(element.y, -1600, 3200, 0)}px`,
@@ -1100,6 +1043,24 @@
       if (/^(?:data:image\/|blob:|https:\/\/)/i.test(url)) image.src = url;
       else if (element.mediaId) image.dataset.wikiMediaId = String(element.mediaId);
       node.append(image);
+    } else if (type === "image-placeholder") {
+      const key = String(element.placeholderKey || "");
+      const mediaId = String(values?.[key] || "").trim();
+      node.style.background = safeTemplateColor(element.fill, "#1b1b1e");
+      node.style.borderColor = safeTemplateColor(element.stroke, "#df2531");
+      node.style.borderWidth = `${clampNumber(element.strokeWidth, 0, 24, 2)}px`;
+      node.style.borderRadius = `${clampNumber(element.borderRadius, 0, 200, 18)}px`;
+      if (mediaId) {
+        const image = document.createElement("img");
+        image.dataset.wikiMediaId = mediaId;
+        image.alt = String(element.defaultAlt || "Template image").slice(0, 240);
+        image.style.objectFit = element.fit === "contain" ? "contain" : "cover";
+        node.append(image);
+      } else {
+        const empty = document.createElement("span");
+        empty.textContent = `Choose image · ${key || "image"}`;
+        node.append(empty);
+      }
     } else {
       node.dataset.shape = type === "frame" ? "rounded" : String(element.shape || "rectangle");
       node.style.background = safeTemplateColor(element.fill, type === "frame" ? "transparent" : "#df2531");
@@ -2028,40 +1989,120 @@
     }
   }
 
-  function openMediaDialog() {
+  function openMediaDialog(options = {}) {
     if (!app.editing) {
       return;
     }
-    saveCurrentSelection();
+    app.mediaTargetInput = options.targetInput || null;
+    app.mediaTargetDisplay = options.targetDisplay || null;
+    app.mediaTargetButton = options.targetButton || null;
+    if (!app.mediaTargetInput) saveCurrentSelection();
     ui.mediaForm.reset();
-    ui.mediaPreview.textContent = "Choose a PNG, JPG, WebP, or GIF up to 4 MB.";
+    app.selectedMediaId = app.mediaTargetInput?.value || "";
+    ui.mediaDialogTitle.textContent = app.mediaTargetInput ? "Choose a template image" : "Import from image catalog";
+    ui.mediaAltField.hidden = Boolean(app.mediaTargetInput);
+    ui.mediaCaptionField.hidden = Boolean(app.mediaTargetInput);
+    ui.mediaAlt.required = !app.mediaTargetInput;
+    ui.uploadMedia.textContent = app.mediaTargetInput ? "Use Selected Image" : "Insert Selected Image";
+    ui.uploadMedia.disabled = true;
+    ui.mediaPreview.hidden = true;
+    ui.mediaCatalogGrid.innerHTML = '<div class="media-catalog-state">Loading catalog images...</div>';
     setFeedback(ui.mediaFeedback, "");
     setDialog(ui.mediaDialog, true);
-    window.setTimeout(() => ui.mediaFile.focus(), 0);
+    loadMediaCatalog().then(() => {
+      if (app.selectedMediaId) selectCatalogImage(app.selectedMediaId);
+    });
+    window.setTimeout(() => ui.mediaCatalogSearch.focus(), 0);
   }
 
   function closeMediaDialog() {
     setDialog(ui.mediaDialog, false);
+    app.mediaTargetInput = null;
+    app.mediaTargetDisplay = null;
+    app.mediaTargetButton = null;
   }
 
-  function previewMediaFile() {
-    const file = ui.mediaFile.files?.[0];
-    ui.mediaPreview.replaceChildren();
-    if (!file) {
-      ui.mediaPreview.textContent = "Choose a PNG, JPG, WebP, or GIF up to 4 MB.";
+  async function catalogImageUrl(media) {
+    if (app.mediaObjectUrls.has(media.id)) return app.mediaObjectUrls.get(media.id);
+    const url = URL.createObjectURL(await mediaClient.getBlob(media.id));
+    app.mediaObjectUrls.set(media.id, url);
+    return url;
+  }
+
+  async function hydrateCatalogThumbnail(container, media) {
+    try {
+      const image = document.createElement("img");
+      image.alt = media.altText || "";
+      image.src = await catalogImageUrl(media);
+      container.replaceChildren(image);
+    } catch {
+      container.textContent = "Preview unavailable";
+    }
+  }
+
+  function renderMediaCatalog() {
+    ui.mediaCatalogGrid.replaceChildren();
+    if (!app.media.length) {
+      const empty = document.createElement("div");
+      empty.className = "media-catalog-state";
+      empty.textContent = ui.mediaCatalogSearch.value.trim()
+        ? "No catalog images match that search."
+        : "The catalog is empty. Open the full catalog to import an image from your files.";
+      ui.mediaCatalogGrid.append(empty);
       return;
     }
-    if (app.mediaPreviewUrl) {
-      URL.revokeObjectURL(app.mediaPreviewUrl);
+    app.media.forEach((media) => {
+      const card = document.createElement("button");
+      card.className = `media-catalog-card${media.id === app.selectedMediaId ? " is-selected" : ""}`;
+      card.type = "button";
+      card.dataset.mediaId = media.id;
+      const thumbnail = document.createElement("span");
+      thumbnail.className = "media-catalog-thumb";
+      thumbnail.textContent = "Loading...";
+      const title = document.createElement("span");
+      title.className = "media-catalog-copy";
+      title.textContent = media.title || media.originalName;
+      card.append(thumbnail, title);
+      ui.mediaCatalogGrid.append(card);
+      hydrateCatalogThumbnail(thumbnail, media);
+    });
+  }
+
+  async function loadMediaCatalog() {
+    try {
+      const payload = await mediaClient.list({ query: ui.mediaCatalogSearch.value.trim(), sort: "newest", limit: 100 });
+      app.media = payload.media || [];
+      if (app.selectedMediaId && !app.media.some((item) => item.id === app.selectedMediaId)) app.selectedMediaId = "";
+      renderMediaCatalog();
+      setFeedback(ui.mediaFeedback, `${payload.pagination?.total ?? app.media.length} catalog image${(payload.pagination?.total ?? app.media.length) === 1 ? "" : "s"}.`);
+    } catch (error) {
+      ui.mediaCatalogGrid.innerHTML = '<div class="media-catalog-state">Catalog unavailable.</div>';
+      setFeedback(ui.mediaFeedback, error.message || "The image catalog could not be loaded.", true);
     }
-    app.mediaPreviewUrl = URL.createObjectURL(file);
+  }
+
+  async function selectCatalogImage(id) {
+    const media = app.media.find((item) => item.id === id);
+    if (!media) return;
+    app.selectedMediaId = media.id;
+    ui.mediaAlt.value = media.altText || "";
+    ui.mediaCaption.value = media.defaultCaption || "";
+    ui.uploadMedia.disabled = false;
+    renderMediaCatalog();
+    ui.mediaPreview.hidden = false;
+    ui.mediaPreview.replaceChildren();
     const image = document.createElement("img");
-    image.src = app.mediaPreviewUrl;
-    image.alt = "Selected image preview";
-    ui.mediaPreview.append(image);
-    if (!ui.mediaAlt.value.trim()) {
-      ui.mediaAlt.value = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
-    }
+    image.alt = media.altText || "";
+    try { image.src = await catalogImageUrl(media); }
+    catch { image.hidden = true; }
+    const copy = document.createElement("div");
+    copy.className = "media-selection-copy";
+    const name = document.createElement("strong");
+    name.textContent = media.title || media.originalName;
+    const description = document.createElement("span");
+    description.textContent = media.description || "No catalog description.";
+    copy.append(name, description);
+    ui.mediaPreview.append(image, copy);
   }
 
   function insertDocumentBlock(element) {
@@ -2084,11 +2125,11 @@
     const figure = document.createElement("figure");
     figure.contentEditable = "false";
     figure.dataset.wikiMediaId = media.id;
-    figure.dataset.wikiMediaUrl = media.url || "";
+    figure.dataset.wikiMediaUrl = "";
     configureFigure(figure, { layout: "inline", widthPercent: 72, xPercent: 0, yPixels: 0 });
     const image = document.createElement("img");
     image.alt = alt;
-    image.src = isTesting() ? media.url : app.mediaPreviewUrl;
+    image.src = app.mediaObjectUrls.get(media.id) || "";
     figure.append(image);
     if (caption) {
       const captionElement = document.createElement("figcaption");
@@ -2146,6 +2187,31 @@
       ui.templateValues.append(note);
     } else {
       placeholders.forEach((placeholder) => {
+        if (placeholder.kind === "image") {
+          const field = document.createElement("div");
+          field.className = "template-image-field";
+          const caption = document.createElement("span");
+          caption.className = "field-label";
+          caption.textContent = placeholder.label || String(placeholder.key).replaceAll("_", " ");
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.dataset.templateValue = placeholder.key;
+          input.value = String(values?.[placeholder.key] || "");
+          const choice = document.createElement("div");
+          choice.className = "template-image-choice";
+          const selected = document.createElement("strong");
+          const currentMedia = app.media.find((item) => item.id === input.value);
+          selected.textContent = currentMedia?.title || (input.value ? "Catalog image selected" : "No image selected");
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "secondary-button";
+          button.textContent = input.value ? "Change Image" : "Choose Image";
+          button.addEventListener("click", () => openMediaDialog({ targetInput: input, targetDisplay: selected, targetButton: button }));
+          choice.append(selected, button);
+          field.append(caption, input, choice);
+          ui.templateValues.append(field);
+          return;
+        }
         const label = document.createElement("label");
         const caption = document.createElement("span");
         caption.className = "field-label";
@@ -2242,11 +2308,22 @@
 
   async function handleMediaUpload(event) {
     event.preventDefault();
-    const file = ui.mediaFile.files?.[0];
+    const media = app.media.find((item) => item.id === app.selectedMediaId);
     const alt = ui.mediaAlt.value.trim();
     const caption = ui.mediaCaption.value.trim();
-    if (!file) {
-      setFeedback(ui.mediaFeedback, "Choose an image first.", true);
+    if (!media) {
+      setFeedback(ui.mediaFeedback, "Choose an image from the catalog first.", true);
+      return;
+    }
+    if (app.mediaTargetInput) {
+      const targetInput = app.mediaTargetInput;
+      const targetDisplay = app.mediaTargetDisplay;
+      const targetButton = app.mediaTargetButton;
+      targetInput.value = media.id;
+      if (targetDisplay) targetDisplay.textContent = media.title || media.originalName || "Catalog image selected";
+      if (targetButton) targetButton.textContent = "Change Image";
+      closeMediaDialog();
+      setFeedback(ui.templateFeedback, `“${media.title || media.originalName}” selected for this template image.`);
       return;
     }
     if (!alt) {
@@ -2254,20 +2331,8 @@
       ui.mediaAlt.focus();
       return;
     }
-    if (file.size > 4 * 1024 * 1024) {
-      setFeedback(ui.mediaFeedback, "Wiki images must be 4 MB or smaller.", true);
-      return;
-    }
     ui.uploadMedia.disabled = true;
-    setFeedback(ui.mediaFeedback, "Uploading protected wiki image...");
-    try {
-      const payload = await uploadMediaFile(file);
-      insertUploadedImage(payload.media, { alt, caption });
-    } catch (error) {
-      setFeedback(ui.mediaFeedback, error?.message || "The image could not be uploaded.", true);
-    } finally {
-      ui.uploadMedia.disabled = false;
-    }
+    insertUploadedImage(media, { alt, caption });
   }
 
   function openPageManagement() {
@@ -2719,7 +2784,7 @@
   ui.underline.addEventListener("click", () => executeEditorCommand("underline"));
   ui.bullets.addEventListener("click", () => executeEditorCommand("insertUnorderedList"));
   ui.numbers.addEventListener("click", () => executeEditorCommand("insertOrderedList"));
-  ui.image.addEventListener("click", openMediaDialog);
+  ui.image.addEventListener("click", () => openMediaDialog());
   ui.template.addEventListener("click", () => openTemplateDialog());
   ui.pageSettings.addEventListener("click", openPageManagement);
   ui.blockStyle.addEventListener("change", () => executeEditorCommand("formatBlock", ui.blockStyle.value));
@@ -2841,8 +2906,15 @@
   });
   ui.restoreRevision.addEventListener("click", restoreSelectedRevision);
 
-  ui.mediaFile.addEventListener("change", previewMediaFile);
   ui.mediaForm.addEventListener("submit", handleMediaUpload);
+  ui.mediaCatalogGrid.addEventListener("click", (event) => {
+    const card = event.target.closest("[data-media-id]");
+    if (card) selectCatalogImage(card.dataset.mediaId);
+  });
+  ui.mediaCatalogSearch.addEventListener("input", () => {
+    window.clearTimeout(app.mediaSearchTimer);
+    app.mediaSearchTimer = window.setTimeout(loadMediaCatalog, 180);
+  });
   ui.closeMedia.addEventListener("click", closeMediaDialog);
   ui.cancelMedia.addEventListener("click", closeMediaDialog);
 

@@ -13,7 +13,7 @@ const db = getDatabase();
 const MAX_DEFINITION_BYTES = 100_000;
 const MAX_ELEMENTS = 100;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const ELEMENT_TYPES = new Set(["text", "placeholder", "shape", "frame", "line", "image"]);
+const ELEMENT_TYPES = new Set(["text", "placeholder", "image-placeholder", "shape", "frame", "line", "image"]);
 const SHAPES = new Set(["rectangle", "ellipse", "triangle", "diamond", "rounded"]);
 const FONT_FAMILIES = new Set(["Play", "Arial", "Georgia", "Times New Roman", "Verdana", "Courier New"]);
 const TEXT_ALIGNS = new Set(["left", "center", "right"]);
@@ -102,6 +102,14 @@ function cleanElement(raw, index, canvas) {
     element.alt = String(raw?.alt || "Template image").slice(0, 240);
     element.fit = raw?.fit === "contain" ? "contain" : "cover";
     element.borderRadius = finiteNumber(raw?.borderRadius, 0, 200, 0);
+  } else if (type === "image-placeholder") {
+    element.placeholderKey = slugify(raw?.placeholderKey).replaceAll("-", "_").slice(0, 60) || `image_${index + 1}`;
+    element.defaultAlt = String(raw?.defaultAlt || "Template image").slice(0, 240);
+    element.fit = raw?.fit === "contain" ? "contain" : "cover";
+    element.borderRadius = finiteNumber(raw?.borderRadius, 0, 200, 18);
+    element.fill = cleanColor(raw?.fill, "#1b1b1e");
+    element.stroke = cleanColor(raw?.stroke, "#df2531");
+    element.strokeWidth = finiteNumber(raw?.strokeWidth, 0, 24, 2);
   } else {
     element.shape = SHAPES.has(raw?.shape) ? raw.shape : "rectangle";
     element.fill = cleanColor(raw?.fill, type === "frame" ? "transparent" : "#df2531");
@@ -141,12 +149,14 @@ function placeholdersFromDefinition(definition) {
   const placeholders = [];
   const seen = new Set();
   for (const element of definition?.elements || []) {
-    if (element.type !== "placeholder" || seen.has(element.placeholderKey)) continue;
+    if (!["placeholder", "image-placeholder"].includes(element.type) || seen.has(element.placeholderKey)) continue;
     seen.add(element.placeholderKey);
     placeholders.push({
       key: element.placeholderKey,
       label: element.placeholderKey.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
-      defaultValue: element.defaultValue || "",
+      kind: element.type === "image-placeholder" ? "image" : "text",
+      defaultValue: element.type === "placeholder" ? element.defaultValue || "" : "",
+      defaultAlt: element.type === "image-placeholder" ? element.defaultAlt || "" : "",
     });
   }
   return placeholders;

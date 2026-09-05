@@ -1,0 +1,44 @@
+CARBON FRONTIER WIKI — STEP 11
+Shared Image Catalog + Template Studio Interaction Upgrade
+
+DEPLOYMENT
+1. Merge every file in this patch ZIP into the matching location in your site.
+2. Keep the folder structure exactly as shown, including netlify/database/migrations.
+3. Deploy once to Netlify. The migration adds the catalog metadata fields automatically.
+4. After deployment, open wiki-media.html or /wiki/images and import the first image.
+
+IMAGE CATALOG
+- Images are uploaded once from the catalog with Import from Files.
+- PNG, JPG, WebP, and GIF are accepted, up to 4 MB each.
+- Each record has a file title, description, default alt text, default caption,
+  tags, credit, and an optional HTTPS source link.
+- Missing file extensions are added automatically from the image type.
+- Catalog previews remain protected by the wiki's visibility permissions.
+- The page editor's Import Image action only selects catalog images; it no longer
+  uploads a separate copy directly from the article.
+- Cursor testing stores imported images locally. Refresh Live Data can also load
+  deployed catalog metadata and protected previews into the local testing copy.
+
+TEMPLATE STUDIO
+- Image adds an image placeholder frame instead of uploading an image.
+- Each article chooses a catalog image for each image placeholder.
+- Image placeholder properties include name, default alt text, fit, fill,
+  outline, outline size, opacity, and corner radius.
+- Command-click multi-selects on macOS. Shift-click multi-selects elsewhere.
+- Clicking the dotted workspace outside the canvas clears the selection.
+- Objects move freely without a grid. Smart edge/center alignment is enabled by
+  default and can be disabled from Canvas settings.
+- Pink alignment guides appear while objects are dragged into alignment.
+- Trackpad pinch/Control-wheel zoom, +, -, and Fit controls are supported.
+
+COMPATIBILITY
+- Existing page images and older templates containing fixed images remain readable.
+- Existing wikitext, visual editing, history, moderation, analytics, imports,
+  permissions, Roadmap, and Updates behavior are preserved.
+- Page history still appears only while that page is in edit mode.
+
+TESTING COMPLETED
+- JavaScript syntax checks for all site and Function scripts.
+- 9 Step 10 regression tests.
+- 4 Step 11 catalog/template integration tests.
+- 13 tests passed in total.

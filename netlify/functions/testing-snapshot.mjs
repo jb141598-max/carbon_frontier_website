@@ -6,6 +6,7 @@ const ROADMAP_STORE_NAME = "carbon-frontier-roadmap";
 const ROADMAP_STORE_KEY = "shared-state";
 const UPDATES_STORE_NAME = "carbon-frontier-updates";
 const UPDATES_STORE_KEY = "shared-state";
+const WIKI_MEDIA_STORE_NAME = "carbon-frontier-wiki-media";
 
 export const config = {
   path: "/api/testing-snapshot",
@@ -84,6 +85,23 @@ function isoDate(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+async function loadWikiMediaData(id) {
+  if (!/^[a-zA-Z0-9-]{1,100}$/.test(String(id || ""))) return null;
+  const db = getDatabase();
+  const client = await db.pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT blob_key, content_type, size_bytes FROM wiki_media WHERE id = $1`,
+      [id]
+    );
+    if (!result.rowCount) return null;
+    const media = result.rows[0];
+    const data = await getStore({ name: WIKI_MEDIA_STORE_NAME, consistency: "strong" })
+      .get(media.blob_key, { type: "arrayBuffer" });
+    return data ? { data, contentType: media.content_type, sizeBytes: Number(media.size_bytes) } : null;
+  } finally { client.release(); }
+}
+
 async function loadBlobSnapshot() {
   const [roadmap, updates] = await Promise.all([
     getStore({ name: ROADMAP_STORE_NAME, consistency: "strong" }).get(ROADMAP_STORE_KEY, {
@@ -125,6 +143,7 @@ async function loadWikiSnapshot() {
       blocksResult,
       auditResult,
       templatesResult,
+      mediaResult,
     ] = await Promise.all([
       client.query(
         `SELECT visibility, editing_mode, review_mode, updated_at, updated_by_email
@@ -227,6 +246,13 @@ async function loadWikiSnapshot() {
          ORDER BY t.updated_at DESC, t.name ASC
          LIMIT 250`
       ),
+      client.query(
+        `SELECT id, original_name, description, alt_text, default_caption, tags, credit,
+                source_url, content_type, size_bytes, uploaded_at, updated_at
+         FROM wiki_media
+         ORDER BY uploaded_at DESC
+         LIMIT 500`
+      ),
     ]);
 
     const settings = settingsResult.rows[0] || {};
@@ -296,12 +322,14 @@ async function loadWikiSnapshot() {
         const seen = new Set();
         const placeholders = [];
         (Array.isArray(definition?.elements) ? definition.elements : []).forEach((element) => {
-          if (element?.type !== "placeholder" || !element.placeholderKey || seen.has(element.placeholderKey)) return;
+          if (!["placeholder", "image-placeholder"].includes(element?.type) || !element.placeholderKey || seen.has(element.placeholderKey)) return;
           seen.add(element.placeholderKey);
           placeholders.push({
             key: element.placeholderKey,
             label: String(element.placeholderKey).replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
-            defaultValue: element.defaultValue || "",
+            kind: element.type === "image-placeholder" ? "image" : "text",
+            defaultValue: element.type === "placeholder" ? element.defaultValue || "" : "",
+            defaultAlt: element.type === "image-placeholder" ? element.defaultAlt || "" : "",
           });
         });
         return {
@@ -325,6 +353,24 @@ async function loadWikiSnapshot() {
           permissions: { canEdit: true, canDelete: true },
         };
       }),
+      media: mediaResult.rows.map((item) => ({
+        id: item.id,
+        originalName: item.original_name,
+        title: item.original_name,
+        description: item.description || "",
+        altText: item.alt_text || "",
+        defaultCaption: item.default_caption || "",
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        credit: item.credit || "",
+        sourceUrl: item.source_url || "",
+        contentType: item.content_type,
+        sizeBytes: Number(item.size_bytes),
+        uploadedAt: isoDate(item.uploaded_at),
+        updatedAt: isoDate(item.updated_at),
+        uploadedByLabel: "Wiki contributor",
+        canEditMetadata: true,
+        url: `/api/wiki/media/${encodeURIComponent(item.id)}`,
+      })),
       moderation: {
         pendingEdits: pendingResult.rows.map((submission) => ({
           id: submission.id,
@@ -394,6 +440,25 @@ export default async function handler(request) {
     return json({ error: "The Cursor testing sync key is incorrect." }, 401, origin);
   }
 
+  const requestedMedia = new URL(request.url).searchParams.get("media");
+  if (requestedMedia) {
+    try {
+      const media = await loadWikiMediaData(requestedMedia);
+      if (!media) return json({ error: "Wiki image not found." }, 404, origin);
+      return new Response(media.data, {
+        status: 200,
+        headers: {
+          ...responseHeaders(origin),
+          "content-type": media.contentType,
+          "content-length": String(media.sizeBytes),
+          "content-disposition": "inline",
+        },
+      });
+    } catch {
+      return json({ error: "The live wiki image could not be loaded." }, 500, origin);
+    }
+  }
+
   try {
     const [{ roadmap, updates }, wikiResult] = await Promise.all([
       loadBlobSnapshot(),
@@ -408,7 +473,7 @@ export default async function handler(request) {
 
     return json(
       {
-        schemaVersion: 5,
+        schemaVersion: 6,
         generatedAt: new Date().toISOString(),
         sourceOrigin: new URL(request.url).origin,
         roadmap,

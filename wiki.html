@@ -916,6 +916,8 @@
       .wiki-template-object[data-shape="diamond"] { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
       .wiki-template-object.is-line { height: 0 !important; min-height: 0; border-top-style: solid; transform-origin: left center; }
       .wiki-template-object img { display: block; width: 100%; height: 100%; border: 0; border-radius: inherit; object-fit: cover; }
+      .wiki-template-object.is-image-placeholder { display: grid; place-items: center; overflow: hidden; border-style: solid; }
+      .wiki-template-object.is-image-placeholder span { padding: 10px; color: var(--cf-soft); font-size: 0.72rem; text-align: center; }
 
       .article-surface.is-editing .wiki-template-instance {
         cursor: default;
@@ -980,6 +982,8 @@
         background: rgba(0, 0, 0, 0.78);
         backdrop-filter: blur(10px);
       }
+
+      #media-dialog { z-index: 80; }
 
       .dialog-card,
       .editor-shell {
@@ -1361,6 +1365,20 @@
         object-fit: contain;
       }
 
+      .media-catalog-tools { display: flex; align-items: center; gap: 9px; }
+      .media-catalog-tools input { flex: 1; }
+      .media-catalog-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(150px,1fr)); gap: 9px; max-height: 330px; overflow: auto; padding: 3px; }
+      .media-catalog-card { min-width: 0; overflow: hidden; padding: 0; border: 1px solid var(--cf-border); border-radius: 13px; color: #fff; background: rgba(255,255,255,.025); text-align: left; cursor: pointer; }
+      .media-catalog-card:hover, .media-catalog-card.is-selected { border-color: var(--cf-red); box-shadow: 0 0 0 2px rgba(223,37,49,.16); }
+      .media-catalog-thumb { display: grid; height: 104px; place-items: center; overflow: hidden; color: var(--cf-soft); background: repeating-conic-gradient(#171719 0 25%,#202023 0 50%) 0/18px 18px; font-size: .7rem; text-align: center; }
+      .media-catalog-thumb img { width: 100%; height: 100%; object-fit: contain; }
+      .media-catalog-copy { display: block; overflow: hidden; padding: 9px; white-space: nowrap; text-overflow: ellipsis; font-size: .76rem; font-weight: 700; }
+      .media-selection { grid-template-columns: 160px 1fr; gap: 14px; align-items: center; min-height: 0; padding: 12px; }
+      .media-selection img { max-height: 130px; }
+      .media-selection-copy strong, .media-selection-copy span { display: block; }
+      .media-selection-copy span { margin-top: 5px; color: var(--cf-soft); font-size: .75rem; }
+      .media-catalog-state { grid-column: 1/-1; padding: 30px 16px; color: var(--cf-soft); text-align: center; }
+
       .document-toolbar {
         position: sticky;
         z-index: 20;
@@ -1528,6 +1546,10 @@
       .template-picker-option.is-selected { border-color: rgba(223, 37, 49, 0.74); background: rgba(223, 37, 49, 0.14); outline: none; }
 
       .template-value-fields { display: grid; gap: 10px; }
+      .template-image-field { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--cf-border); border-radius: 14px; background: rgba(255,255,255,.025); }
+      .template-image-choice { display: flex; align-items: center; gap: 10px; }
+      .template-image-choice strong { flex: 1; color: var(--cf-white); font-size: .8rem; overflow-wrap: anywhere; }
+      .template-image-choice .secondary-button { min-height: 38px; }
       .template-picker-note { margin: 0; color: var(--cf-soft); font-size: 0.75rem; line-height: 1.55; }
 
       .toolbar-summary {
@@ -1961,6 +1983,9 @@
             <a class="secondary-button" id="templates-button" href="wiki-templates.html" hidden>
               Templates
             </a>
+            <a class="secondary-button" id="media-catalog-button" href="wiki-media.html" hidden>
+              Images
+            </a>
             <a class="primary-button" id="access-panel-button" href="wiki-permissions.html" hidden>
               Permissions
             </a>
@@ -2036,7 +2061,7 @@
                     </div>
                     <div class="toolbar-divider" aria-hidden="true"></div>
                     <div class="toolbar-group" aria-label="Page tools">
-                      <button class="toolbar-button" id="toolbar-image" type="button" title="Insert an image">Image</button>
+                      <button class="toolbar-button" id="toolbar-image" type="button" title="Import an image from the catalog">Import Image</button>
                       <button class="toolbar-button" id="toolbar-template" type="button" title="Insert a reusable wiki template">Template</button>
                       <button class="toolbar-button" id="toolbar-image-options" type="button" title="Change the selected image" hidden>Image Options</button>
                       <button class="toolbar-button" id="toolbar-page-settings" type="button" title="Move, protect, or trash this page" hidden>Page Settings</button>
@@ -2288,29 +2313,30 @@
               <form class="dialog-card" id="media-form">
                 <div class="dialog-header">
                   <div>
-                    <p class="eyebrow">Wiki media</p>
-                    <h2 id="media-dialog-title">Insert an image</h2>
+                    <p class="eyebrow">Shared wiki media</p>
+                    <h2 id="media-dialog-title">Import from image catalog</h2>
                   </div>
-                  <button class="icon-button" id="close-media-button" type="button" aria-label="Close image uploader">×</button>
+                  <button class="icon-button" id="close-media-button" type="button" aria-label="Close image catalog">×</button>
                 </div>
                 <div class="dialog-body">
-                  <label>
-                    <span class="field-label">Image file</span>
-                    <input id="media-file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required />
+                  <div class="media-catalog-tools">
+                    <input id="media-catalog-search" type="search" placeholder="Search titles, descriptions, or tags..." aria-label="Search image catalog" />
+                    <a class="secondary-button" href="wiki-media.html" target="_blank" rel="noopener noreferrer">Open Full Catalog</a>
+                  </div>
+                  <div class="media-catalog-grid" id="media-catalog-grid"><div class="media-catalog-state">Loading catalog images...</div></div>
+                  <div class="media-preview media-selection" id="media-preview" hidden></div>
+                  <label id="media-alt-field">
+                    <span class="field-label">Alt text for this page</span>
+                    <input id="media-alt-input" maxlength="240" required placeholder="The catalog default is copied here" />
                   </label>
-                  <div class="media-preview" id="media-preview">Choose a PNG, JPG, WebP, or GIF up to 4 MB.</div>
-                  <label>
-                    <span class="field-label">Alt text</span>
-                    <input id="media-alt-input" maxlength="240" required placeholder="Describe the image for readers who cannot see it" />
-                  </label>
-                  <label>
-                    <span class="field-label">Caption (optional)</span>
-                    <input id="media-caption-input" maxlength="300" placeholder="Text shown beneath the image" />
+                  <label id="media-caption-field">
+                    <span class="field-label">Caption for this page (optional)</span>
+                    <input id="media-caption-input" maxlength="300" placeholder="The catalog default is copied here" />
                   </label>
                   <p class="wiki-feedback" id="media-feedback" aria-live="polite"></p>
                   <div class="form-actions">
                     <button class="secondary-button" id="cancel-media-button" type="button">Cancel</button>
-                    <button class="primary-button" id="upload-media-button" type="submit">Upload &amp; Insert</button>
+                    <button class="primary-button" id="upload-media-button" type="submit" disabled>Insert Selected Image</button>
                   </div>
                 </div>
               </form>
@@ -2617,6 +2643,7 @@
         moderationButton: document.getElementById("moderation-button"),
         importWikiButton: document.getElementById("import-wiki-button"),
         templatesButton: document.getElementById("templates-button"),
+        mediaCatalogButton: document.getElementById("media-catalog-button"),
         accessPanelButton: document.getElementById("access-panel-button"),
         loadingView: document.getElementById("loading-view"),
         unavailableView: document.getElementById("unavailable-view"),
@@ -3290,6 +3317,7 @@
           elements.moderationButton.hidden = true;
           elements.importWikiButton.hidden = true;
           elements.templatesButton.hidden = true;
+          elements.mediaCatalogButton.hidden = true;
           elements.accessPanelButton.hidden = true;
           elements.accountPill.textContent = viewer?.authenticated
             ? "No wiki access"
@@ -3309,6 +3337,7 @@
         elements.moderationButton.hidden = !viewer.canModerate;
         elements.importWikiButton.hidden = !viewer.canManageSettings;
         elements.templatesButton.hidden = !viewer.isAssignedStaff;
+        elements.mediaCatalogButton.hidden = !viewer.canEdit;
         elements.accessPanelButton.hidden = !viewer.canManageEditors;
         elements.accountPill.textContent = viewer.role
           ? `${roleLabel(viewer.role)} access`
@@ -3496,6 +3525,7 @@
       waitForGoogle();
       loadWikiAccess();
     </script>
+    <script src="wiki-media-client.js"></script>
     <script src="wiki-wikitext.js"></script>
     <script src="wiki-editor.js"></script>
   </body>

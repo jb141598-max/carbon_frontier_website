@@ -90,6 +90,28 @@
   to = "/wiki-templates.html"
   status = 200
 
+# Shared image catalog. Editors select catalog images instead of uploading
+# separate copies directly into individual pages or templates.
+[[redirects]]
+  from = "/wiki/images"
+  to = "/wiki-media.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/images/"
+  to = "/wiki-media.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/media"
+  to = "/wiki-media.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/media/"
+  to = "/wiki-media.html"
+  status = 200
+
 [[redirects]]
   from = "/wiki/*"
   to = "/wiki.html"

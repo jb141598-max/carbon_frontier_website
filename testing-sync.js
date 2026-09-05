@@ -292,7 +292,7 @@
       if (
         !payload ||
         typeof payload !== "object" ||
-        ![1, 2, 3, 4, 5].includes(payload.schemaVersion)
+        ![1, 2, 3, 4, 5, 6].includes(payload.schemaVersion)
       ) {
         throw new Error("The live site returned an unsupported testing snapshot.");
       }
@@ -311,6 +311,25 @@
         refreshButton.disabled = false;
       }
     }
+  }
+
+  async function fetchLiveWikiMedia(mediaId) {
+    const liveUrl = getLiveSiteUrl();
+    const syncKey = getSyncKey();
+    if (!liveUrl || !syncKey || !mediaId) return null;
+    const url = new URL("/api/testing-snapshot", liveUrl);
+    url.searchParams.set("media", String(mediaId));
+    const response = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      headers: { "x-testing-sync-key": syncKey },
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(payload?.error || `Live image request failed (${response.status}).`);
+    }
+    return response.blob();
   }
 
   function clear() {
@@ -547,6 +566,7 @@
     getSection,
     getLiveSiteUrl,
     resolveAssetUrl,
+    fetchLiveWikiMedia,
     configure,
     refresh,
     clear,
