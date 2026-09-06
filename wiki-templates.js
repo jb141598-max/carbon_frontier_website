@@ -36,6 +36,7 @@
     sourceHelpButton: document.getElementById("template-source-help-button"),
     sourceHelp: document.getElementById("template-source-help"),
     canvas: document.getElementById("drawing-canvas"),
+    wikitextPreview: document.getElementById("template-wikitext-preview"),
     undo: document.getElementById("undo-button"),
     redo: document.getElementById("redo-button"),
     imageButton: document.getElementById("add-image-button"),
@@ -157,6 +158,12 @@
   }
 
   function placeholdersFrom(definition) {
+    if (definition?.kind === "wikitext") {
+      const placeholders = Array.isArray(definition.placeholders)
+        ? definition.placeholders
+        : templateWikitext?.extractPlaceholders?.(definition.source || "") || [];
+      return clone(placeholders);
+    }
     const result = [], seen = new Set();
     (definition?.elements || []).forEach((element) => {
       if (!["placeholder", "image-placeholder"].includes(element.type) || !element.placeholderKey || seen.has(element.placeholderKey)) return;
@@ -331,6 +338,19 @@
   }
 
   function normalizedDefinition(definition) {
+    if (definition?.kind === "wikitext" && typeof definition.source === "string") {
+      try {
+        const parsed = templateWikitext.parse(definition.source);
+        parsed.canvas = {
+          width: Math.round(clamp(definition?.canvas?.width, 240, 1600, 720)),
+          height: Math.round(clamp(definition?.canvas?.height, 120, 1600, 420)),
+          backgroundColor: /^#[\da-f]{6}$/i.test(definition?.canvas?.backgroundColor) ? definition.canvas.backgroundColor : "#111111",
+        };
+        return parsed;
+      } catch (error) {
+        return { version: 2, kind: "wikitext", source: definition.source, canvas: { width: 720, height: 420, backgroundColor: "#111111" }, elements: [], placeholders: [] };
+      }
+    }
     return {
       version: 1,
       canvas: { width: Math.round(clamp(definition?.canvas?.width, 240, 1600, 720)), height: Math.round(clamp(definition?.canvas?.height, 120, 1600, 420)), backgroundColor: /^#[\da-f]{6}$/i.test(definition?.canvas?.backgroundColor) ? definition.canvas.backgroundColor : "#111111" },
@@ -366,6 +386,25 @@
   function renderCanvas() {
     if (!state.draft) { ui.canvas.replaceChildren(); return; }
     const definition = state.draft.definition;
+    if (definition.kind === "wikitext") {
+      ui.stage.hidden = true;
+      ui.wikitextPreview.hidden = false;
+      const values = Object.fromEntries(placeholdersFrom(definition).map((placeholder) => [
+        placeholder.key,
+        placeholder.kind === "image" ? placeholder.defaultAlt || "" : placeholder.defaultValue || "",
+      ]));
+      try {
+        const result = templateWikitext.render(definition.source, values, { templates: state.templates });
+        ui.wikitextPreview.innerHTML = result.html;
+      } catch (error) {
+        ui.wikitextPreview.textContent = error.message || "This template preview could not be rendered.";
+      }
+      ui.zoomLabel.textContent = "Preview";
+      return;
+    }
+    ui.stage.hidden = false;
+    ui.wikitextPreview.hidden = true;
+    ui.wikitextPreview.replaceChildren();
     ui.stage.style.width = `${definition.canvas.width * state.zoom}px`; ui.stage.style.height = `${definition.canvas.height * state.zoom}px`;
     ui.canvas.style.width = `${definition.canvas.width}px`; ui.canvas.style.height = `${definition.canvas.height}px`; ui.canvas.style.background = definition.canvas.backgroundColor; ui.canvas.style.transform = `scale(${state.zoom})`;
     const nodes = [...definition.elements].sort((a, b) => a.zIndex - b.zIndex).map(drawElement);
@@ -420,20 +459,22 @@
 
   function renderEditorMode() {
     const sourceMode = state.mode === "wikitext";
+    const sourceTemplatePreview = !sourceMode && state.draft?.definition?.kind === "wikitext";
     ui.studio.classList.toggle("is-source-mode", sourceMode);
+    ui.studio.classList.toggle("is-source-template-preview", sourceTemplatePreview);
     ui.modeVisual.setAttribute("aria-pressed", String(!sourceMode));
     ui.modeWikitext.setAttribute("aria-pressed", String(sourceMode));
-    ui.studioToolbar.hidden = sourceMode;
+    ui.studioToolbar.hidden = sourceMode || sourceTemplatePreview;
     ui.viewport.hidden = sourceMode;
-    ui.propertiesPanel.hidden = sourceMode;
+    ui.propertiesPanel.hidden = sourceMode || sourceTemplatePreview;
     ui.sourcePanel.hidden = !sourceMode;
     ui.sourceActions.hidden = !sourceMode;
-    if (!sourceMode) setSourceStatus("Visual canvas mode");
+    if (!sourceMode) setSourceStatus(sourceTemplatePreview ? "Rendered MediaWiki template preview · Edit the Wikitext to change it." : "Visual canvas mode");
   }
 
   function parseTemplateSource() {
     if (!templateWikitext?.parse) throw new Error("Template Wikitext could not be loaded. Reload this page and try again.");
-    const definition = normalizedDefinition(templateWikitext.parse(ui.sourceInput.value));
+    const definition = templateWikitext.parse(ui.sourceInput.value);
     pushHistory();
     state.draft.definition = definition;
     clearSelection();
@@ -446,7 +487,7 @@
       if (!templateWikitext?.format) { setFeedback(ui.feedback, "Template Wikitext could not be loaded. Reload this page and try again.", true); return; }
       ui.sourceInput.value = templateWikitext.format(state.draft.definition);
       state.mode = "wikitext";
-      setSourceStatus("Edit the source, then apply it to preview the design.");
+      setSourceStatus("Edit the MediaWiki source, then apply it to render a preview.");
       renderEditorMode();
       setTimeout(() => ui.sourceInput.focus(), 0);
       return;
@@ -456,9 +497,11 @@
       state.mode = "visual";
       renderEditorMode();
       renderAll();
-      setFeedback(ui.feedback, "Template Wikitext applied to the visual canvas.");
+      setFeedback(ui.feedback, state.draft.definition.kind === "wikitext"
+        ? "MediaWiki template source applied. The rendered preview is ready."
+        : "Template source applied to the visual canvas.");
     } catch (error) {
-      setSourceStatus(error.message || "Fix the Template Wikitext before returning to Visual mode.", true);
+      setSourceStatus(error.message || "Fix the MediaWiki template source before returning to Visual mode.", true);
       setFeedback(ui.feedback, "The source has an error. Fix it before switching to Visual mode.", true);
     }
   }
@@ -470,9 +513,9 @@
       state.mode = "visual";
       renderEditorMode();
       renderAll();
-      setFeedback(ui.feedback, "Template Wikitext applied. The visual preview is ready.");
+      setFeedback(ui.feedback, "MediaWiki template source applied. The rendered preview is ready.");
     } catch (error) {
-      setSourceStatus(error.message || "The Template Wikitext could not be applied.", true);
+      setSourceStatus(error.message || "The MediaWiki template source could not be applied.", true);
       setFeedback(ui.feedback, "The source has an error and was not applied.", true);
     }
   }
@@ -656,8 +699,8 @@
     if (saveInSourceMode) {
       try { parseTemplateSource(); }
       catch (error) {
-        setSourceStatus(error.message || "The Template Wikitext could not be saved.", true);
-        setFeedback(ui.feedback, "Fix the Template Wikitext error before saving.", true);
+        setSourceStatus(error.message || "The MediaWiki template source could not be saved.", true);
+        setFeedback(ui.feedback, "Fix the MediaWiki source error before saving.", true);
         return;
       }
     }

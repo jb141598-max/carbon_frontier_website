@@ -2446,7 +2446,36 @@
       }
 
       function getPublicCurrentUpdates() {
-        return getCurrentUpdates().filter((update) => update.isHidden !== true);
+        const visibleUpdates = getCurrentUpdates().filter((update) => update.isHidden !== true);
+        if (visibleUpdates.length < 2) {
+          return visibleUpdates;
+        }
+
+        let newestIndex = -1;
+        let newestTimestamp = Number.NEGATIVE_INFINITY;
+        visibleUpdates.forEach((update, index) => {
+          const date = String(update.date || "").trim();
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return;
+          }
+
+          const timestamp = Date.parse(`${date}T00:00:00Z`);
+          if (Number.isFinite(timestamp) && timestamp > newestTimestamp) {
+            newestTimestamp = timestamp;
+            newestIndex = index;
+          }
+        });
+
+        if (newestIndex <= 0) {
+          return visibleUpdates;
+        }
+
+        const newestUpdate = visibleUpdates[newestIndex];
+        return [
+          newestUpdate,
+          ...visibleUpdates.slice(0, newestIndex),
+          ...visibleUpdates.slice(newestIndex + 1),
+        ];
       }
 
       function getPublicArchivedUpdates() {

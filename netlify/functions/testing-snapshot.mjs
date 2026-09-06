@@ -85,6 +85,26 @@ function isoDate(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+function sourcePlaceholders(source) {
+  const placeholders = [], seen = new Set();
+  for (const match of String(source || "").matchAll(/\{\{\{\s*([^|{}]+?)(?:\|([^{}]*?))?\}\}\}/g)) {
+    const key = String(match[1] || "").trim().slice(0, 80);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const defaultValue = String(match[2] || "").trim().slice(0, 1000);
+    const imageLike = /(?:image|img|file|photo|picture|icon|logo|arrowfile|plusfile)$/i.test(key) || /\.(?:gif|jpe?g|png|webp)$/i.test(defaultValue);
+    placeholders.push({
+      key,
+      label: /^\d+$/.test(key) ? `Value ${key}` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+      kind: imageLike ? "image" : "text",
+      defaultValue: imageLike ? "" : defaultValue,
+      defaultAlt: imageLike ? defaultValue : "",
+    });
+    if (placeholders.length >= 100) break;
+  }
+  return placeholders;
+}
+
 async function loadWikiMediaData(id) {
   if (!/^[a-zA-Z0-9-]{1,100}$/.test(String(id || ""))) return null;
   const db = getDatabase();
@@ -327,8 +347,8 @@ async function loadWikiSnapshot() {
       templates: templatesResult.rows.map((template) => {
         const definition = template.definition_json;
         const seen = new Set();
-        const placeholders = [];
-        (Array.isArray(definition?.elements) ? definition.elements : []).forEach((element) => {
+        const placeholders = definition?.kind === "wikitext" ? sourcePlaceholders(definition.source) : [];
+        (definition?.kind === "wikitext" ? [] : (Array.isArray(definition?.elements) ? definition.elements : [])).forEach((element) => {
           if (!["placeholder", "image-placeholder"].includes(element?.type) || !element.placeholderKey || seen.has(element.placeholderKey)) return;
           seen.add(element.placeholderKey);
           placeholders.push({

@@ -1,4 +1,4 @@
-/* Carbon Frontier Template Wikitext: a safe, declarative template-canvas format. */
+/* Carbon Frontier MediaWiki-compatible template source parser and safe renderer. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;
@@ -6,259 +6,432 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const TYPES = new Map([
-    ["text", "text"],
-    ["placeholder", "placeholder"],
-    ["imageplaceholder", "image-placeholder"],
-    ["image-placeholder", "image-placeholder"],
-    ["shape", "shape"],
-    ["frame", "frame"],
-    ["line", "line"],
-    ["image", "image"],
-  ]);
-  const FONTS = new Set(["Play", "Arial", "Georgia", "Times New Roman", "Verdana", "Courier New"]);
-  const SHAPES = new Set(["rectangle", "rounded", "ellipse", "triangle", "diamond"]);
-  const ALIGNS = new Set(["left", "center", "right"]);
-  const FITS = new Set(["cover", "contain"]);
   const MAX_SOURCE = 100_000;
-  const MAX_ELEMENTS = 100;
+  const MAX_EXPANSIONS = 1_000;
+  const MAX_DEPTH = 20;
+  const ALLOWED_TAGS = new Set([
+    "A", "ARTICLE", "ASIDE", "B", "BLOCKQUOTE", "BR", "CAPTION", "CODE", "DIV", "EM",
+    "FIGCAPTION", "FIGURE", "FOOTER", "H1", "H2", "H3", "H4", "H5", "H6", "HEADER",
+    "HR", "I", "IMG", "LI", "OL", "P", "PRE", "SECTION", "SMALL", "SPAN", "STRONG",
+    "SUB", "SUP", "TABLE", "TBODY", "TD", "TFOOT", "TH", "THEAD", "TR", "U", "UL",
+  ]);
+  const ALLOWED_STYLES = new Set([
+    "align-items", "align-content", "align-self", "background", "background-color", "border",
+    "border-bottom", "border-bottom-color", "border-bottom-style", "border-bottom-width",
+    "border-color", "border-left", "border-left-color", "border-left-style", "border-left-width",
+    "border-radius", "border-right", "border-right-color", "border-right-style", "border-right-width",
+    "border-style", "border-top", "border-top-color", "border-top-style", "border-top-width",
+    "border-width", "bottom", "box-shadow", "box-sizing", "color", "column-gap", "display", "flex",
+    "flex-basis", "flex-direction", "flex-grow", "flex-shrink", "flex-wrap", "font-family", "font-size",
+    "font-style", "font-weight", "gap", "grid-template-columns", "grid-template-rows", "height",
+    "justify-content", "justify-items", "left", "letter-spacing", "line-height", "margin",
+    "margin-bottom", "margin-left", "margin-right", "margin-top", "max-height", "max-width",
+    "min-height", "min-width", "object-fit", "opacity", "overflow", "overflow-wrap", "overflow-x",
+    "overflow-y", "padding", "padding-bottom", "padding-left", "padding-right", "padding-top",
+    "place-items", "position", "right", "row-gap", "text-align", "text-decoration", "text-overflow",
+    "text-transform", "top", "transform", "transform-origin", "vertical-align", "white-space", "width",
+    "word-break", "z-index", "-webkit-box-orient", "-webkit-line-clamp",
+  ]);
 
-  function fail(line, message) {
-    throw new Error(`Line ${line}: ${message}`);
+  function cleanSource(value) {
+    if (typeof value !== "string") throw new Error("Template source must be text.");
+    if (new TextEncoder().encode(value).length > MAX_SOURCE) throw new Error("Template source must be 100 KB or smaller.");
+    return value.replace(/\r\n?/g, "\n");
   }
 
-  function splitEscaped(value, delimiter) {
-    const parts = [];
-    let current = "";
-    let escaped = false;
-    for (const character of String(value || "")) {
-      if (escaped) {
-        current += `\\${character}`;
-        escaped = false;
-      } else if (character === "\\") {
-        escaped = true;
-      } else if (character === delimiter) {
-        parts.push(current);
-        current = "";
-      } else {
-        current += character;
-      }
+  function normalizeName(value) {
+    return String(value || "").replace(/^template\s*:/i, "").replace(/_/g, " ")
+      .replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function slugify(value) {
+    return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+      .replace(/[’']/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function removeComments(source) {
+    return String(source || "").replace(/<!--[\s\S]*?-->/g, "");
+  }
+
+  function transclusionSource(source) {
+    const clean = removeComments(source);
+    const only = [...clean.matchAll(/<onlyinclude\b[^>]*>([\s\S]*?)<\/onlyinclude\s*>/gi)];
+    if (only.length) return only.map((match) => match[1]).join("");
+    const include = [...clean.matchAll(/<includeonly\b[^>]*>([\s\S]*?)<\/includeonly\s*>/gi)];
+    if (include.length) return include.map((match) => match[1]).join("");
+    return clean.replace(/<noinclude\b[^>]*>[\s\S]*?<\/noinclude\s*>/gi, "")
+      .replace(/<\/?(?:includeonly|onlyinclude)\b[^>]*>/gi, "");
+  }
+
+  function documentationSource(source) {
+    return [...String(source || "").matchAll(/<noinclude\b[^>]*>([\s\S]*?)<\/noinclude\s*>/gi)]
+      .map((match) => match[1]).join("\n").trim();
+  }
+
+  function validateBalance(source) {
+    const stack = [];
+    const clean = removeComments(source);
+    for (let index = 0; index < clean.length;) {
+      const next3 = clean.slice(index, index + 3);
+      const next2 = clean.slice(index, index + 2);
+      if (next3 === "{{{") { stack.push({ type: "parameter", index }); index += 3; continue; }
+      if (next3 === "}}}" && stack.at(-1)?.type === "parameter") { stack.pop(); index += 3; continue; }
+      if (next2 === "{{") { stack.push({ type: "template", index }); index += 2; continue; }
+      if (next2 === "}}" && stack.at(-1)?.type === "template") { stack.pop(); index += 2; continue; }
+      index += 1;
     }
-    if (escaped) current += "\\";
+    if (stack.length) {
+      const item = stack.at(-1);
+      const line = clean.slice(0, item.index).split("\n").length;
+      throw new Error(`Line ${line}: an opening ${item.type === "parameter" ? "{{{" : "{{"} has no matching closing braces.`);
+    }
+    for (const tag of ["includeonly", "noinclude", "onlyinclude"]) {
+      const opening = (source.match(new RegExp(`<${tag}\\b`, "gi")) || []).length;
+      const closing = (source.match(new RegExp(`<\\/${tag}\\s*>`, "gi")) || []).length;
+      if (opening !== closing) throw new Error(`The <${tag}> and </${tag}> tags must be paired.`);
+    }
+  }
+
+  function splitTopLevel(value, delimiter = "|") {
+    const parts = [];
+    let current = "", templateDepth = 0, parameterDepth = 0, linkDepth = 0;
+    for (let index = 0; index < value.length;) {
+      const next3 = value.slice(index, index + 3);
+      const next2 = value.slice(index, index + 2);
+      if (next3 === "{{{") { parameterDepth += 1; current += next3; index += 3; continue; }
+      if (next3 === "}}}" && parameterDepth) { parameterDepth -= 1; current += next3; index += 3; continue; }
+      if (next2 === "{{") { templateDepth += 1; current += next2; index += 2; continue; }
+      if (next2 === "}}" && templateDepth) { templateDepth -= 1; current += next2; index += 2; continue; }
+      if (next2 === "[[") { linkDepth += 1; current += next2; index += 2; continue; }
+      if (next2 === "]]" && linkDepth) { linkDepth -= 1; current += next2; index += 2; continue; }
+      if (value[index] === delimiter && !templateDepth && !parameterDepth && !linkDepth) {
+        parts.push(current); current = ""; index += 1; continue;
+      }
+      current += value[index++];
+    }
     parts.push(current);
     return parts;
   }
 
-  function decode(value) {
-    let result = "";
-    let escaped = false;
-    for (const character of String(value || "")) {
-      if (!escaped && character === "\\") {
-        escaped = true;
-        continue;
-      }
-      if (escaped && character === "n") result += "\n";
-      else result += character;
-      escaped = false;
+  function topLevelEquals(value) {
+    let templateDepth = 0, parameterDepth = 0, linkDepth = 0;
+    for (let index = 0; index < value.length;) {
+      const next3 = value.slice(index, index + 3), next2 = value.slice(index, index + 2);
+      if (next3 === "{{{") { parameterDepth += 1; index += 3; continue; }
+      if (next3 === "}}}" && parameterDepth) { parameterDepth -= 1; index += 3; continue; }
+      if (next2 === "{{") { templateDepth += 1; index += 2; continue; }
+      if (next2 === "}}" && templateDepth) { templateDepth -= 1; index += 2; continue; }
+      if (next2 === "[[") { linkDepth += 1; index += 2; continue; }
+      if (next2 === "]]" && linkDepth) { linkDepth -= 1; index += 2; continue; }
+      if (value[index] === "=" && !templateDepth && !parameterDepth && !linkDepth) return index;
+      index += 1;
     }
-    if (escaped) result += "\\";
-    return result;
+    return -1;
   }
 
-  function encode(value) {
-    return String(value ?? "")
-      .replace(/\\/g, "\\\\")
-      .replace(/\n/g, "\\n")
-      .replace(/\|/g, "\\|");
-  }
-
-  function parameters(raw, line) {
-    const result = Object.create(null);
-    for (const item of splitEscaped(raw, "|").map((part) => part.trim()).filter(Boolean)) {
-      const equals = item.indexOf("=");
-      if (equals < 1) fail(line, `Use name=value inside template directives; “${decode(item)}” is incomplete.`);
-      const name = item.slice(0, equals).trim().toLowerCase();
-      if (!/^[a-z][a-z0-9-]*$/.test(name)) fail(line, `“${name}” is not a valid property name.`);
-      result[name] = decode(item.slice(equals + 1).trim());
+  function extractPlaceholders(source) {
+    const found = new Map();
+    const pattern = /\{\{\{\s*([^|{}]+?)(?:\|([^{}]*?))?\}\}\}/g;
+    for (const match of String(source || "").matchAll(pattern)) {
+      const key = String(match[1] || "").trim().slice(0, 80);
+      if (!key || found.has(key)) continue;
+      const defaultValue = String(match[2] || "").trim().slice(0, 1000);
+      const imageLike = /(?:image|img|file|photo|picture|icon|logo|arrowfile|plusfile)$/i.test(key) || /\.(?:gif|jpe?g|png|webp)$/i.test(defaultValue);
+      found.set(key, {
+        key,
+        label: /^\d+$/.test(key) ? `Value ${key}` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+        kind: imageLike ? "image" : "text",
+        defaultValue: imageLike ? "" : defaultValue,
+        defaultAlt: imageLike ? defaultValue : "",
+      });
     }
-    return result;
-  }
-
-  function number(params, name, fallback, minimum, maximum, line) {
-    if (params[name] === undefined || params[name] === "") return fallback;
-    const value = Number(params[name]);
-    if (!Number.isFinite(value)) fail(line, `${name} must be a number.`);
-    return Math.min(maximum, Math.max(minimum, value));
-  }
-
-  function choice(params, name, allowed, fallback, line) {
-    if (params[name] === undefined || params[name] === "") return fallback;
-    if (!allowed.has(params[name])) fail(line, `${name} must be one of: ${[...allowed].join(", ")}.`);
-    return params[name];
-  }
-
-  function color(params, name, fallback, line) {
-    if (params[name] === undefined || params[name] === "") return fallback;
-    const value = params[name].toLowerCase();
-    if (value !== "transparent" && !/^#[0-9a-f]{6}$/.test(value)) fail(line, `${name} must be a six-digit hex color or transparent.`);
-    return value;
-  }
-
-  function cleanKey(value, fallback) {
-    const key = String(value || "").toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
-    return key || fallback;
-  }
-
-  function common(params, type, index, line) {
-    return {
-      id: String(params.id || `${type}-${index + 1}`).replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 80) || `${type}-${index + 1}`,
-      type,
-      x: number(params, "x", 30, -1600, 3200, line),
-      y: number(params, "y", 30, -1600, 3200, line),
-      width: number(params, "width", 180, 8, 3200, line),
-      height: number(params, "height", type === "line" ? 8 : 80, 8, 3200, line),
-      rotation: number(params, "rotation", 0, -360, 360, line),
-      zIndex: Math.round(number(params, "z", index + 1, -1000, 1000, line)),
-      opacity: number(params, "opacity", 1, 0.05, 1, line),
-    };
-  }
-
-  function textStyle(params, line) {
-    const font = params.font || "Play";
-    if (!FONTS.has(font)) fail(line, `font must be one of: ${[...FONTS].join(", ")}.`);
-    return {
-      fontFamily: font,
-      fontSize: number(params, "size", 24, 8, 144, line),
-      fontWeight: number(params, "weight", 400, 400, 700, line) >= 700 ? 700 : 400,
-      fontStyle: params.style === "italic" ? "italic" : "normal",
-      textAlign: choice(params, "align", ALIGNS, "left", line),
-      color: color(params, "color", "#ffffff", line),
-    };
-  }
-
-  function elementFrom(name, params, index, line) {
-    const type = TYPES.get(name.toLowerCase());
-    if (!type) fail(line, `Unknown directive “${name}”.`);
-    const element = common(params, type, index, line);
-    if (type === "text") Object.assign(element, textStyle(params, line), { text: String(params.text || "Text").slice(0, 1000) });
-    else if (type === "placeholder") Object.assign(element, textStyle(params, line), {
-      placeholderKey: cleanKey(params.key, `value_${index + 1}`),
-      defaultValue: String(params.default || "Placeholder text").slice(0, 500),
-    });
-    else if (type === "line") Object.assign(element, {
-      stroke: color(params, "stroke", "#ffffff", line),
-      strokeWidth: number(params, "stroke-width", 3, 1, 24, line),
-    });
-    else if (type === "image") Object.assign(element, {
-      mediaId: String(params.media || "").slice(0, 100),
-      url: /^https:\/\//i.test(params.url || "") ? String(params.url).slice(0, 2000) : "",
-      alt: String(params.alt || "Template image").slice(0, 240),
-      fit: choice(params, "fit", FITS, "cover", line),
-      borderRadius: number(params, "radius", 0, 0, 200, line),
-    });
-    else if (type === "image-placeholder") Object.assign(element, {
-      placeholderKey: cleanKey(params.key, `image_${index + 1}`),
-      defaultAlt: String(params.alt || "Template image").slice(0, 240),
-      fit: choice(params, "fit", FITS, "cover", line),
-      fill: color(params, "fill", "#1b1b1e", line),
-      stroke: color(params, "stroke", "#df2531", line),
-      strokeWidth: number(params, "stroke-width", 2, 0, 24, line),
-      borderRadius: number(params, "radius", 18, 0, 200, line),
-    });
-    else Object.assign(element, {
-      shape: type === "frame" ? "rounded" : choice(params, "kind", SHAPES, "rectangle", line),
-      fill: color(params, "fill", type === "frame" ? "transparent" : "#df2531", line),
-      stroke: color(params, "stroke", "#ffffff", line),
-      strokeWidth: number(params, "stroke-width", type === "frame" ? 3 : 1, 0, 24, line),
-      borderRadius: number(params, "radius", type === "frame" ? 16 : 8, 0, 200, line),
-    });
-    return element;
+    return [...found.values()].slice(0, 100);
   }
 
   function parse(source) {
-    if (typeof source !== "string" || source.length > MAX_SOURCE) throw new Error("Template Wikitext must be 100,000 characters or fewer.");
-    const withoutComments = source.replace(/<!--[^]*?-->/g, (comment) => "\n".repeat((comment.match(/\n/g) || []).length));
-    const definition = { version: 1, canvas: { width: 720, height: 420, backgroundColor: "#111111" }, elements: [] };
-    let sawCanvas = false;
-    const usedIds = new Set();
-    withoutComments.split(/\r?\n/).forEach((raw, index) => {
-      const lineNumber = index + 1;
-      const line = raw.trim();
-      if (!line) return;
-      const match = line.match(/^\{\{\s*([A-Za-z-]+)\s*(?:\|([^]*))?\}\}$/);
-      if (!match) fail(lineNumber, "Each line must be one complete {{Directive|name=value}} block.");
-      const params = parameters(match[2] || "", lineNumber);
-      if (match[1].toLowerCase() === "canvas") {
-        if (sawCanvas) fail(lineNumber, "Only one Canvas directive is allowed.");
-        sawCanvas = true;
-        definition.canvas = {
-          width: Math.round(number(params, "width", 720, 240, 1600, lineNumber)),
-          height: Math.round(number(params, "height", 420, 120, 1600, lineNumber)),
-          backgroundColor: color(params, "background", "#111111", lineNumber),
-        };
-        return;
+    const normalized = cleanSource(source);
+    validateBalance(normalized);
+    return {
+      version: 2,
+      kind: "wikitext",
+      source: normalized,
+      canvas: { width: 720, height: 420, backgroundColor: "#111111" },
+      elements: [],
+      placeholders: extractPlaceholders(normalized),
+    };
+  }
+
+  function findInnermost(source, opening, closing) {
+    const stack = [];
+    for (let index = 0; index < source.length;) {
+      if (source.startsWith(opening, index)) { stack.push(index); index += opening.length; continue; }
+      if (source.startsWith(closing, index) && stack.length) {
+        return { start: stack.pop(), end: index + closing.length, innerEnd: index };
       }
-      if (definition.elements.length >= MAX_ELEMENTS) fail(lineNumber, `Templates can contain at most ${MAX_ELEMENTS} objects.`);
-      const element = elementFrom(match[1], params, definition.elements.length, lineNumber);
-      let id = element.id;
-      let suffix = 2;
-      while (usedIds.has(id)) id = `${element.id}-${suffix++}`;
-      element.id = id;
-      usedIds.add(id);
-      definition.elements.push(element);
+      index += 1;
+    }
+    return null;
+  }
+
+  function expandParameters(source, values) {
+    let output = source;
+    for (let count = 0; count < MAX_EXPANSIONS; count += 1) {
+      const block = findInnermost(output, "{{{", "}}}");
+      if (!block) break;
+      const inner = output.slice(block.start + 3, block.innerEnd);
+      const parts = splitTopLevel(inner);
+      const key = String(parts.shift() || "").trim();
+      const fallback = parts.join("|");
+      const replacement = Object.prototype.hasOwnProperty.call(values || {}, key) ? String(values[key] ?? "") : fallback;
+      output = output.slice(0, block.start) + replacement + output.slice(block.end);
+    }
+    return output;
+  }
+
+  function findTemplate(options, name) {
+    const wanted = normalizeName(name);
+    return (options.templates || []).find((template) => [template.name, template.slug]
+      .some((value) => normalizeName(value) === wanted)) || null;
+  }
+
+  function numericExpression(value) {
+    const expression = String(value || "").trim();
+    if (!expression || !/^[\d\s+\-*/%().]+$/.test(expression)) return "Expression error";
+    const tokens = expression.match(/\d+(?:\.\d+)?|[()+\-*/%]/g) || [];
+    let index = 0;
+    function primary() {
+      const token = tokens[index++];
+      if (token === "(") { const result = addition(); if (tokens[index++] !== ")") throw new Error(); return result; }
+      if (token === "+") return primary();
+      if (token === "-") return -primary();
+      const number = Number(token); if (!Number.isFinite(number)) throw new Error(); return number;
+    }
+    function multiply() {
+      let result = primary();
+      while (["*", "/", "%"].includes(tokens[index])) {
+        const operator = tokens[index++], right = primary();
+        result = operator === "*" ? result * right : operator === "/" ? result / right : result % right;
+      }
+      return result;
+    }
+    function addition() {
+      let result = multiply();
+      while (["+", "-"].includes(tokens[index])) { const operator = tokens[index++], right = multiply(); result = operator === "+" ? result + right : result - right; }
+      return result;
+    }
+    try { const result = addition(); return index === tokens.length && Number.isFinite(result) ? String(result) : "Expression error"; }
+    catch (error) { return "Expression error"; }
+  }
+
+  function parserFunction(content) {
+    const lower = content.toLowerCase();
+    if (lower.startsWith("#if:")) {
+      const [condition = "", yes = "", ...rest] = splitTopLevel(content.slice(4));
+      return condition.trim() ? yes : rest.join("|");
+    }
+    if (lower.startsWith("#ifeq:")) {
+      const [left = "", right = "", yes = "", ...rest] = splitTopLevel(content.slice(6));
+      return left.trim() === right.trim() ? yes : rest.join("|");
+    }
+    if (lower.startsWith("#switch:")) {
+      const [wanted = "", ...cases] = splitTopLevel(content.slice(8));
+      let fallback = "";
+      for (const item of cases) {
+        const equals = topLevelEquals(item);
+        if (equals < 0) continue;
+        const key = item.slice(0, equals).trim(), value = item.slice(equals + 1);
+        if (key.toLowerCase() === "#default") fallback = value;
+        else if (key === wanted.trim()) return value;
+      }
+      return fallback;
+    }
+    if (lower.startsWith("#expr:")) return numericExpression(content.slice(6));
+    return null;
+  }
+
+  function invocationValues(parts) {
+    const values = {}, unnamed = [];
+    for (const part of parts) {
+      const equals = topLevelEquals(part);
+      if (equals > 0) values[part.slice(0, equals).trim()] = part.slice(equals + 1).trim();
+      else unnamed.push(part.trim());
+    }
+    unnamed.forEach((value, index) => { values[String(index + 1)] = value; });
+    return values;
+  }
+
+  function expandTemplates(source, options, depth = 0, stack = []) {
+    if (depth > MAX_DEPTH) return '<span class="cf-template-error">Template nesting limit reached</span>';
+    let output = source;
+    for (let count = 0; count < MAX_EXPANSIONS; count += 1) {
+      const block = findInnermost(output, "{{", "}}");
+      if (!block) break;
+      const content = output.slice(block.start + 2, block.innerEnd).trim();
+      const functionResult = content.startsWith("#") ? parserFunction(content) : null;
+      let replacement;
+      if (functionResult !== null) replacement = functionResult;
+      else {
+        const [rawName = "", ...parts] = splitTopLevel(content);
+        const name = rawName.trim();
+        if (name === "!") replacement = "|";
+        else {
+          const template = findTemplate(options, name);
+          const nestedDefinition = template?.currentRevision?.definition;
+          const normalizedName = normalizeName(name);
+          if (!template || nestedDefinition?.kind !== "wikitext" || !nestedDefinition.source) {
+            replacement = `<span class="cf-template-missing" title="The matching Carbon Frontier template has not been imported">Missing template: ${escapeHtml(name || "unnamed")}</span>`;
+          } else if (stack.includes(normalizedName)) {
+            replacement = `<span class="cf-template-error">Recursive template: ${escapeHtml(name)}</span>`;
+          } else {
+            replacement = expandSource(nestedDefinition.source, invocationValues(parts), options, depth + 1, [...stack, normalizedName]);
+          }
+        }
+      }
+      output = output.slice(0, block.start) + replacement + output.slice(block.end);
+    }
+    return output;
+  }
+
+  function renderLinks(source) {
+    let output = source.replace(/\[\[([^\[\]]+)\]\]/g, (_match, inner) => {
+      const parts = splitTopLevel(inner);
+      const target = String(parts.shift() || "").trim();
+      if (/^(?:File|Image):/i.test(target)) {
+        const title = target.replace(/^(?:File|Image):/i, "").trim();
+        const options = parts.map((part) => part.trim()).filter(Boolean);
+        const caption = [...options].reverse().find((part) => !/^(?:thumb|thumbnail|frameless|frame|border|left|right|center|none|upright(?:=[\d.]+)?|\d+(?:x\d+)?px)$/i.test(part)) || title;
+        const width = options.map((part) => part.match(/^(\d+)(?:x\d+)?px$/i)).find(Boolean)?.[1];
+        return `<img data-wiki-file-title="${escapeHtml(title)}" alt="${escapeHtml(caption)}"${width ? ` style="max-width:${Math.min(1600, Number(width))}px;width:100%;height:auto;"` : ""}>`;
+      }
+      const label = parts.length ? parts.join("|") : target;
+      return `<a href="wiki.html?page=${encodeURIComponent(slugify(target))}">${label}</a>`;
     });
-    return definition;
+    output = output.replace(/\[(https:\/\/[^\s\]]+)(?:\s+([^\]]+))?\]/g, (_match, href, label) =>
+      `<a href="${escapeHtml(href)}">${label || escapeHtml(href)}</a>`);
+    output = output.replace(/'''([^']+?)'''/g, "<strong>$1</strong>")
+      .replace(/''([^']+?)''/g, "<em>$1</em>");
+    return output;
   }
 
-  function property(name, value) {
-    return `${name}=${encode(value)}`;
+  function safeStyle(value) {
+    const declarations = [];
+    for (const item of String(value || "").split(";")) {
+      const colon = item.indexOf(":");
+      if (colon < 1) continue;
+      const property = item.slice(0, colon).trim().toLowerCase();
+      let content = item.slice(colon + 1).trim();
+      if (!ALLOWED_STYLES.has(property) || !content || content.length > 300) continue;
+      if (/[<>"']/g.test(content) || /(?:url\s*\(|expression\s*\(|javascript:|@import|-moz-binding|behavior\s*:)/i.test(content)) continue;
+      if (property === "position" && !/^(?:static|relative|absolute)$/i.test(content)) content = "relative";
+      if (property === "z-index") content = String(Math.max(-10, Math.min(100, Number(content) || 0)));
+      declarations.push(`${property}:${content}`);
+    }
+    return declarations.join(";");
   }
 
-  function commonProperties(element) {
-    return [
-      property("id", element.id), property("x", element.x), property("y", element.y),
-      property("width", element.width), property("height", element.height),
-      property("rotation", element.rotation || 0), property("z", element.zIndex || 0),
-      property("opacity", element.opacity ?? 1),
+  function sanitizeHtml(html) {
+    if (typeof document === "undefined") return escapeHtml(html);
+    const template = document.createElement("template");
+    template.innerHTML = String(html || "");
+    function clean(node) {
+      [...node.childNodes].forEach((child) => {
+        if (child.nodeType === 8) { child.remove(); return; }
+        if (child.nodeType !== 1) return;
+        if (!ALLOWED_TAGS.has(child.tagName)) { clean(child); child.replaceWith(...child.childNodes); return; }
+        const kept = {};
+        if (child.hasAttribute("style")) kept.style = safeStyle(child.getAttribute("style"));
+        if (child.hasAttribute("class")) kept.class = String(child.getAttribute("class") || "").replace(/[^a-zA-Z0-9 _-]/g, "").slice(0, 300);
+        if (child.hasAttribute("title")) kept.title = String(child.getAttribute("title") || "").slice(0, 300);
+        if (child.hasAttribute("role")) kept.role = String(child.getAttribute("role") || "").replace(/[^a-z-]/g, "").slice(0, 40);
+        if (child.tagName === "A") {
+          const href = String(child.getAttribute("href") || "").trim();
+          try {
+            const parsed = new URL(href, typeof location === "undefined" ? "https://example.invalid" : location.origin);
+            if (["http:", "https:", "mailto:"].includes(parsed.protocol) || href.startsWith("wiki.html")) kept.href = href;
+          } catch (error) { /* Unsafe links lose their destination. */ }
+          kept.rel = "noopener noreferrer";
+        }
+        if (child.tagName === "IMG") {
+          kept.alt = String(child.getAttribute("alt") || "Wiki image").slice(0, 240);
+          const fileTitle = String(child.getAttribute("data-wiki-file-title") || "").trim().slice(0, 180);
+          if (fileTitle) kept["data-wiki-file-title"] = fileTitle;
+          const src = String(child.getAttribute("src") || "").trim();
+          if (/^(?:https:\/\/|data:image\/(?:gif|jpeg|png|webp);base64,)/i.test(src)) kept.src = src;
+          kept.loading = "lazy";
+        }
+        [...child.attributes].forEach((attribute) => child.removeAttribute(attribute.name));
+        Object.entries(kept).forEach(([name, content]) => { if (content) child.setAttribute(name, content); });
+        clean(child);
+      });
+    }
+    clean(template.content);
+    return template.innerHTML;
+  }
+
+  function expandSource(source, values = {}, options = {}, depth = 0, stack = []) {
+    let output = transclusionSource(source);
+    output = expandParameters(output, values);
+    output = expandTemplates(output, options, depth, stack);
+    output = renderLinks(output);
+    return output;
+  }
+
+  function render(source, values = {}, options = {}) {
+    const normalized = cleanSource(source);
+    validateBalance(normalized);
+    const expanded = expandSource(normalized, values, options, 0, options.stack || []);
+    return {
+      html: sanitizeHtml(expanded),
+      placeholders: extractPlaceholders(normalized),
+      documentation: documentationSource(normalized),
+    };
+  }
+
+  function px(value) { return `${Math.round(Number(value) || 0)}px`; }
+  function visualElementSource(element) {
+    const style = [
+      "position:absolute", `left:${px(element.x)}`, `top:${px(element.y)}`,
+      `width:${px(element.width)}`, `height:${px(element.height)}`,
+      `z-index:${Math.round(Number(element.zIndex) || 1)}`, `opacity:${Number(element.opacity ?? 1)}`,
+      `transform:rotate(${Number(element.rotation) || 0}deg)`, "box-sizing:border-box", "overflow:hidden",
     ];
-  }
-
-  function textProperties(element) {
-    return [
-      property("font", element.fontFamily || "Play"), property("size", element.fontSize || 24),
-      property("weight", element.fontWeight || 400), property("style", element.fontStyle || "normal"),
-      property("align", element.textAlign || "left"), property("color", element.color || "#ffffff"),
-    ];
+    if (element.type === "text" || element.type === "placeholder") {
+      style.push(`font-family:${element.fontFamily || "Play"}`, `font-size:${px(element.fontSize || 24)}`,
+        `font-weight:${Number(element.fontWeight) >= 700 ? 700 : 400}`, `font-style:${element.fontStyle === "italic" ? "italic" : "normal"}`,
+        `text-align:${element.textAlign || "left"}`, `color:${element.color || "#ffffff"}`, "white-space:pre-wrap");
+      const content = element.type === "placeholder"
+        ? `{{{${element.placeholderKey || "value"}|${String(element.defaultValue || "")}}}}`
+        : escapeHtml(element.text || "");
+      return `<div style="${style.join(";")}">${content}</div>`;
+    }
+    if (element.type === "image-placeholder") {
+      style.push(`background:${element.fill || "#1b1b1e"}`, `border:${Number(element.strokeWidth) || 0}px solid ${element.stroke || "#df2531"}`, `border-radius:${px(element.borderRadius || 0)}`);
+      return `<div style="${style.join(";")}">[[File:{{{${element.placeholderKey || "image"}|}}}|${escapeHtml(element.defaultAlt || "Template image")}]]</div>`;
+    }
+    if (element.type === "line") style.push("height:0", `border-top:${Number(element.strokeWidth) || 1}px solid ${element.stroke || "#ffffff"}`);
+    else style.push(`background:${element.fill || "transparent"}`, `border:${Number(element.strokeWidth) || 0}px solid ${element.stroke || "#ffffff"}`, `border-radius:${px(element.borderRadius || 0)}`);
+    return `<div style="${style.join(";")}"></div>`;
   }
 
   function format(definition) {
-    const canvas = definition?.canvas || {};
-    const lines = [
-      "<!-- Carbon Frontier Template Wikitext · one safe directive per line -->",
-      `{{Canvas|${property("width", canvas.width || 720)}|${property("height", canvas.height || 420)}|${property("background", canvas.backgroundColor || "#111111")}}}`,
-      "",
-    ];
-    for (const element of definition?.elements || []) {
-      const common = commonProperties(element);
-      let directive = "Shape";
-      let specific = [];
-      if (element.type === "text") { directive = "Text"; specific = [...textProperties(element), property("text", element.text || "")]; }
-      else if (element.type === "placeholder") { directive = "Placeholder"; specific = [...textProperties(element), property("key", element.placeholderKey || "value"), property("default", element.defaultValue || "")]; }
-      else if (element.type === "image-placeholder") { directive = "ImagePlaceholder"; specific = [property("key", element.placeholderKey || "image"), property("alt", element.defaultAlt || "Template image"), property("fit", element.fit || "cover"), property("fill", element.fill || "#1b1b1e"), property("stroke", element.stroke || "#df2531"), property("stroke-width", element.strokeWidth ?? 2), property("radius", element.borderRadius ?? 18)]; }
-      else if (element.type === "frame") { directive = "Frame"; specific = [property("fill", element.fill || "transparent"), property("stroke", element.stroke || "#ffffff"), property("stroke-width", element.strokeWidth ?? 3), property("radius", element.borderRadius ?? 16)]; }
-      else if (element.type === "line") { directive = "Line"; specific = [property("stroke", element.stroke || "#ffffff"), property("stroke-width", element.strokeWidth ?? 3)]; }
-      else if (element.type === "image") { directive = "Image"; specific = [property("media", element.mediaId || ""), property("url", element.url || ""), property("alt", element.alt || "Template image"), property("fit", element.fit || "cover"), property("radius", element.borderRadius ?? 0)]; }
-      else { specific = [property("kind", element.shape || "rectangle"), property("fill", element.fill || "#df2531"), property("stroke", element.stroke || "#ffffff"), property("stroke-width", element.strokeWidth ?? 1), property("radius", element.borderRadius ?? 8)]; }
-      lines.push(`{{${directive}|${[...common, ...specific].join("|")}}}`);
-    }
-    return lines.join("\n");
+    if (definition?.kind === "wikitext" && typeof definition.source === "string") return definition.source;
+    const canvas = definition?.canvas || { width: 720, height: 420, backgroundColor: "#111111" };
+    const elements = (definition?.elements || []).map(visualElementSource).join("\n");
+    return `<includeonly><div style="position:relative;width:${px(canvas.width || 720)};height:${px(canvas.height || 420)};background:${canvas.backgroundColor || "#111111"};overflow:hidden;box-sizing:border-box;">\n${elements}\n</div></includeonly>\n<noinclude>Created with Carbon Frontier Template Studio.</noinclude>`;
   }
 
-  const example = `{{Canvas|width=420|height=300|background=#111111}}
-{{Frame|id=card|x=8|y=8|width=404|height=284|fill=#171717|stroke=#df2531|stroke-width=3|radius=22}}
-{{Text|id=heading|x=28|y=26|width=360|height=44|font=Play|size=30|weight=700|color=#ffffff|text=MACHINE}}
-{{Placeholder|id=name|x=28|y=92|width=360|height=44|key=machine_name|default=Machine Name|font=Play|size=24|color=#ffffff}}
-{{ImagePlaceholder|id=image|x=28|y=154|width=160|height=110|key=machine_image|alt=Machine image|fit=cover|fill=#1b1b1e|stroke=#df2531|stroke-width=2|radius=18}}`;
+  const example = `<includeonly>
+<div style="display:flex;align-items:center;gap:12px;padding:16px;background:#24272b;border:2px solid #000;border-radius:16px;color:#fff;">
+  <strong>{{{name|Machine Name}}}</strong>
+  {{#if:{{{power|}}}|<span>Power: {{{power}}}</span>|}}
+</div>
+</includeonly>
+<noinclude>Use this template on a wiki page and fill in name and power.</noinclude>`;
 
-  return Object.freeze({ parse, format, example });
+  return Object.freeze({ parse, format, render, extractPlaceholders, transclusionSource, documentationSource, example });
 });

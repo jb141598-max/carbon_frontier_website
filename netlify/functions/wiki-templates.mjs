@@ -64,6 +64,48 @@ function cleanColor(value, fallback) {
   return color === "transparent" || /^#[0-9a-f]{6}$/.test(color) ? color : fallback;
 }
 
+function sourcePlaceholders(source) {
+  const placeholders = [];
+  const seen = new Set();
+  const pattern = /\{\{\{\s*([^|{}]+?)(?:\|([^{}]*?))?\}\}\}/g;
+  for (const match of String(source || "").matchAll(pattern)) {
+    const key = cleanText(match[1], 80);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const defaultValue = String(match[2] || "").trim().slice(0, 1000);
+    const imageLike = /(?:image|img|file|photo|picture|icon|logo|arrowfile|plusfile)$/i.test(key) || /\.(?:gif|jpe?g|png|webp)$/i.test(defaultValue);
+    placeholders.push({
+      key,
+      label: /^\d+$/.test(key) ? `Value ${key}` : key.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+      kind: imageLike ? "image" : "text",
+      defaultValue: imageLike ? "" : defaultValue,
+      defaultAlt: imageLike ? defaultValue : "",
+    });
+    if (placeholders.length >= 100) break;
+  }
+  return placeholders;
+}
+
+function sourceValidationError(source) {
+  const clean = String(source || "").replace(/<!--[\s\S]*?-->/g, "");
+  const stack = [];
+  for (let index = 0; index < clean.length;) {
+    const next3 = clean.slice(index, index + 3), next2 = clean.slice(index, index + 2);
+    if (next3 === "{{{") { stack.push("parameter"); index += 3; continue; }
+    if (next3 === "}}}" && stack.at(-1) === "parameter") { stack.pop(); index += 3; continue; }
+    if (next2 === "{{") { stack.push("template"); index += 2; continue; }
+    if (next2 === "}}" && stack.at(-1) === "template") { stack.pop(); index += 2; continue; }
+    index += 1;
+  }
+  if (stack.length) return "Template braces are not balanced.";
+  for (const tag of ["includeonly", "noinclude", "onlyinclude"]) {
+    const opening = (source.match(new RegExp(`<${tag}\\b`, "gi")) || []).length;
+    const closing = (source.match(new RegExp(`<\\/${tag}\\s*>`, "gi")) || []).length;
+    if (opening !== closing) return `The <${tag}> and </${tag}> tags must be paired.`;
+  }
+  return "";
+}
+
 function cleanElement(raw, index, canvas) {
   const type = ELEMENT_TYPES.has(raw?.type) ? raw.type : "shape";
   const element = {
@@ -126,6 +168,18 @@ function normalizeDefinition(value, requestedWidth, requestedHeight) {
     height: Math.round(finiteNumber(value?.canvas?.height ?? requestedHeight, 120, 1600, 420)),
     backgroundColor: cleanColor(value?.canvas?.backgroundColor, "#111111"),
   };
+  if (value?.kind === "wikitext") {
+    const source = String(value?.source || "").replace(/\r\n?/g, "\n");
+    const definition = { version: 2, kind: "wikitext", source, canvas, elements: [], placeholders: sourcePlaceholders(source) };
+    const serialized = JSON.stringify(definition);
+    if (!source.trim()) return { ok: false, message: "Enter the MediaWiki template source." };
+    const validationError = sourceValidationError(source);
+    if (validationError) return { ok: false, message: validationError };
+    if (new TextEncoder().encode(serialized).length > MAX_DEFINITION_BYTES) {
+      return { ok: false, message: "Template source must be 100 KB or smaller." };
+    }
+    return { ok: true, definition, serialized };
+  }
   const rawElements = Array.isArray(value?.elements) ? value.elements.slice(0, MAX_ELEMENTS) : [];
   const usedIds = new Set();
   const elements = rawElements.map((raw, index) => {
@@ -146,6 +200,7 @@ function normalizeDefinition(value, requestedWidth, requestedHeight) {
 }
 
 function placeholdersFromDefinition(definition) {
+  if (definition?.kind === "wikitext") return sourcePlaceholders(definition.source);
   const placeholders = [];
   const seen = new Set();
   for (const element of definition?.elements || []) {

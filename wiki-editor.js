@@ -230,6 +230,7 @@
   };
 
   const wikitext = window.CarbonFrontierWikitext;
+  const templateWikitext = window.CarbonFrontierTemplateWikitext;
   const mediaClient = window.CarbonFrontierWikiMedia.create({
     testing: Boolean(window.CarbonFrontierWikiCore?.isTestingEnvironment?.()),
     fetcher: (endpoint, options) => window.CarbonFrontierWikiCore.fetchWithAuth(endpoint, options),
@@ -1174,10 +1175,52 @@
     return node;
   }
 
+  async function hydrateWikitextTemplateMedia(container) {
+    const images = [...container.querySelectorAll("img[data-wiki-file-title]")];
+    if (!images.length) return;
+    if (!app.media.length) {
+      try { app.media = (await mediaClient.list({ sort: "newest", limit: 500 })).media || []; }
+      catch (error) { /* Missing catalog items stay as labeled image placeholders. */ }
+    }
+    const normalized = (value) => String(value || "").trim().replace(/^File:/i, "").replaceAll("_", " ").toLowerCase();
+    images.forEach((image) => {
+      const wanted = normalized(image.dataset.wikiFileTitle);
+      const media = app.media.find((item) => item.id === image.dataset.wikiFileTitle ||
+        [item.title, item.originalName].some((name) => normalized(name) === wanted));
+      if (media) image.dataset.wikiMediaId = media.id;
+      else {
+        image.hidden = true;
+        const missing = document.createElement("span");
+        missing.className = "cf-template-missing";
+        missing.textContent = `Missing image: ${image.dataset.wikiFileTitle}`;
+        image.after(missing);
+      }
+    });
+    await hydrateMediaImages(container);
+  }
+
   function renderTemplateInto(instance, template, values, fallbackDefinition = null) {
     const definition = template?.currentRevision?.definition || fallbackDefinition;
     if (!definition?.canvas) {
       instance.textContent = "This template is unavailable.";
+      return;
+    }
+    if (definition.kind === "wikitext" && definition.source && templateWikitext?.render) {
+      instance.__templateResizeObserver?.disconnect?.();
+      instance.style.setProperty("--template-width", "100%");
+      instance.style.height = "";
+      instance.dataset.templateRevisionId = template?.currentRevision?.id || instance.dataset.templateRevisionId || "";
+      const rendered = document.createElement("div");
+      rendered.className = "wiki-template-wikitext";
+      try {
+        rendered.innerHTML = templateWikitext.render(definition.source, values, { templates: app.templates }).html;
+      } catch (error) {
+        rendered.className += " cf-template-error";
+        rendered.textContent = error.message || "This template source could not be rendered.";
+      }
+      instance.replaceChildren(rendered);
+      if (app.selectedObject === instance) addResizeHandles(instance);
+      hydrateWikitextTemplateMedia(rendered);
       return;
     }
     const width = Math.round(clampNumber(definition.canvas.width, 240, 1600, 720));
