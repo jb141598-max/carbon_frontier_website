@@ -21,6 +21,12 @@
   function pageHref(target, pages = []) {
     const [name, ...fragment] = decode(target).split("#");
     const title = name.replace(/_/g, " ").trim();
+    const category = title.match(/^Category\s*:\s*(.+)$/i);
+    if (category) {
+      const categorySlug = slugify(category[1]);
+      return (categorySlug ? "wiki.html?category=" + encodeURIComponent(categorySlug) : "") +
+        (fragment.length ? "#" + encodeURIComponent(slugify(fragment.join("#"))) : "");
+    }
     const known = pages.find((page) => page.title?.toLowerCase() === title.toLowerCase() || page.slug === title);
     const slug = known?.slug || (title ? slugify(title) : "");
     return (slug ? "wiki.html?page=" + encodeURIComponent(slug) : "") + (fragment.length ? "#" + encodeURIComponent(slugify(fragment.join("#"))) : "");

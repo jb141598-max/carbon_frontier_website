@@ -122,7 +122,6 @@ function pageFromRow(row, viewer) {
           title: row.revision_title || row.title,
           content: row.content_json,
           editSummary: row.edit_summary,
-          authorName: row.author_name || null,
           authorRole: row.author_role || "contributor",
           createdAt: new Date(row.revision_created_at).toISOString(),
         }
@@ -314,7 +313,6 @@ async function handleGet(request, account) {
           updatedAt: new Date(row.updated_at).toISOString(),
           revisionNumber: row.revision_number ? Number(row.revision_number) : null,
           editSummary: row.edit_summary || "",
-          authorName: row.author_name || null,
           categories: categoriesFromRow(row),
         })),
         redirects: redirects.rows.map((row) => ({
@@ -359,7 +357,6 @@ async function handleGet(request, account) {
           number: Number(row.revision_number),
           title: row.page_title,
           editSummary: row.edit_summary,
-          authorName: row.author_name || null,
           authorRole: row.author_role || "contributor",
           createdAt: new Date(row.created_at).toISOString(),
           isCurrent: row.id === pageRow.revision_id,
@@ -393,7 +390,6 @@ async function handleGet(request, account) {
           title: revision.page_title,
           content: revision.content_json,
           editSummary: revision.edit_summary,
-          authorName: revision.author_name || null,
           authorRole: revision.author_role || "contributor",
           createdAt: new Date(revision.created_at).toISOString(),
           isCurrent: revision.id === pageRow.revision_id,

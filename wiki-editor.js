@@ -196,6 +196,7 @@
     pages: [],
     currentPage: null,
     currentSlug: slugFromLocation(),
+    currentCategory: categoryFromLocation(),
     slugManuallyEdited: false,
     editing: false,
     editingBasePage: null,
@@ -261,14 +262,27 @@
     return coreState().access?.viewer || null;
   }
 
+  function categoryFromLocation() {
+    const pageUrl = new URL(window.location.href);
+    const queryCategory = pageUrl.searchParams.get("category");
+    if (queryCategory) {
+      return normalizeSlug(queryCategory);
+    }
+    const match = window.location.pathname.match(/\/wiki\/category\/([^/]+)\/?$/i);
+    return match ? normalizeSlug(decodeURIComponent(match[1])) : "";
+  }
+
   function slugFromLocation() {
     const pageUrl = new URL(window.location.href);
+    if (categoryFromLocation()) {
+      return "front-page";
+    }
     const querySlug = pageUrl.searchParams.get("page");
     if (querySlug) {
       return normalizeSlug(querySlug) || "front-page";
     }
     const match = window.location.pathname.match(/\/wiki\/([^/]+)(?:\/history)?\/?$/i);
-    return match && match[1] !== "permissions"
+    return match && !["permissions", "category"].includes(String(match[1] || "").toLowerCase())
       ? normalizeSlug(decodeURIComponent(match[1])) || "front-page"
       : "front-page";
   }
@@ -814,6 +828,7 @@
     if (isTesting() || /wiki\.html$/i.test(window.location.pathname)) {
       target = new URL(window.location.href);
       target.searchParams.delete("history");
+      target.searchParams.delete("category");
       if (slug === "front-page") {
         target.searchParams.delete("page");
       } else {
@@ -823,6 +838,20 @@
       target = new URL(slug === "front-page" ? "/wiki" : `/wiki/${slug}`, window.location.origin);
     }
     window.history[replace ? "replaceState" : "pushState"]({ wikiSlug: slug }, "", target);
+  }
+
+  function updateCategoryBrowserAddress(categorySlug, replace = false) {
+    const normalized = normalizeSlug(categorySlug);
+    let target;
+    if (isTesting() || /wiki\.html$/i.test(window.location.pathname)) {
+      target = new URL(window.location.href);
+      target.searchParams.delete("history");
+      target.searchParams.delete("page");
+      target.searchParams.set("category", normalized);
+    } else {
+      target = new URL(`/wiki/category/${encodeURIComponent(normalized)}`, window.location.origin);
+    }
+    window.history[replace ? "replaceState" : "pushState"]({ wikiCategory: normalized }, "", target);
   }
 
   function sanitizeInlineHtml(value) {
@@ -1005,6 +1034,9 @@
     instance.tabIndex = app.editing ? 0 : -1;
     instance.setAttribute("role", "group");
     instance.setAttribute("aria-label", "Wiki template. Click to select; drag to move; double-click to edit values, placement, and size.");
+    if (typeof instance.__sizeWikitextTemplate === "function") {
+      window.requestAnimationFrame(instance.__sizeWikitextTemplate);
+    }
   }
 
   function templateScale(node) {
@@ -1318,16 +1350,16 @@
 
   function renderTemplateInto(instance, template, values, fallbackDefinition = null) {
     const definition = template?.currentRevision?.definition || fallbackDefinition;
-    if (!definition?.canvas) {
+    if (!definition || (definition.kind !== "wikitext" && !definition.canvas)) {
       instance.textContent = "This template is unavailable.";
       return;
     }
     if (definition.kind === "wikitext" && definition.source && templateWikitext?.render) {
       instance.__templateResizeObserver?.disconnect?.();
       instance.dataset.templateKind = "wikitext";
-      instance.style.setProperty("--template-width", "100%");
-      instance.style.setProperty("--template-scaled-width", "100%");
-      instance.style.height = "";
+      instance.style.removeProperty("--template-width");
+      instance.style.removeProperty("--template-scaled-width");
+      instance.style.removeProperty("--template-scale");
       instance.dataset.templateRevisionId = template?.currentRevision?.id || instance.dataset.templateRevisionId || "";
       const rendered = document.createElement("div");
       rendered.className = "wiki-template-wikitext";
@@ -1342,8 +1374,55 @@
         rendered.textContent = error.message || "This template source could not be rendered.";
       }
       instance.replaceChildren(rendered);
+
+      const sizeWikitextTemplate = () => {
+        if (!instance.isConnected || !rendered.isConnected) return;
+        const fullWidth = templateFullWidth(instance);
+        const requestedScale = templateScale(instance);
+        const contentWidth = Math.max(1, ui.content?.clientWidth || instance.parentElement?.clientWidth || 1);
+
+        // Measure the source itself. Wikitext templates are documents, not canvases,
+        // so their saved canvas width/height must never create empty selection space.
+        rendered.style.width = "max-content";
+        rendered.style.maxWidth = "none";
+        rendered.style.transform = "none";
+        rendered.style.transformOrigin = "top left";
+        instance.style.width = "max-content";
+        instance.style.maxWidth = "100%";
+        instance.style.height = "auto";
+
+        const naturalRect = rendered.getBoundingClientRect();
+        const naturalWidth = Math.max(1, Math.ceil(rendered.scrollWidth || naturalRect.width));
+        const naturalHeight = Math.max(1, Math.ceil(rendered.scrollHeight || naturalRect.height));
+        const fittedScale = fullWidth
+          ? contentWidth / naturalWidth
+          : Math.min(requestedScale, contentWidth / naturalWidth);
+        const scale = clampNumber(fittedScale, 0.05, 8, 1);
+        const targetWidth = fullWidth ? contentWidth : Math.min(contentWidth, Math.ceil(naturalWidth * scale));
+        const targetHeight = Math.ceil(naturalHeight * scale);
+
+        instance.style.width = `${targetWidth}px`;
+        instance.style.maxWidth = "100%";
+        instance.style.height = `${targetHeight}px`;
+        rendered.style.width = `${naturalWidth}px`;
+        rendered.style.maxWidth = "none";
+        rendered.style.transform = `scale(${scale})`;
+        rendered.style.transformOrigin = "top left";
+      };
+
+      instance.__sizeWikitextTemplate = sizeWikitextTemplate;
+      sizeWikitextTemplate();
+      window.requestAnimationFrame(sizeWikitextTemplate);
+      if (window.ResizeObserver) {
+        instance.__templateResizeObserver = new ResizeObserver(() => sizeWikitextTemplate());
+        instance.__templateResizeObserver.observe(ui.content || instance.parentElement || instance);
+      }
+      rendered.querySelectorAll("img").forEach((image) => {
+        image.addEventListener("load", sizeWikitextTemplate, { once: true });
+      });
+
       if (app.selectedObject === instance) addResizeHandles(instance);
-      hydrateWikitextTemplateMedia(rendered);
+      hydrateWikitextTemplateMedia(rendered).then(sizeWikitextTemplate).catch(() => {});
       return;
     }
     const width = Math.round(clampNumber(definition.canvas.width, 240, 1600, 720));
@@ -1876,9 +1955,8 @@
     ui.breadcrumb.textContent = page.slug === "front-page" ? "Wiki front page" : "Wiki article";
     ui.title.textContent = page.title;
     const revision = page.currentRevision;
-    const author = authorLabel(revision);
     ui.meta.textContent = revision
-      ? `Revision ${revision.number} · ${formatDate(revision.createdAt)} · ${author}`
+      ? `Revision ${revision.number} · ${formatDate(revision.createdAt)}`
       : "No saved revision.";
     renderContent(ui.content, revision?.content);
     ui.articleSurface.setAttribute("aria-busy", "false");
@@ -1887,6 +1965,83 @@
     ui.historyButton.hidden = true;
     ui.pageSettings.hidden = true;
     updateDocumentTitle(page);
+  }
+
+  function categoryPageHref(page) {
+    if (isTesting() || /wiki\.html$/i.test(window.location.pathname)) {
+      return `wiki.html?page=${encodeURIComponent(page.slug)}`;
+    }
+    return `/wiki/${encodeURIComponent(page.slug)}`;
+  }
+
+  function renderCategoryPage(category) {
+    app.currentPage = null;
+    app.currentCategory = category.slug;
+    clearSelectedFigure();
+    ui.breadcrumb.textContent = "Wiki category";
+    ui.title.textContent = `Category: ${category.name}`;
+    const pages = [...category.pages].sort((left, right) => left.title.localeCompare(right.title));
+    ui.meta.textContent = `${pages.length} page${pages.length === 1 ? "" : "s"} in this category`;
+    ui.content.replaceChildren();
+
+    const intro = document.createElement("p");
+    intro.className = "category-page-copy";
+    intro.textContent = `Pages in the ${category.name} category.`;
+    ui.content.append(intro);
+
+    if (!pages.length) {
+      const empty = document.createElement("p");
+      empty.className = "wiki-list-state";
+      empty.textContent = "There are no pages in this category yet.";
+      ui.content.append(empty);
+    } else {
+      const list = document.createElement("ul");
+      list.className = "wiki-category-page-list";
+      pages.forEach((page) => {
+        const item = document.createElement("li");
+        const link = document.createElement("a");
+        link.href = categoryPageHref(page);
+        link.dataset.categoryPageSlug = page.slug;
+        link.textContent = page.title;
+        item.append(link);
+        list.append(item);
+      });
+      ui.content.append(list);
+    }
+
+    ui.categories.replaceChildren();
+    ui.categories.hidden = true;
+    ui.editPage.hidden = true;
+    ui.historyButton.hidden = true;
+    ui.pageSettings.hidden = true;
+    ui.articleSurface.classList.remove("is-editing");
+    ui.articleSurface.setAttribute("aria-busy", "false");
+    document.title = `Category: ${category.name} | Carbon Frontier Wiki`;
+  }
+
+  async function openCategoryPage(categorySlug, { push = true } = {}) {
+    const normalized = normalizeSlug(categorySlug);
+    if (!normalized) return;
+    if (app.editing) {
+      exitEditing({ restorePage: true });
+    }
+    app.currentCategory = normalized;
+    app.currentSlug = "";
+    ui.articleSurface.setAttribute("aria-busy", "true");
+    if (push) {
+      updateCategoryBrowserAddress(normalized);
+    }
+    closeSearchResults();
+    setFeedback(ui.feedback, "Loading category...");
+    const category = categoryDirectory().find((item) => item.slug === normalized);
+    if (!category) {
+      const error = new Error("Wiki category not found.");
+      renderPageError(error);
+      setFeedback(ui.feedback, error.message, true);
+      return;
+    }
+    renderCategoryPage(category);
+    setFeedback(ui.feedback, "");
   }
 
   function renderPageError(error) {
@@ -1923,6 +2078,7 @@
 
   async function openPage(slug, { push = true } = {}) {
     const normalized = normalizeSlug(slug) || "front-page";
+    app.currentCategory = "";
     if (app.editing) {
       exitEditing({ restorePage: true });
     }
@@ -3052,13 +3208,11 @@
       button.dataset.revisionNumber = String(revision.number);
       const title = document.createElement("strong");
       title.textContent = `Revision ${revision.number}${revision.isCurrent ? " · Current" : ""}`;
-      const author = document.createElement("span");
-      author.textContent = authorLabel(revision);
       const date = document.createElement("span");
       date.textContent = formatDate(revision.createdAt);
       const summary = document.createElement("span");
       summary.textContent = revision.editSummary || "No edit summary";
-      button.append(title, author, date, summary);
+      button.append(title, date, summary);
       ui.historyList.append(button);
     });
   }
@@ -3074,9 +3228,7 @@
         ? "Current version"
         : "Older version";
       ui.historySelectionTitle.textContent = `Revision ${payload.revision.number}`;
-      ui.historySelectionMeta.textContent = `${formatDate(payload.revision.createdAt)} · ${
-        authorLabel(payload.revision)
-      } · ${payload.revision.editSummary || "No edit summary"}`;
+      ui.historySelectionMeta.textContent = `${formatDate(payload.revision.createdAt)} · ${payload.revision.editSummary || "No edit summary"}`;
       renderContent(ui.selectedPreview, payload.revision.content, { liveTemplates: false });
       renderContent(ui.currentPreview, app.currentPage.currentRevision?.content, { liveTemplates: false });
       ui.historyDiffSummary.textContent = compareContents(
@@ -3299,7 +3451,9 @@
     }
     try {
       await refreshPageList();
-      await openPage(app.currentSlug, { push: false });
+      const initialCategory = categoryFromLocation();
+      if (initialCategory) await openCategoryPage(initialCategory, { push: false });
+      else await openPage(app.currentSlug, { push: false });
     } catch (error) {
       renderPageError(error);
       setFeedback(ui.feedback, error?.message || "The wiki could not be loaded.", true);
@@ -3334,10 +3488,7 @@
   ui.searchResults.addEventListener("click", (event) => {
     const category = event.target.closest("[data-category-slug]");
     if (category) {
-      app.searchMode = "categories";
-      app.selectedCategory = category.dataset.categorySlug;
-      renderSearchResults();
-      ui.searchMenuInput.focus({ preventScroll: true });
+      openCategoryPage(category.dataset.categorySlug);
       return;
     }
     const button = event.target.closest("[data-slug]");
@@ -3406,7 +3557,14 @@
   ui.content.addEventListener("keyup", updateToolbarState);
   ui.content.addEventListener("mouseup", updateToolbarState);
   ui.content.addEventListener("click", (event) => {
-    if (!app.editing) return;
+    if (!app.editing) {
+      const categoryPageLink = event.target.closest("[data-category-page-slug]");
+      if (categoryPageLink) {
+        event.preventDefault();
+        openPage(categoryPageLink.dataset.categoryPageSlug);
+      }
+      return;
+    }
     const object = event.target.closest(".wiki-placed-object");
     if (isPlacedObject(object)) selectFigure(object);
     else clearSelectedFigure();
@@ -3659,10 +3817,7 @@
   ui.categories.addEventListener("click", (event) => {
     const button = event.target.closest("[data-open-category]");
     if (!button || app.editing) return;
-    openSearchMenu();
-    app.searchMode = "categories";
-    app.selectedCategory = button.dataset.openCategory;
-    renderSearchResults();
+    openCategoryPage(button.dataset.openCategory);
   });
 
   [
@@ -3736,8 +3891,14 @@
   });
 
   window.addEventListener("popstate", () => {
-    app.currentSlug = slugFromLocation();
-    openPage(app.currentSlug, { push: false });
+    const category = categoryFromLocation();
+    if (category) {
+      app.currentCategory = category;
+      openCategoryPage(category, { push: false });
+    } else {
+      app.currentSlug = slugFromLocation();
+      openPage(app.currentSlug, { push: false });
+    }
   });
   window.addEventListener("carbon-frontier-testing-snapshot-updated", async () => {
     if (!isTesting() || !viewer()?.canView) {
@@ -3746,7 +3907,9 @@
     app.templates = [];
     app.templateLoadPromise = null;
     await refreshPageList();
-    await openPage(app.currentSlug, { push: false });
+    const category = categoryFromLocation();
+    if (category) await openCategoryPage(category, { push: false });
+    else await openPage(app.currentSlug, { push: false });
   });
   window.addEventListener("carbon-frontier-wiki-access-updated", async () => {
     if (!viewer()?.canView) {
@@ -3755,7 +3918,9 @@
       return;
     }
     await refreshPageList();
-    await openPage(app.currentSlug, { push: false });
+    const category = categoryFromLocation();
+    if (category) await openCategoryPage(category, { push: false });
+    else await openPage(app.currentSlug, { push: false });
   });
 
   initialize();
