@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+Disallow: /updates/adminpanel
+Disallow: /wiki/permissions
+Disallow: /wiki/analytics
+Disallow: /wiki/moderation
+Disallow: /wiki/import
+Disallow: /wiki/templates
+Disallow: /wiki/images
+Disallow: /wiki/media
+Disallow: /wiki/admin/
+
+Sitemap: https://carbonfrontier.org/sitemap.xml
