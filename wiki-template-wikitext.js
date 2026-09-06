@@ -229,8 +229,21 @@
     catch (error) { return "Expression error"; }
   }
 
-  function parserFunction(content) {
+  function parserFunction(content, options = {}) {
     const lower = content.toLowerCase();
+
+    // MediaWiki string magic words used by imported Miraheze templates.
+    if (lower.startsWith("lc:")) return content.slice(3).toLowerCase();
+    if (lower.startsWith("uc:")) return content.slice(3).toUpperCase();
+    if (lower.startsWith("lcfirst:")) {
+      const value = content.slice(8);
+      return value ? value[0].toLowerCase() + value.slice(1) : "";
+    }
+    if (lower.startsWith("ucfirst:")) {
+      const value = content.slice(8);
+      return value ? value[0].toUpperCase() + value.slice(1) : "";
+    }
+
     if (lower.startsWith("#if:")) {
       const [condition = "", yes = "", ...rest] = splitTopLevel(content.slice(4));
       return condition.trim() ? yes : rest.join("|");
@@ -239,15 +252,58 @@
       const [left = "", right = "", yes = "", ...rest] = splitTopLevel(content.slice(6));
       return left.trim() === right.trim() ? yes : rest.join("|");
     }
+    if (lower.startsWith("#ifexist:")) {
+      const [target = "", yes = "", ...rest] = splitTopLevel(content.slice(9));
+      const wanted = target.trim();
+      if (!wanted) return rest.join("|");
+
+      // Template existence can be checked synchronously from the templates already loaded.
+      if (/^template:/i.test(wanted)) {
+        return findTemplate(options, wanted.replace(/^template:/i, "")) ? yes : rest.join("|");
+      }
+
+      // File/Image existence is resolved immediately after template rendering by the
+      // wiki media hydrator. Treat a non-empty file title as present here so valid
+      // MediaWiki templates can emit their <img data-wiki-file-title> placeholder.
+      // If the catalog really does not contain it, the hydrator shows Missing image.
+      if (/^(?:file|image):/i.test(wanted)) return yes;
+
+      // For ordinary page titles, prefer an optional page list when the caller has one.
+      if (Array.isArray(options.pages)) {
+        const normalized = normalizeName(wanted);
+        const exists = options.pages.some((page) =>
+          normalizeName(page?.title) === normalized || normalizeName(page?.slug) === normalized
+        );
+        return exists ? yes : rest.join("|");
+      }
+
+      // A template renderer does not synchronously own the full page index. Preserve
+      // MediaWiki-compatible output rather than hiding content only because the index
+      // was not supplied.
+      return yes;
+    }
     if (lower.startsWith("#switch:")) {
       const [wanted = "", ...cases] = splitTopLevel(content.slice(8));
+      const selected = wanted.trim();
+      const pendingLabels = [];
       let fallback = "";
       for (const item of cases) {
         const equals = topLevelEquals(item);
-        if (equals < 0) continue;
-        const key = item.slice(0, equals).trim(), value = item.slice(equals + 1);
-        if (key.toLowerCase() === "#default") fallback = value;
-        else if (key === wanted.trim()) return value;
+        if (equals < 0) {
+          const label = item.trim();
+          if (label) pendingLabels.push(label);
+          continue;
+        }
+        const key = item.slice(0, equals).trim();
+        const value = item.slice(equals + 1);
+        if (key.toLowerCase() === "#default") {
+          fallback = value;
+          pendingLabels.length = 0;
+          continue;
+        }
+        const labels = [...pendingLabels, key];
+        pendingLabels.length = 0;
+        if (labels.includes(selected)) return value;
       }
       return fallback;
     }
@@ -273,7 +329,7 @@
       const block = findInnermost(output, "{{", "}}");
       if (!block) break;
       const content = output.slice(block.start + 2, block.innerEnd).trim();
-      const functionResult = content.startsWith("#") ? parserFunction(content) : null;
+      const functionResult = parserFunction(content, options);
       let replacement;
       if (functionResult !== null) replacement = functionResult;
       else {
@@ -305,11 +361,9 @@
       if (/^(?:File|Image):/i.test(target)) {
         const title = target.replace(/^(?:File|Image):/i, "").trim();
         const options = parts.map((part) => part.trim()).filter(Boolean);
-        const caption = [...options].reverse().find((part) => !/^(?:thumb|thumbnail|frameless|frame|border|left|right|center|none|upright(?:=[\d.]+)?|\d+(?:x\d+)?px)$/i.test(part)) || title;
+        const caption = [...options].reverse().find((part) => !/^(?:thumb|thumbnail|frameless|frame|border|left|right|center|none|upright(?:=[\d.]+)?|\d+(?:x\d+)?px|link=.*|alt=.*|class=.*|lang=.*)$/i.test(part)) || title;
         const width = options.map((part) => part.match(/^(\d+)(?:x\d+)?px$/i)).find(Boolean)?.[1];
-        const directSource = /^https:\/\/[^\s"'<>]+$/i.test(title) ? ` src="${escapeHtml(title)}"` : "";
-        const catalogTitle = directSource ? "" : ` data-wiki-file-title="${escapeHtml(title)}"`;
-        return `<img${catalogTitle}${directSource} alt="${escapeHtml(caption)}"${width ? ` style="max-width:${Math.min(1600, Number(width))}px;width:100%;height:auto;"` : ""}>`;
+        return `<img data-wiki-file-title="${escapeHtml(title)}" alt="${escapeHtml(caption)}"${width ? ` style="max-width:${Math.min(1600, Number(width))}px;width:100%;height:auto;"` : ""}>`;
       }
       const label = parts.length ? parts.join("|") : target;
       return `<a href="wiki.html?page=${encodeURIComponent(slugify(target))}">${label}</a>`;
