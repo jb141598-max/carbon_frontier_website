@@ -1774,9 +1774,10 @@
         outline: none;
       }
 
-      .article-content a {
+      .article-content a,
+      .article-content a:visited {
         color: #ff929a;
-        text-decoration: underline;
+        text-decoration: none;
         text-underline-offset: 3px;
       }
 
@@ -2148,6 +2149,9 @@
             </a>
             <a class="secondary-button" id="media-catalog-button" href="wiki-media.html" hidden>
               Images
+            </a>
+            <a class="secondary-button" id="style-button" href="wiki-style.html" hidden>
+              Style
             </a>
             <a class="primary-button" id="access-panel-button" href="wiki-permissions.html" hidden>
               Permissions
@@ -2819,6 +2823,7 @@
         importWikiButton: document.getElementById("import-wiki-button"),
         templatesButton: document.getElementById("templates-button"),
         mediaCatalogButton: document.getElementById("media-catalog-button"),
+        styleButton: document.getElementById("style-button"),
         accessPanelButton: document.getElementById("access-panel-button"),
         loadingView: document.getElementById("loading-view"),
         unavailableView: document.getElementById("unavailable-view"),
@@ -3493,6 +3498,7 @@
           elements.importWikiButton.hidden = true;
           elements.templatesButton.hidden = true;
           elements.mediaCatalogButton.hidden = true;
+          elements.styleButton.hidden = true;
           elements.accessPanelButton.hidden = true;
           elements.accountPill.textContent = viewer?.authenticated
             ? "No wiki access"
@@ -3513,6 +3519,7 @@
         elements.importWikiButton.hidden = !viewer.canManageSettings;
         elements.templatesButton.hidden = !viewer.isAssignedStaff;
         elements.mediaCatalogButton.hidden = !viewer.canEdit;
+        elements.styleButton.hidden = !viewer.canManageSettings;
         elements.accessPanelButton.hidden = !viewer.canManageEditors;
         elements.accountPill.textContent = viewer.role
           ? `${roleLabel(viewer.role)} access`
@@ -3700,9 +3707,10 @@
       waitForGoogle();
       loadWikiAccess();
     </script>
+    <script src="wiki-style-client.js?v=1"></script>
     <script src="wiki-media-client.js"></script>
     <script src="wiki-wikitext.js"></script>
-    <script src="wiki-template-wikitext.js?v=23-recipeslot"></script>
+    <script src="wiki-template-wikitext.js?v=22-mediawiki"></script>
     <script src="wiki-editor.js?v=22-mediawiki"></script>
   </body>
 </html>

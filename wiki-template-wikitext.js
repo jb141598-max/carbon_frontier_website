@@ -354,19 +354,55 @@
     return output;
   }
 
-  function renderLinks(source) {
+  function wikiPageHref(target, options = {}) {
+    const raw = String(target || "").trim().replace(/^:/, "");
+    const [rawTitle = "", ...fragmentParts] = raw.split("#");
+    const title = rawTitle.trim();
+    if (!title) return "wiki.html";
+
+    let slug = "";
+    if (Array.isArray(options.pages)) {
+      const wanted = normalizeName(title);
+      const page = options.pages.find((candidate) =>
+        normalizeName(candidate?.title) === wanted || normalizeName(candidate?.slug) === wanted
+      );
+      slug = String(page?.slug || "").trim();
+    }
+    if (!slug) slug = slugify(title);
+
+    let href = `wiki.html?page=${encodeURIComponent(slug)}`;
+    if (fragmentParts.length) {
+      const fragment = slugify(fragmentParts.join("#"));
+      if (fragment) href += `#${encodeURIComponent(fragment)}`;
+    }
+    return href;
+  }
+
+  function renderLinks(source, options = {}) {
     let output = source.replace(/\[\[([^\[\]]+)\]\]/g, (_match, inner) => {
       const parts = splitTopLevel(inner);
       const target = String(parts.shift() || "").trim();
       if (/^(?:File|Image):/i.test(target)) {
         const title = target.replace(/^(?:File|Image):/i, "").trim();
-        const options = parts.map((part) => part.trim()).filter(Boolean);
-        const caption = [...options].reverse().find((part) => !/^(?:thumb|thumbnail|frameless|frame|border|left|right|center|none|upright(?:=[\d.]+)?|\d+(?:x\d+)?px|link=.*|alt=.*|class=.*|lang=.*)$/i.test(part)) || title;
-        const width = options.map((part) => part.match(/^(\d+)(?:x\d+)?px$/i)).find(Boolean)?.[1];
-        return `<img data-wiki-file-title="${escapeHtml(title)}" alt="${escapeHtml(caption)}"${width ? ` style="max-width:${Math.min(1600, Number(width))}px;width:100%;height:auto;"` : ""}>`;
+        const imageOptions = parts.map((part) => part.trim()).filter(Boolean);
+        const caption = [...imageOptions].reverse().find((part) => !/^(?:thumb|thumbnail|frameless|frame|border|left|right|center|none|upright(?:=[\d.]+)?|\d+(?:x\d+)?px|link=.*|alt=.*|class=.*|lang=.*)$/i.test(part)) || title;
+        const width = imageOptions.map((part) => part.match(/^(\d+)(?:x\d+)?px$/i)).find(Boolean)?.[1];
+        const linkOption = imageOptions.find((part) => /^link\s*=/i.test(part));
+        const linkTarget = linkOption === undefined ? null : linkOption.replace(/^link\s*=/i, "").trim();
+        const imageHtml = `<img data-wiki-file-title="${escapeHtml(title)}" alt="${escapeHtml(caption)}"${width ? ` style="max-width:${Math.min(1600, Number(width))}px;width:100%;height:auto;"` : ""}>`;
+
+        // MediaWiki's [[File:...|link=Page]] syntax makes the image/cell clickable.
+        // An explicitly empty link= disables linking, which RecipeSlot uses for arrows and plus signs.
+        if (linkTarget) {
+          const href = /^https:\/\//i.test(linkTarget)
+            ? linkTarget
+            : wikiPageHref(linkTarget, options);
+          return `<a class="cf-template-image-link" href="${escapeHtml(href)}" title="${escapeHtml(linkTarget)}" style="display:inline-flex;align-items:center;justify-content:center;width:100%;height:100%;max-width:100%;color:inherit;text-decoration:none;">${imageHtml}</a>`;
+        }
+        return imageHtml;
       }
       const label = parts.length ? parts.join("|") : target;
-      return `<a href="wiki.html?page=${encodeURIComponent(slugify(target))}">${label}</a>`;
+      return `<a href="${escapeHtml(wikiPageHref(target, options))}">${label}</a>`;
     });
     output = output.replace(/\[(https:\/\/[^\s\]]+)(?:\s+([^\]]+))?\]/g, (_match, href, label) =>
       `<a href="${escapeHtml(href)}">${label || escapeHtml(href)}</a>`);
@@ -434,7 +470,7 @@
     let output = transclusionSource(source);
     output = expandParameters(output, values);
     output = expandTemplates(output, options, depth, stack);
-    output = renderLinks(output);
+    output = renderLinks(output, options);
     return output;
   }
 

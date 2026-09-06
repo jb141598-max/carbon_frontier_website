@@ -3,6 +3,7 @@ Allow: /
 
 Disallow: /updates/adminpanel
 Disallow: /wiki/permissions
+Disallow: /wiki/style
 Disallow: /wiki/analytics
 Disallow: /wiki/moderation
 Disallow: /wiki/import

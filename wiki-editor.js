@@ -1213,7 +1213,7 @@
       const rendered = document.createElement("div");
       rendered.className = "wiki-template-wikitext";
       try {
-        rendered.innerHTML = templateWikitext.render(definition.source, values, { templates: app.templates }).html;
+        rendered.innerHTML = templateWikitext.render(definition.source, values, { templates: app.templates, pages: app.pages }).html;
       } catch (error) {
         rendered.className += " cf-template-error";
         rendered.textContent = error.message || "This template source could not be rendered.";

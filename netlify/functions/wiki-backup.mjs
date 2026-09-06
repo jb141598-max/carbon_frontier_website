@@ -104,7 +104,7 @@ async function readiness(client, state) {
 async function fullBackup(client) {
   const [
     settings, members, pages, revisions, categories, pageCategories, redirects,
-    media, pendingEdits, blockedUsers, templates, templateRevisions, auditLog,
+    media, pendingEdits, blockedUsers, templates, templateRevisions, styles, styleSettings, auditLog,
   ] = await Promise.all([
     client.query("SELECT * FROM wiki_settings ORDER BY id"),
     client.query("SELECT * FROM wiki_members ORDER BY role, email"),
@@ -124,13 +124,15 @@ async function fullBackup(client) {
     client.query("SELECT * FROM wiki_blocked_users ORDER BY blocked_at, email"),
     client.query("SELECT * FROM wiki_templates ORDER BY created_at, id"),
     client.query("SELECT * FROM wiki_template_revisions ORDER BY template_id, revision_number"),
+    client.query("SELECT * FROM wiki_styles ORDER BY created_at, id"),
+    client.query("SELECT * FROM wiki_style_settings ORDER BY id"),
     client.query("SELECT * FROM wiki_audit_log ORDER BY created_at DESC LIMIT 5000"),
   ]);
 
   return {
     ok: true,
     exportType: "carbon-frontier-wiki-backup",
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     environment: "production",
     warning: "This private backup includes member emails and content metadata. Image binary files remain in Netlify Blobs; wiki_media includes the blob keys needed for recovery.",
@@ -147,6 +149,8 @@ async function fullBackup(client) {
       blockedUsers: cleanRows(blockedUsers.rows),
       templates: cleanRows(templates.rows),
       templateRevisions: cleanRows(templateRevisions.rows),
+      styles: cleanRows(styles.rows),
+      styleSettings: cleanRows(styleSettings.rows)[0] || null,
       auditLog: cleanRows(auditLog.rows),
     },
   };

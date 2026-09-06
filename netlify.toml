@@ -90,6 +90,22 @@
   to = "/wiki-templates.html"
   status = 200
 
+# Wiki appearance editor. The server Function restricts management to owners/admins.
+[[redirects]]
+  from = "/wiki/style"
+  to = "/wiki-style.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/style/"
+  to = "/wiki-style.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/admin/style"
+  to = "/wiki-style.html"
+  status = 200
+
 # Shared image catalog. Editors select catalog images instead of uploading
 # separate copies directly into individual pages or templates.
 [[redirects]]
