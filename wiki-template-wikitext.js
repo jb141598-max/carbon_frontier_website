@@ -356,6 +356,12 @@
 
   function wikiPageHref(target, options = {}) {
     const raw = String(target || "").trim().replace(/^:/, "");
+    if (raw.toLowerCase() === "cf-edit-current") {
+      const currentSlug = String(options.currentSlug || "").trim();
+      return currentSlug && currentSlug !== "front-page"
+        ? `wiki.html?page=${encodeURIComponent(currentSlug)}&edit=1`
+        : "wiki.html?edit=1";
+    }
     const [rawTitle = "", ...fragmentParts] = raw.split("#");
     const title = rawTitle.trim();
     if (!title) return "wiki.html";
@@ -486,6 +492,16 @@
   }
 
   function px(value) { return `${Math.round(Number(value) || 0)}px`; }
+  function visualTextSource(value) {
+    // Escape HTML so visual text stays text, while preserving the link markup
+    // inserted by the visual editor ([[Wiki page|label]] and [https://... label]).
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
   function visualElementSource(element) {
     const style = [
       "position:absolute", `left:${px(element.x)}`, `top:${px(element.y)}`,
@@ -499,8 +515,22 @@
         `text-align:${element.textAlign || "left"}`, `color:${element.color || "#ffffff"}`, "white-space:pre-wrap");
       const content = element.type === "placeholder"
         ? `{{{${element.placeholderKey || "value"}|${String(element.defaultValue || "")}}}}`
-        : escapeHtml(element.text || "");
+        : visualTextSource(element.text || "");
       return `<div style="${style.join(";")}">${content}</div>`;
+    }
+    if (element.type === "image") {
+      const mediaId = String(element.mediaId || "").trim();
+      const directUrl = String(element.url || "").trim();
+      const alt = escapeHtml(element.alt || "Template image");
+      const fit = element.fit === "contain" ? "contain" : "cover";
+      style.push(`border-radius:${px(element.borderRadius || 0)}`);
+      if (mediaId) {
+        return `<div style="${style.join(";")}">[[File:${escapeHtml(mediaId)}|frameless|${Math.max(1, Math.round(Number(element.width) || 1))}px|${alt}]]</div>`;
+      }
+      if (/^(?:https:\/\/|data:image\/(?:gif|jpeg|png|webp);base64,)/i.test(directUrl)) {
+        return `<div style="${style.join(";")}"><img src="${escapeHtml(directUrl)}" alt="${alt}" style="width:100%;height:100%;object-fit:${fit};border-radius:${px(element.borderRadius || 0)}"></div>`;
+      }
+      return `<div style="${style.join(";")}"></div>`;
     }
     if (element.type === "image-placeholder") {
       style.push(`background:${element.fill || "#1b1b1e"}`, `border:${Number(element.strokeWidth) || 0}px solid ${element.stroke || "#df2531"}`, `border-radius:${px(element.borderRadius || 0)}`);

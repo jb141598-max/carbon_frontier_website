@@ -1098,6 +1098,53 @@
     }
   }
 
+  function visualTemplateWikiHref(target) {
+    const raw = String(target || "").trim().replace(/^:/, "");
+    if (raw.toLowerCase() === "cf-edit-current") {
+      return app.currentSlug && app.currentSlug !== "front-page"
+        ? `wiki.html?page=${encodeURIComponent(app.currentSlug)}&edit=1`
+        : "wiki.html?edit=1";
+    }
+    const [title = "", ...fragmentParts] = raw.split("#");
+    const wanted = String(title || "").trim();
+    const known = app.pages.find((page) =>
+      String(page?.title || "").trim().toLowerCase() === wanted.toLowerCase() ||
+      String(page?.slug || "").trim().toLowerCase() === wanted.toLowerCase()
+    );
+    const slug = known?.slug || wikitext.slugify(wanted);
+    let href = slug ? `wiki.html?page=${encodeURIComponent(slug)}` : "wiki.html";
+    if (fragmentParts.length) {
+      const fragment = wikitext.slugify(fragmentParts.join("#"));
+      if (fragment) href += `#${encodeURIComponent(fragment)}`;
+    }
+    return href;
+  }
+
+  function appendVisualTemplateText(node, source) {
+    const text = String(source || "").slice(0, 1000);
+    const pattern = /\[\[([^\[\]\n]+?)\]\]|\[(https:\/\/[^\s\]]+)(?:\s+([^\]]+))?\]/g;
+    let cursor = 0;
+    for (const match of text.matchAll(pattern)) {
+      if (match.index > cursor) node.append(document.createTextNode(text.slice(cursor, match.index)));
+      const anchor = document.createElement("a");
+      if (match[1] !== undefined) {
+        const parts = String(match[1] || "").split("|");
+        const target = String(parts.shift() || "").trim();
+        anchor.href = visualTemplateWikiHref(target);
+        anchor.textContent = parts.length ? parts.join("|") : target;
+        anchor.title = target.toLowerCase() === "cf-edit-current" ? "Edit this wiki page" : target;
+      } else {
+        anchor.href = match[2];
+        anchor.textContent = match[3] || match[2];
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+      }
+      node.append(anchor);
+      cursor = match.index + match[0].length;
+    }
+    if (cursor < text.length) node.append(document.createTextNode(text.slice(cursor)));
+  }
+
   function safeTemplateColor(value, fallback = "transparent") {
     const color = String(value || "").trim();
     return color === "transparent" || /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
@@ -1121,9 +1168,11 @@
     node.style.setProperty("--object-opacity", String(clampNumber(element.opacity, 0.05, 1, 1)));
     if (type === "text" || type === "placeholder") {
       const key = String(element.placeholderKey || "");
-      node.textContent = type === "placeholder"
-        ? String(values?.[key] ?? element.defaultValue ?? `{{${key}}}`).slice(0, 1000)
-        : String(element.text || "").slice(0, 1000);
+      if (type === "placeholder") {
+        node.textContent = String(values?.[key] ?? element.defaultValue ?? `{{${key}}}`).slice(0, 1000);
+      } else {
+        appendVisualTemplateText(node, element.text);
+      }
       Object.assign(node.style, {
         fontFamily: FONT_FAMILIES.has(String(element.fontFamily || "").toLowerCase())
           ? FONT_FAMILIES.get(String(element.fontFamily).toLowerCase())
@@ -1213,7 +1262,11 @@
       const rendered = document.createElement("div");
       rendered.className = "wiki-template-wikitext";
       try {
-        rendered.innerHTML = templateWikitext.render(definition.source, values, { templates: app.templates, pages: app.pages }).html;
+        rendered.innerHTML = templateWikitext.render(definition.source, values, {
+          templates: app.templates,
+          pages: app.pages,
+          currentSlug: app.currentSlug,
+        }).html;
       } catch (error) {
         rendered.className += " cf-template-error";
         rendered.textContent = error.message || "This template source could not be rendered.";
@@ -1807,7 +1860,18 @@
         updateBrowserAddress(payload.redirect.targetSlug, true);
       }
       renderPage(payload.page);
-      setFeedback(ui.feedback, "");
+      const pageUrl = new URL(window.location.href);
+      if (pageUrl.searchParams.get("edit") === "1") {
+        pageUrl.searchParams.delete("edit");
+        window.history.replaceState({ wikiSlug: app.currentSlug }, "", pageUrl);
+        if (payload.page?.permissions?.canEdit) {
+          enterEditing();
+        } else {
+          setFeedback(ui.feedback, "Sign in with an account that can edit this page to open the editor.", true);
+        }
+      } else {
+        setFeedback(ui.feedback, "");
+      }
     } catch (error) {
       renderPageError(error);
       setFeedback(ui.feedback, error?.message || "The page could not be loaded.", true);

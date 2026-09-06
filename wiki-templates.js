@@ -40,6 +40,21 @@
     undo: document.getElementById("undo-button"),
     redo: document.getElementById("redo-button"),
     imageButton: document.getElementById("add-image-button"),
+    imagePlaceholderButton: document.getElementById("add-image-placeholder-button"),
+    imageFile: document.getElementById("template-image-file-input"),
+    replaceImage: document.getElementById("replace-template-image-button"),
+    imageStatus: document.getElementById("template-image-status"),
+    textValueInput: document.getElementById("text-value-input"),
+    textLinkTools: document.getElementById("template-text-link-tools"),
+    textLinkButton: document.getElementById("template-text-link-button"),
+    textLinkMenu: document.getElementById("template-text-link-menu"),
+    textLinkType: document.getElementById("template-text-link-type"),
+    textLinkTargetField: document.getElementById("template-text-link-target-field"),
+    textLinkTarget: document.getElementById("template-text-link-target"),
+    textLinkLabel: document.getElementById("template-text-link-label"),
+    textLinkNote: document.getElementById("template-text-link-note"),
+    textLinkCancel: document.getElementById("template-text-link-cancel"),
+    textLinkInsert: document.getElementById("template-text-link-insert"),
     duplicate: document.getElementById("duplicate-button"),
     forward: document.getElementById("bring-forward-button"),
     backward: document.getElementById("send-backward-button"),
@@ -87,6 +102,7 @@
     templates: [], current: null, draft: null, selectedId: "", selectedIds: [], undo: [], redo: [],
     interaction: null, guides: { x: [], y: [] }, zoom: 1, gestureStartZoom: 1, mode: "visual",
     googleInitialized: false, objectUrls: new Map(),
+    imageUploadMode: "add", textLinkSelection: null,
   };
 
   function isTestingEnvironment() {
@@ -128,6 +144,53 @@
   }
   function clearSelection() { setSelection([]); state.guides = { x: [], y: [] }; }
   function whole(value) { return Math.round(Number(value)); }
+
+  function templateTextHref(target) {
+    const raw = String(target || "").trim();
+    if (!raw) return "#";
+    if (raw.toLowerCase() === "cf-edit-current") return "#";
+    const [title = "", ...fragmentParts] = raw.replace(/^:/, "").split("#");
+    const slug = slugify(title);
+    let href = slug ? `wiki.html?page=${encodeURIComponent(slug)}` : "wiki.html";
+    if (fragmentParts.length) {
+      const fragment = slugify(fragmentParts.join("#"));
+      if (fragment) href += `#${encodeURIComponent(fragment)}`;
+    }
+    return href;
+  }
+
+  function appendVisualTemplateText(node, source) {
+    const text = String(source || "");
+    const pattern = /\[\[([^\[\]\n]+?)\]\]|\[(https:\/\/[^\s\]]+)(?:\s+([^\]]+))?\]/g;
+    let cursor = 0;
+    for (const match of text.matchAll(pattern)) {
+      if (match.index > cursor) node.append(document.createTextNode(text.slice(cursor, match.index)));
+      const anchor = document.createElement("a");
+      if (match[1] !== undefined) {
+        const parts = String(match[1] || "").split("|");
+        const target = String(parts.shift() || "").trim();
+        const label = parts.length ? parts.join("|") : target;
+        anchor.href = templateTextHref(target);
+        anchor.textContent = label;
+        anchor.title = target.toLowerCase() === "cf-edit-current" ? "Edit the current wiki page" : target;
+      } else {
+        anchor.href = match[2];
+        anchor.textContent = match[3] || match[2];
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+      }
+      anchor.tabIndex = -1;
+      node.append(anchor);
+      cursor = match.index + match[0].length;
+    }
+    if (cursor < text.length) node.append(document.createTextNode(text.slice(cursor)));
+  }
+
+  function cleanLinkText(value, { target = false } = {}) {
+    let cleaned = String(value || "").replace(/[\[\]|]/g, " ").replace(/\s+/g, " ").trim();
+    if (target) cleaned = cleaned.slice(0, 240);
+    return cleaned.slice(0, 300);
+  }
 
   function seedDefinition(width = 720, height = 420) {
     return { version: 1, canvas: { width, height, backgroundColor: "#111111" }, elements: [] };
@@ -365,7 +428,8 @@
     node.style.width = `${element.width}px`; node.style.height = element.type === "line" ? "0" : `${element.height}px`;
     node.style.setProperty("--rotation", `${element.rotation}deg`); node.style.setProperty("--opacity", element.opacity); node.style.zIndex = element.zIndex;
     if (element.type === "text" || element.type === "placeholder") {
-      node.textContent = element.type === "placeholder" ? element.defaultValue || `{{${element.placeholderKey}}}` : element.text;
+      if (element.type === "placeholder") node.textContent = element.defaultValue || `{{${element.placeholderKey}}}`;
+      else appendVisualTemplateText(node, element.text);
       Object.assign(node.style, { fontFamily: element.fontFamily, fontSize: `${element.fontSize}px`, fontWeight: element.fontWeight, fontStyle: element.fontStyle, textAlign: element.textAlign, color: element.color });
       if (element.type === "placeholder") { node.dataset.placeholder = element.placeholderKey; node.title = `Placeholder: ${element.placeholderKey}`; }
     } else if (element.type === "line") {
@@ -436,7 +500,8 @@
     ui.shapeProperties.hidden = !element || !["shape", "frame"].includes(element.type);
     ui.lineProperties.hidden = !element || element.type !== "line"; ui.imageProperties.hidden = !element || element.type !== "image";
     ui.imagePlaceholderProperties.hidden = !element || element.type !== "image-placeholder";
-    ui.textValueField.hidden = element?.type !== "text"; ui.placeholderKeyField.hidden = element?.type !== "placeholder"; ui.placeholderDefaultField.hidden = element?.type !== "placeholder"; ui.shapeKindField.hidden = element?.type === "frame";
+    ui.textValueField.hidden = element?.type !== "text"; ui.textLinkTools.hidden = element?.type !== "text"; ui.placeholderKeyField.hidden = element?.type !== "placeholder"; ui.placeholderDefaultField.hidden = element?.type !== "placeholder"; ui.shapeKindField.hidden = element?.type === "frame";
+    if (element?.type !== "text") { ui.textLinkMenu.hidden = true; state.textLinkSelection = null; }
     ui.selectionTitle.textContent = selectionCount > 1
       ? `${selectionCount} objects selected`
       : element ? (["placeholder", "image-placeholder"].includes(element.type) ? `Placeholder · ${element.placeholderKey}` : element.type.replace(/^./, (letter) => letter.toUpperCase())) : "Canvas";
@@ -536,6 +601,116 @@
       renderList();
       if (state.templates.length) openTemplate(state.templates[0]);
     } catch (error) { setFeedback(ui.feedback, error.message || "Templates could not be loaded.", true); }
+  }
+
+  function beginFixedImageUpload(mode = "add") {
+    if (!state.draft) return;
+    if (mode === "replace" && selectedElement()?.type !== "image") return;
+    state.imageUploadMode = mode;
+    ui.imageFile.value = "";
+    ui.imageFile.click();
+  }
+
+  async function handleFixedImageFile() {
+    const file = ui.imageFile.files?.[0];
+    if (!file || !state.draft) return;
+    const replacing = state.imageUploadMode === "replace" && selectedElement()?.type === "image";
+    ui.imageButton.disabled = true;
+    if (ui.replaceImage) ui.replaceImage.disabled = true;
+    if (ui.imageStatus) ui.imageStatus.textContent = replacing ? "Replacing image…" : "Uploading fixed template image…";
+    try {
+      const media = await uploadImage(file);
+      pushHistory();
+      if (replacing) {
+        const element = selectedElement();
+        element.mediaId = String(media?.id || "");
+        element.url = state.testing ? String(media?.url || "") : "";
+        element.alt = String(file.name || media?.title || "Template image").slice(0, 240);
+      } else {
+        const element = {
+          id: randomId("image"), type: "image", x: 48, y: 48, width: 220, height: 180,
+          rotation: 0, zIndex: maxZ() + 1, opacity: 1,
+          mediaId: String(media?.id || ""), url: state.testing ? String(media?.url || "") : "",
+          alt: String(file.name || media?.title || "Template image").slice(0, 240), fit: "contain", borderRadius: 0,
+        };
+        state.draft.definition.elements.push(element);
+        setSelection([element.id]);
+      }
+      renderAll();
+      setFeedback(ui.feedback, replacing ? "Fixed image replaced. Save the template to publish it." : "Fixed image added. It will appear in every use of this template after you save.");
+    } catch (error) {
+      setFeedback(ui.feedback, error?.message || "The template image could not be uploaded.", true);
+      if (ui.imageStatus) ui.imageStatus.textContent = "The image upload failed.";
+    } finally {
+      ui.imageButton.disabled = false;
+      if (ui.replaceImage) ui.replaceImage.disabled = false;
+      ui.imageFile.value = "";
+    }
+  }
+
+  function updateTextLinkTargetField() {
+    const type = ui.textLinkType.value;
+    ui.textLinkTargetField.hidden = type === "current-edit";
+    ui.textLinkTarget.placeholder = type === "external" ? "https://example.com" : "Coal";
+    ui.textLinkNote.textContent = type === "current-edit"
+      ? "This opens the editor for whichever wiki article the template is shown on."
+      : "The link is inserted exactly at the current text cursor position.";
+  }
+
+  function openTextLinkMenu() {
+    const element = selectedElement();
+    if (element?.type !== "text") return;
+    const input = ui.textValueInput;
+    const start = Number.isInteger(input.selectionStart) ? input.selectionStart : String(element.text || "").length;
+    const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : start;
+    state.textLinkSelection = { elementId: element.id, start, end };
+    ui.textLinkType.value = "wiki";
+    ui.textLinkTarget.value = "";
+    ui.textLinkLabel.value = input.value.slice(start, end);
+    ui.textLinkMenu.hidden = false;
+    updateTextLinkTargetField();
+    setTimeout(() => (ui.textLinkLabel.value ? ui.textLinkTarget : ui.textLinkLabel).focus(), 0);
+  }
+
+  function closeTextLinkMenu({ restoreFocus = true } = {}) {
+    ui.textLinkMenu.hidden = true;
+    if (restoreFocus && ui.textValueInput) ui.textValueInput.focus();
+  }
+
+  function insertTextLink() {
+    const selection = state.textLinkSelection;
+    const element = selectedElement();
+    if (!selection || element?.type !== "text" || selection.elementId !== element.id) return;
+    const type = ui.textLinkType.value;
+    const rawTarget = ui.textLinkTarget.value.trim();
+    let label = cleanLinkText(ui.textLinkLabel.value);
+    let markup = "";
+    if (type === "current-edit") {
+      label ||= "edit this page";
+      markup = `[[cf-edit-current|${label}]]`;
+    } else if (type === "external") {
+      let url;
+      try { url = new URL(rawTarget); } catch { setFeedback(ui.feedback, "Enter a complete HTTPS link first.", true); return; }
+      if (url.protocol !== "https:") { setFeedback(ui.feedback, "External template links must use HTTPS.", true); return; }
+      label ||= url.hostname;
+      markup = `[${url.href} ${label}]`;
+    } else {
+      const target = cleanLinkText(rawTarget, { target: true });
+      if (!target) { setFeedback(ui.feedback, "Enter the wiki page this link should open.", true); return; }
+      label ||= target;
+      markup = `[[${target}|${label}]]`;
+    }
+    pushHistory();
+    const text = String(element.text || "");
+    element.text = `${text.slice(0, selection.start)}${markup}${text.slice(selection.end)}`.slice(0, 1000);
+    const caret = Math.min(element.text.length, selection.start + markup.length);
+    ui.textLinkMenu.hidden = true;
+    state.textLinkSelection = null;
+    renderAll();
+    setTimeout(() => {
+      ui.textValueInput.focus();
+      ui.textValueInput.setSelectionRange(caret, caret);
+    }, 0);
   }
 
   function addElement(kind) {
@@ -770,7 +945,14 @@
   ui.viewport.addEventListener("gesturechange", changeGesture, { passive: false });
   ui.undo.addEventListener("click", () => restoreHistory(state.undo, state.redo)); ui.redo.addEventListener("click", () => restoreHistory(state.redo, state.undo));
   ui.duplicate.addEventListener("click", duplicateSelected); ui.delete.addEventListener("click", deleteSelected); ui.forward.addEventListener("click", () => moveLayer("forward")); ui.backward.addEventListener("click", () => moveLayer("backward")); ui.front.addEventListener("click", () => moveLayer("front")); ui.back.addEventListener("click", () => moveLayer("back"));
-  ui.imageButton.addEventListener("click", () => addElement("image-placeholder"));
+  ui.imageButton.addEventListener("click", () => beginFixedImageUpload("add"));
+  ui.imagePlaceholderButton.addEventListener("click", () => addElement("image-placeholder"));
+  ui.imageFile.addEventListener("change", handleFixedImageFile);
+  ui.replaceImage.addEventListener("click", () => beginFixedImageUpload("replace"));
+  ui.textLinkButton.addEventListener("click", openTextLinkMenu);
+  ui.textLinkType.addEventListener("change", updateTextLinkTargetField);
+  ui.textLinkCancel.addEventListener("click", () => closeTextLinkMenu());
+  ui.textLinkInsert.addEventListener("click", insertTextLink);
   ui.zoomOut.addEventListener("click", () => setZoom(state.zoom / 1.2));
   ui.zoomIn.addEventListener("click", () => setZoom(state.zoom * 1.2));
   ui.zoomFit.addEventListener("click", fitZoom);
