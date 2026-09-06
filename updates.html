@@ -2326,6 +2326,11 @@
         const headerImageHeight = Number.isFinite(requestedHeaderImageHeight)
           ? Math.min(900, Math.max(120, Math.round(requestedHeaderImageHeight)))
           : 320;
+        const requestedPublishedAt = String(update?.publishedAt || "").trim();
+        const publishedTimestamp = Date.parse(requestedPublishedAt);
+        const publishedAt = Number.isFinite(publishedTimestamp)
+          ? new Date(publishedTimestamp).toISOString()
+          : "";
         const isArchived = update?.isArchived === true;
         const isHidden = update?.isHidden === true;
 
@@ -2334,6 +2339,7 @@
           slug: normalizeStoredUpdateSlug(update?.slug),
           version: version || `Update ${index + 1}`,
           date,
+          publishedAt,
           hasHeader,
           header,
           hasHeaderImage,
@@ -2445,37 +2451,75 @@
         return updatesState.updates.filter((update) => update.isArchived === true);
       }
 
+      function getUpdateReleaseTimestamp(update) {
+        const date = String(update?.date || "").trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return Number.NEGATIVE_INFINITY;
+        }
+
+        const timestamp = Date.parse(`${date}T00:00:00Z`);
+        return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+      }
+
+      function getUpdatePublishedTimestamp(update) {
+        const timestamp = Date.parse(String(update?.publishedAt || "").trim());
+        return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+      }
+
+      function getUpdateVersionParts(update) {
+        return (String(update?.version || "").match(/\d+/g) || [])
+          .slice(0, 6)
+          .map((part) => Number(part));
+      }
+
+      function compareUpdateVersionsNewestFirst(first, second) {
+        const firstParts = getUpdateVersionParts(first);
+        const secondParts = getUpdateVersionParts(second);
+        const length = Math.max(firstParts.length, secondParts.length);
+
+        for (let index = 0; index < length; index += 1) {
+          const difference = (secondParts[index] || 0) - (firstParts[index] || 0);
+          if (difference !== 0) {
+            return difference;
+          }
+        }
+
+        return 0;
+      }
+
       function getPublicCurrentUpdates() {
-        const visibleUpdates = getCurrentUpdates().filter((update) => update.isHidden !== true);
-        if (visibleUpdates.length < 2) {
-          return visibleUpdates;
-        }
+        // The Updates home URL must always point at the newest visible current
+        // update. Release date is the main signal. publishedAt breaks same-day
+        // ties for newly published updates, version breaks legacy ties, and the
+        // saved order is the final fallback (new updates were historically
+        // appended to the end of the list).
+        return getCurrentUpdates()
+          .filter((update) => update.isHidden !== true)
+          .map((update, index) => ({ update, index }))
+          .sort((first, second) => {
+            const firstReleaseTimestamp = getUpdateReleaseTimestamp(first.update);
+            const secondReleaseTimestamp = getUpdateReleaseTimestamp(second.update);
+            if (firstReleaseTimestamp !== secondReleaseTimestamp) {
+              return secondReleaseTimestamp > firstReleaseTimestamp ? 1 : -1;
+            }
 
-        let newestIndex = -1;
-        let newestTimestamp = Number.NEGATIVE_INFINITY;
-        visibleUpdates.forEach((update, index) => {
-          const date = String(update.date || "").trim();
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-            return;
-          }
+            const firstPublishedTimestamp = getUpdatePublishedTimestamp(first.update);
+            const secondPublishedTimestamp = getUpdatePublishedTimestamp(second.update);
+            if (firstPublishedTimestamp !== secondPublishedTimestamp) {
+              return secondPublishedTimestamp > firstPublishedTimestamp ? 1 : -1;
+            }
 
-          const timestamp = Date.parse(`${date}T00:00:00Z`);
-          if (Number.isFinite(timestamp) && timestamp > newestTimestamp) {
-            newestTimestamp = timestamp;
-            newestIndex = index;
-          }
-        });
+            const versionDifference = compareUpdateVersionsNewestFirst(
+              first.update,
+              second.update
+            );
+            if (versionDifference !== 0) {
+              return versionDifference;
+            }
 
-        if (newestIndex <= 0) {
-          return visibleUpdates;
-        }
-
-        const newestUpdate = visibleUpdates[newestIndex];
-        return [
-          newestUpdate,
-          ...visibleUpdates.slice(0, newestIndex),
-          ...visibleUpdates.slice(newestIndex + 1),
-        ];
+            return second.index - first.index;
+          })
+          .map(({ update }) => update);
       }
 
       function getPublicArchivedUpdates() {
@@ -4277,6 +4321,7 @@
           slug: "",
           version: `v${nextNumber}.0.0`,
           date: "",
+          publishedAt: "",
           hasHeader: false,
           header: "",
           hasHeaderImage: false,
@@ -4516,9 +4561,23 @@
         }
 
         const nextHiddenState = update.isHidden !== true;
-        updatesState.updates = updatesState.updates.map((entry) =>
-          entry.id === update.id ? { ...entry, isHidden: nextHiddenState } : entry
-        );
+        updatesState.updates = updatesState.updates.map((entry) => {
+          if (entry.id !== update.id) {
+            return entry;
+          }
+
+          return {
+            ...entry,
+            isHidden: nextHiddenState,
+            // Record the first time an update is actually shown. This gives
+            // same-day releases an unambiguous recency signal without changing
+            // old permanent URLs or requiring a database migration.
+            publishedAt:
+              nextHiddenState || entry.publishedAt
+                ? entry.publishedAt || ""
+                : new Date().toISOString(),
+          };
+        });
 
         if (nextHiddenState && updatesState.publicSelectedUpdateId === update.id) {
           updatesState.publicSelectedUpdateId = null;

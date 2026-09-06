@@ -6,6 +6,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
+  const API_VERSION = 2;
   const MAX_SOURCE = 100_000;
   const MAX_EXPANSIONS = 1_000;
   const MAX_DEPTH = 20;
@@ -433,5 +434,5 @@
 </includeonly>
 <noinclude>Use this template on a wiki page and fill in name and power.</noinclude>`;
 
-  return Object.freeze({ parse, format, render, extractPlaceholders, transclusionSource, documentationSource, example });
+  return Object.freeze({ apiVersion: API_VERSION, parse, format, render, extractPlaceholders, transclusionSource, documentationSource, example });
 });

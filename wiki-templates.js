@@ -473,7 +473,9 @@
   }
 
   function parseTemplateSource() {
-    if (!templateWikitext?.parse) throw new Error("Template Wikitext could not be loaded. Reload this page and try again.");
+    if (!templateWikitext?.parse || Number(templateWikitext.apiVersion) < 2) {
+      throw new Error("The old Template Source engine is still cached. Reload this page once, then try again.");
+    }
     const definition = templateWikitext.parse(ui.sourceInput.value);
     pushHistory();
     state.draft.definition = definition;
