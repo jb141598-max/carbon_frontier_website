@@ -165,6 +165,12 @@
     templateForm: document.getElementById("template-form"),
     templateList: document.getElementById("template-picker-list"),
     templateValues: document.getElementById("template-value-fields"),
+    templatePlacementPanel: document.getElementById("template-placement-panel"),
+    templatePlacementGrid: document.getElementById("template-placement-grid"),
+    templateScale: document.getElementById("template-scale-input"),
+    templateScaleOutput: document.getElementById("template-scale-output"),
+    templateFullWidth: document.getElementById("template-full-width-input"),
+    templatePlacementNote: document.getElementById("template-placement-note"),
     templateFeedback: document.getElementById("template-picker-feedback"),
     closeTemplate: document.getElementById("close-template-button"),
     cancelTemplate: document.getElementById("cancel-template-button"),
@@ -215,6 +221,9 @@
     selectedImageLayout: "inline",
     draggingFigure: null,
     draggingObject: null,
+    dropGuide: null,
+    dropPlacement: null,
+    selectedTemplateLayout: "wrap-right",
     layeredDrag: null,
     objectResize: null,
     templates: [],
@@ -933,32 +942,91 @@
   }
 
   function configureTemplateInstance(instance, block = {}) {
-    if (block.layout !== undefined || block.widthPercent !== undefined) {
+    if (
+      block.layout !== undefined ||
+      block.widthPercent !== undefined ||
+      block.scale !== undefined ||
+      block.fullWidth !== undefined ||
+      block.baseWidthPercent !== undefined
+    ) {
       instance.dataset.objectPlacementExplicit = "1";
     } else if (instance.dataset.objectPlacementExplicit === undefined) {
       instance.dataset.objectPlacementExplicit = "0";
     }
+
     const layout = normalizeImageLayout(block.layout || instance.dataset.templateLayout);
-    const width = clampNumber(block.widthPercent ?? instance.dataset.templateWidth, 20, 100, 46);
+    const previousScale = clampNumber(instance.dataset.templateScale, 0.25, 3, 1);
+    const scale = clampNumber(block.scale ?? instance.dataset.templateScale, 0.25, 3, 1);
+    const explicitFullWidth = block.fullWidth !== undefined
+      ? block.fullWidth === true
+      : instance.dataset.templateFullWidth === "1";
+
+    let baseWidth;
+    if (block.baseWidthPercent !== undefined) {
+      baseWidth = clampNumber(block.baseWidthPercent, 10, 100, 46);
+    } else if (block.widthPercent !== undefined && instance.dataset.templateBaseWidth) {
+      // Width changes made with resize handles / Layout Options are effective widths.
+      // Convert them back into the scale-1 baseline so the scale field stays meaningful.
+      baseWidth = clampNumber(Number(block.widthPercent) / Math.max(0.25, previousScale), 10, 100, 46);
+    } else if (block.widthPercent !== undefined) {
+      baseWidth = clampNumber(block.widthPercent, 10, 100, 46);
+    } else {
+      baseWidth = clampNumber(instance.dataset.templateBaseWidth, 10, 100, 46);
+    }
+
+    const legacyWidth = clampNumber(block.widthPercent ?? instance.dataset.templateWidth, 10, 100, 46);
+    const inferredLegacyFullWidth =
+      block.fullWidth === undefined &&
+      !instance.dataset.templateFullWidth &&
+      layout === "break" &&
+      legacyWidth >= 99.5;
+    const fullWidth = explicitFullWidth || inferredLegacyFullWidth;
+    const width = fullWidth ? 100 : clampNumber(baseWidth * scale, 10, 100, 46);
     const x = clampNumber(block.xPercent ?? instance.dataset.templateX, 0, 85, 0);
     const y = clampNumber(block.yPixels ?? instance.dataset.templateY, 0, 5000, 0);
+
     instance.classList.add("wiki-placed-object");
     instance.dataset.objectKind = "template";
-    instance.dataset.objectLayout = layout;
+    instance.dataset.objectLayout = fullWidth ? "break" : layout;
     instance.dataset.objectWidth = String(width);
     instance.dataset.objectX = String(x);
     instance.dataset.objectY = String(y);
-    instance.dataset.templateLayout = layout;
+    instance.dataset.templateLayout = fullWidth ? "break" : layout;
     instance.dataset.templateWidth = String(width);
+    instance.dataset.templateBaseWidth = String(baseWidth);
+    instance.dataset.templateScale = String(scale);
+    instance.dataset.templateFullWidth = fullWidth ? "1" : "0";
     instance.dataset.templateX = String(x);
     instance.dataset.templateY = String(y);
     instance.style.setProperty("--wiki-object-width", `${width}%`);
     instance.style.setProperty("--wiki-object-x", String(x));
     instance.style.setProperty("--wiki-object-y", String(y));
-    instance.draggable = Boolean(app.editing && !["behind", "front"].includes(layout));
+    instance.draggable = Boolean(app.editing && !["behind", "front"].includes(objectLayout(instance)));
     instance.tabIndex = app.editing ? 0 : -1;
     instance.setAttribute("role", "group");
-    instance.setAttribute("aria-label", "Wiki template. Click to select; drag to move; double-click to edit values.");
+    instance.setAttribute("aria-label", "Wiki template. Click to select; drag to move; double-click to edit values, placement, and size.");
+  }
+
+  function templateScale(node) {
+    return clampNumber(node?.dataset?.templateScale, 0.25, 3, 1);
+  }
+
+  function templateBaseWidth(node) {
+    if (!node) return 46;
+    const scale = templateScale(node);
+    return clampNumber(
+      node.dataset.templateBaseWidth || (objectWidth(node) / Math.max(0.25, scale)),
+      10,
+      100,
+      46
+    );
+  }
+
+  function templateFullWidth(node) {
+    return Boolean(
+      node?.dataset?.templateFullWidth === "1" ||
+      (node && objectLayout(node) === "break" && objectWidth(node) >= 99.5)
+    );
   }
 
   function isPlacedObject(node) {
@@ -1256,7 +1324,9 @@
     }
     if (definition.kind === "wikitext" && definition.source && templateWikitext?.render) {
       instance.__templateResizeObserver?.disconnect?.();
+      instance.dataset.templateKind = "wikitext";
       instance.style.setProperty("--template-width", "100%");
+      instance.style.setProperty("--template-scaled-width", "100%");
       instance.style.height = "";
       instance.dataset.templateRevisionId = template?.currentRevision?.id || instance.dataset.templateRevisionId || "";
       const rendered = document.createElement("div");
@@ -1278,7 +1348,10 @@
     }
     const width = Math.round(clampNumber(definition.canvas.width, 240, 1600, 720));
     const height = Math.round(clampNumber(definition.canvas.height, 120, 1600, 420));
+    const requestedScale = templateScale(instance);
+    instance.dataset.templateKind = "visual";
     instance.style.setProperty("--template-width", `${width}px`);
+    instance.style.setProperty("--template-scaled-width", `${Math.round(width * requestedScale)}px`);
     instance.dataset.templateRevisionId = template?.currentRevision?.id || instance.dataset.templateRevisionId || "";
     const stage = document.createElement("div");
     stage.className = "wiki-template-stage";
@@ -1290,9 +1363,11 @@
     if (app.selectedObject === instance) addResizeHandles(instance);
     const size = () => {
       const available = instance.clientWidth || width;
-      const scale = Math.min(1, available / width);
-      instance.style.setProperty("--template-scale", String(scale));
-      instance.style.height = `${Math.ceil(height * scale)}px`;
+      // The wrapper already reflects the requested instance scale. Scaling the
+      // stage to the wrapper keeps width and height uniform, including >1×.
+      const fittedScale = clampNumber(available / width, 0.05, 6, 1);
+      instance.style.setProperty("--template-scale", String(fittedScale));
+      instance.style.height = `${Math.ceil(height * fittedScale)}px`;
     };
     size();
     window.requestAnimationFrame(() => {
@@ -1513,8 +1588,13 @@
           type: "template",
         };
         if (node.dataset.objectPlacementExplicit === "1") Object.assign(templateBlock, {
-          layout: objectLayout(node), widthPercent: objectWidth(node),
-          xPercent: clampNumber(node.dataset.objectX, 0, 85, 0), yPixels: clampNumber(node.dataset.objectY, 0, 5000, 0),
+          layout: objectLayout(node),
+          widthPercent: objectWidth(node),
+          baseWidthPercent: templateBaseWidth(node),
+          scale: templateScale(node),
+          fullWidth: templateFullWidth(node),
+          xPercent: clampNumber(node.dataset.objectX, 0, 85, 0),
+          yPixels: clampNumber(node.dataset.objectY, 0, 5000, 0),
         });
         blocks.push(templateBlock);
         return;
@@ -2622,11 +2702,45 @@
     renderTemplateValueFields(values);
   }
 
+  function setTemplatePlacementChoice(layout) {
+    const normalized = normalizeImageLayout(layout, "wrap-right");
+    app.selectedTemplateLayout = ["break", "wrap-left", "wrap-right", "behind", "front"].includes(normalized)
+      ? normalized
+      : "wrap-right";
+    ui.templatePlacementGrid?.querySelectorAll("[data-template-layout]").forEach((button) => {
+      const active = button.dataset.templateLayout === app.selectedTemplateLayout;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  }
+
+  function updateTemplateScaleDisplay() {
+    const value = clampNumber(ui.templateScale?.value, 0.25, 3, 1);
+    if (ui.templateScale) ui.templateScale.value = String(Math.round(value * 100) / 100);
+    if (ui.templateScaleOutput) ui.templateScaleOutput.textContent = `${Number(value.toFixed(2))}×`;
+  }
+
+  function syncTemplatePlacementControls(templateNode = null) {
+    const fullWidth = templateNode ? templateFullWidth(templateNode) : false;
+    const layout = fullWidth ? "break" : (templateNode ? objectLayout(templateNode) : "wrap-right");
+    setTemplatePlacementChoice(layout);
+    if (ui.templateScale) ui.templateScale.value = String(templateNode ? templateScale(templateNode) : 1);
+    if (ui.templateFullWidth) ui.templateFullWidth.checked = fullWidth;
+    updateTemplateScaleDisplay();
+    if (ui.templateScale) ui.templateScale.disabled = fullWidth;
+    if (ui.templatePlacementNote) {
+      ui.templatePlacementNote.textContent = fullWidth
+        ? "Full width keeps the template on its own row and scales it uniformly to the article width inside the page margins."
+        : "Whole row keeps the template on its own line. Wrap modes let article text flow beside it. Behind/In front layer the template with text.";
+    }
+  }
+
   async function openTemplateDialog(templateNode = null) {
     if (!app.editing) return;
     if (!templateNode) saveCurrentSelection();
     app.editingTemplateNode = templateNode;
     app.selectedTemplateId = templateNode?.__wikiTemplateBlock?.templateId || "";
+    syncTemplatePlacementControls(templateNode);
     ui.templateStudio.hidden = !viewer()?.isAssignedStaff;
     setFeedback(ui.templateFeedback, "Loading reusable templates...");
     setDialog(ui.templateDialog, true);
@@ -2669,6 +2783,11 @@
       return;
     }
     const previous = app.editingTemplateNode;
+    const scale = clampNumber(ui.templateScale?.value, 0.25, 3, 1);
+    const fullWidth = Boolean(ui.templateFullWidth?.checked);
+    const baseWidthPercent = previous ? templateBaseWidth(previous) : 46;
+    const layout = fullWidth ? "break" : app.selectedTemplateLayout;
+    const effectiveWidth = fullWidth ? 100 : clampNumber(baseWidthPercent * scale, 10, 100, 46);
     const block = {
       type: "template",
       templateId: template.id,
@@ -2676,9 +2795,12 @@
       templateRevisionId: template.currentRevision.id,
       values: templateValuesFromForm(),
       snapshot: clone(template.currentRevision.definition),
-      layout: previous ? objectLayout(previous) : "wrap-right",
-      widthPercent: previous ? objectWidth(previous) : 46,
-      xPercent: previous ? clampNumber(previous.dataset.objectX, 0, 85, 0) : 0,
+      layout,
+      widthPercent: effectiveWidth,
+      baseWidthPercent,
+      scale,
+      fullWidth,
+      xPercent: previous ? clampNumber(previous.dataset.objectX, 0, 85, 0) : (layout === "behind" || layout === "front" ? 8 : 0),
       yPixels: previous ? clampNumber(previous.dataset.objectY, 0, 5000, 0) : 0,
     };
     const instance = createTemplateInstance(block);
@@ -2691,7 +2813,7 @@
     closeTemplateDialog();
     ui.content.focus();
     selectFigure(instance);
-    setFeedback(ui.feedback, `“${template.name}” inserted beside the text. Drag it to move, resize with the corner handles, or double-click it to change values.`);
+    setFeedback(ui.feedback, `“${template.name}” updated. Drag it up or down to reposition it; the red guide shows the exact article block where it will land. Double-click it again for values, placement, or scale.`);
   }
 
   async function handleMediaUpload(event) {
@@ -3303,6 +3425,56 @@
       openImageOptions();
     }
   });
+  function clearObjectDropGuide() {
+    app.dropGuide?.remove();
+    app.dropGuide = null;
+    app.dropPlacement = null;
+  }
+
+  function describeDropTarget(target, before) {
+    if (!target) return "Place at end of article";
+    const heading = target.matches?.("h1,h2,h3,h4,h5,h6") ? target.textContent.trim() : "";
+    if (heading) return `${before ? "Before" : "After"} “${heading.slice(0, 42)}”`;
+    if (target.matches?.("p,li,blockquote")) return `${before ? "Before" : "After"} this text line`;
+    if (target.classList?.contains("wiki-template-instance")) return `${before ? "Before" : "After"} this template`;
+    if (target.matches?.("figure")) return `${before ? "Before" : "After"} this image`;
+    return `${before ? "Before" : "After"} this article block`;
+  }
+
+  function calculateObjectDropPlacement(clientY, draggingObject) {
+    const children = [...ui.content.children].filter((child) => child !== draggingObject && !child.classList.contains("wiki-object-drop-guide"));
+    if (!children.length) return { target: null, before: false, y: 0 };
+    for (const child of children) {
+      const rect = child.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        return { target: child, before: true, y: rect.top };
+      }
+    }
+    const last = children.at(-1);
+    const rect = last.getBoundingClientRect();
+    return { target: last, before: false, y: rect.bottom };
+  }
+
+  function showObjectDropGuide(event) {
+    const object = app.draggingObject;
+    if (!object) return;
+    const placement = calculateObjectDropPlacement(event.clientY, object);
+    app.dropPlacement = placement;
+    if (!app.dropGuide) {
+      const guide = document.createElement("div");
+      guide.className = "wiki-object-drop-guide";
+      guide.contentEditable = "false";
+      const label = document.createElement("span");
+      guide.append(label);
+      ui.content.append(guide);
+      app.dropGuide = guide;
+    }
+    const contentRect = ui.content.getBoundingClientRect();
+    const top = Math.max(0, placement.y - contentRect.top + ui.content.scrollTop);
+    app.dropGuide.style.top = `${top}px`;
+    app.dropGuide.querySelector("span").textContent = describeDropTarget(placement.target, placement.before);
+  }
+
   ui.content.addEventListener("dragstart", (event) => {
     const object = event.target.closest(".wiki-placed-object");
     if (!app.editing || !isPlacedObject(object) || ["behind", "front"].includes(objectLayout(object))) {
@@ -3319,15 +3491,16 @@
     if (!app.draggingObject) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
+    showObjectDropGuide(event);
   });
   ui.content.addEventListener("drop", (event) => {
     const object = app.draggingObject;
     if (!object) return;
     event.preventDefault();
-    const target = directContentChild(event.target);
+    const placement = app.dropPlacement || calculateObjectDropPlacement(event.clientY, object);
+    const target = placement.target;
     if (target && target !== object) {
-      const bounds = target.getBoundingClientRect();
-      target.insertAdjacentElement(event.clientY < bounds.top + bounds.height / 2 ? "beforebegin" : "afterend", object);
+      target.insertAdjacentElement(placement.before ? "beforebegin" : "afterend", object);
     } else if (!target) {
       ui.content.append(object);
     }
@@ -3335,13 +3508,15 @@
     object.classList.remove("is-object-dragging", "is-image-dragging");
     app.draggingObject = null;
     app.draggingFigure = null;
+    clearObjectDropGuide();
     selectFigure(object);
-    setFeedback(ui.feedback, `${label} moved. Save the page to publish its new position.`);
+    setFeedback(ui.feedback, `${label} moved to the marked article line. Save the page to publish its new position.`);
   });
   ui.content.addEventListener("dragend", () => {
     app.draggingObject?.classList.remove("is-object-dragging", "is-image-dragging");
     app.draggingObject = null;
     app.draggingFigure = null;
+    clearObjectDropGuide();
   });
   ui.content.addEventListener("pointerdown", (event) => {
     const handle = event.target.closest(".object-resize-handle");
@@ -3439,6 +3614,26 @@
   ui.templateList.addEventListener("click", (event) => {
     const button = event.target.closest("[data-template-id]");
     if (button) chooseTemplate(button.dataset.templateId, {});
+  });
+  ui.templatePlacementGrid?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-template-layout]");
+    if (!button) return;
+    if (ui.templateFullWidth?.checked) ui.templateFullWidth.checked = false;
+    if (ui.templateScale) ui.templateScale.disabled = false;
+    setTemplatePlacementChoice(button.dataset.templateLayout);
+    if (ui.templatePlacementNote) ui.templatePlacementNote.textContent = "Whole row keeps the template on its own line. Wrap modes let article text flow beside it. Behind/In front layer the template with text.";
+  });
+  ui.templateScale?.addEventListener("input", updateTemplateScaleDisplay);
+  ui.templateScale?.addEventListener("change", updateTemplateScaleDisplay);
+  ui.templateFullWidth?.addEventListener("change", () => {
+    if (ui.templateFullWidth.checked) {
+      setTemplatePlacementChoice("break");
+      if (ui.templateScale) ui.templateScale.disabled = true;
+      if (ui.templatePlacementNote) ui.templatePlacementNote.textContent = "Full width keeps the template on its own row and scales it uniformly to the article width inside the page margins.";
+    } else {
+      if (ui.templateScale) ui.templateScale.disabled = false;
+      if (ui.templatePlacementNote) ui.templatePlacementNote.textContent = "Whole row keeps the template on its own line. Wrap modes let article text flow beside it. Behind/In front layer the template with text.";
+    }
   });
   ui.templateForm.addEventListener("submit", insertTemplateBlock);
   ui.closeTemplate.addEventListener("click", closeTemplateDialog);

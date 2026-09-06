@@ -96,9 +96,15 @@
       : Object.values(context.preserved || {}).find((b) => b.type === "template" && normalizeName(b.templateSlug) === key);
     const template = (context.templates || []).find((t) => normalizeName(t.name) === key || normalizeName(t.slug) === key);
     if (!template && !original) throw new Error('Template "' + name + '" does not exist. Create it in Template Studio first.');
-    let hasPlacement = Boolean(original && (original.layout !== undefined || original.widthPercent !== undefined));
+    let hasPlacement = Boolean(original && (
+      original.layout !== undefined || original.widthPercent !== undefined || original.scale !== undefined ||
+      original.fullWidth !== undefined || original.baseWidthPercent !== undefined
+    ));
     let layout = ["inline","wrap-left","wrap-right","break","behind","front"].includes(original?.layout) ? original.layout : "wrap-right";
-    let widthPercent = Math.min(100, Math.max(20, Number(original?.widthPercent) || 46));
+    let widthPercent = Math.min(100, Math.max(10, Number(original?.widthPercent) || 46));
+    let baseWidthPercent = Math.min(100, Math.max(10, Number(original?.baseWidthPercent) || widthPercent || 46));
+    let scale = Math.min(3, Math.max(0.25, Number(original?.scale) || 1));
+    let fullWidth = original?.fullWidth === true;
     let xPercent = Math.min(85, Math.max(0, Number(original?.xPercent) || 0));
     let yPixels = Math.min(5000, Math.max(0, Number(original?.yPixels) || 0));
     const values = Object.create(null);
@@ -111,7 +117,10 @@
         if (["inline","wrap-left","wrap-right","break","behind","front"].includes(candidate)) layout = candidate;
         continue;
       }
-      if (option.startsWith("cf-object-width=")) { hasPlacement = true; widthPercent = Math.min(100,Math.max(20,Number(option.slice(16)) || 46)); continue; }
+      if (option.startsWith("cf-object-width=")) { hasPlacement = true; widthPercent = Math.min(100,Math.max(10,Number(option.slice(16)) || 46)); continue; }
+      if (option.startsWith("cf-object-base-width=")) { hasPlacement = true; baseWidthPercent = Math.min(100,Math.max(10,Number(option.slice(21)) || 46)); continue; }
+      if (option.startsWith("cf-object-scale=")) { hasPlacement = true; scale = Math.min(3,Math.max(0.25,Number(option.slice(16)) || 1)); continue; }
+      if (option.startsWith("cf-object-full-width=")) { hasPlacement = true; fullWidth = ["1","true","yes"].includes(option.slice(21).trim().toLowerCase()); continue; }
       if (option.startsWith("cf-object-x=")) { hasPlacement = true; xPercent = Math.min(85,Math.max(0,Number(option.slice(12)) || 0)); continue; }
       if (option.startsWith("cf-object-y=")) { hasPlacement = true; yPixels = Math.min(5000,Math.max(0,Number(option.slice(12)) || 0)); continue; }
       const eq = part.indexOf("=");
@@ -125,7 +134,7 @@
     const result = {...(original ? copy(original) : {}),type:"template", templateId:original?.templateId || template.id, templateSlug:original?.templateSlug || template.slug,
       templateRevisionId:original?.templateRevisionId || template?.currentRevision?.id || "", values,
       snapshot:copy(original?.snapshot || template?.currentRevision?.definition || null)};
-    if (hasPlacement) Object.assign(result,{layout,widthPercent,xPercent,yPixels});
+    if (hasPlacement) Object.assign(result,{layout,widthPercent,baseWidthPercent,scale,fullWidth,xPercent,yPixels});
     return result;
   }
   function imageBlock(source, context) {
@@ -297,9 +306,15 @@
           const name = template?.slug || block.templateSlug;
           if(!name) throw new Error("Unnamed template");
           const params=["|cf-ref="+block.id];
-          if (block.layout !== undefined || block.widthPercent !== undefined) params.push(
+          if (
+            block.layout !== undefined || block.widthPercent !== undefined || block.scale !== undefined ||
+            block.fullWidth !== undefined || block.baseWidthPercent !== undefined
+          ) params.push(
             "|cf-object-layout="+(["inline","wrap-left","wrap-right","break","behind","front"].includes(block.layout) ? block.layout : "wrap-right"),
-            "|cf-object-width="+Math.min(100,Math.max(20,Number(block.widthPercent)||46)),
+            "|cf-object-width="+Math.min(100,Math.max(10,Number(block.widthPercent)||46)),
+            "|cf-object-base-width="+Math.min(100,Math.max(10,Number(block.baseWidthPercent)||Number(block.widthPercent)||46)),
+            "|cf-object-scale="+Math.min(3,Math.max(0.25,Number(block.scale)||1)),
+            "|cf-object-full-width="+(block.fullWidth === true ? "1" : "0"),
             "|cf-object-x="+Math.min(85,Math.max(0,Number(block.xPercent)||0)),
             "|cf-object-y="+Math.min(5000,Math.max(0,Number(block.yPixels)||0))
           );

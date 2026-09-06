@@ -901,7 +901,7 @@
       .wiki-template-instance {
         position: relative;
         display: block;
-        width: min(var(--wiki-object-width, 46%), var(--template-width, 720px));
+        width: min(var(--wiki-object-width, 46%), var(--template-scaled-width, var(--template-width, 720px)));
         margin: 28px auto;
         overflow: visible;
         border-radius: 14px;
@@ -930,7 +930,7 @@
         position: absolute;
         left: clamp(0%, calc(var(--wiki-object-x, 0) * 1%), 85%);
         top: max(0px, calc(var(--wiki-object-y, 0) * 1px));
-        width: min(var(--wiki-object-width, 46%), var(--template-width, 720px));
+        width: min(var(--wiki-object-width, 46%), var(--template-scaled-width, var(--template-width, 720px)));
         margin: 0;
         clear: none;
       }
@@ -1026,6 +1026,54 @@
         background: rgba(0, 0, 0, 0.76);
         content: "Template · double-click to edit values";
         font-size: 0.66rem;
+      }
+
+      .wiki-template-instance[data-template-full-width="1"] {
+        width: 100%;
+        max-width: none;
+      }
+
+      .wiki-object-drop-guide {
+        position: absolute;
+        z-index: 90;
+        left: 14px;
+        right: 14px;
+        height: 0;
+        border-top: 3px solid var(--cf-red);
+        pointer-events: none;
+        filter: drop-shadow(0 0 8px rgba(223, 37, 49, 0.55));
+      }
+
+      .wiki-object-drop-guide::before,
+      .wiki-object-drop-guide::after {
+        position: absolute;
+        top: -7px;
+        width: 11px;
+        height: 11px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        background: var(--cf-red);
+        content: "";
+      }
+
+      .wiki-object-drop-guide::before { left: -2px; }
+      .wiki-object-drop-guide::after { right: -2px; }
+
+      .wiki-object-drop-guide span {
+        position: absolute;
+        left: 50%;
+        top: -17px;
+        transform: translate(-50%, -100%);
+        padding: 5px 9px;
+        border: 1px solid rgba(223, 37, 49, 0.72);
+        border-radius: 999px;
+        color: #fff;
+        background: rgba(8, 8, 8, 0.94);
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
       }
 
       .article-content ul,
@@ -1678,6 +1726,43 @@
       .template-picker-option.is-selected { border-color: rgba(223, 37, 49, 0.74); background: rgba(223, 37, 49, 0.14); outline: none; }
 
       .template-value-fields { display: grid; gap: 10px; }
+      .template-placement-panel {
+        display: grid;
+        gap: 14px;
+        padding: 15px;
+        border: 1px solid var(--cf-border);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.025);
+      }
+      .template-placement-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+      .template-placement-heading strong { display: block; color: var(--cf-white); font-size: 0.9rem; }
+      .template-placement-heading span { display: block; margin-top: 4px; color: var(--cf-soft); font-size: 0.72rem; line-height: 1.45; }
+      .template-placement-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+      .template-placement-option {
+        min-height: 58px;
+        padding: 8px;
+        border: 1px solid var(--cf-border);
+        border-radius: 12px;
+        color: var(--cf-muted);
+        background: rgba(255, 255, 255, 0.025);
+        font-size: 0.72rem;
+        line-height: 1.25;
+      }
+      .template-placement-option:hover,
+      .template-placement-option:focus-visible,
+      .template-placement-option.is-active {
+        border-color: rgba(223, 37, 49, 0.76);
+        color: var(--cf-white);
+        background: rgba(223, 37, 49, 0.16);
+        outline: none;
+      }
+      .template-placement-fields { display: grid; grid-template-columns: minmax(160px, .7fr) minmax(260px, 1.3fr); gap: 12px; align-items: end; }
+      .template-scale-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+      .template-scale-input-row input { min-width: 0; }
+      .template-scale-badge { min-width: 56px; color: var(--cf-white); text-align: right; font-size: .82rem; }
+      .template-full-width-field { display: flex; align-items: center; gap: 9px; min-height: 46px; padding: 10px 12px; border: 1px solid var(--cf-border); border-radius: 12px; color: var(--cf-muted); background: #0e0e0e; }
+      .template-full-width-field input { width: 18px; height: 18px; accent-color: var(--cf-red); }
+      .template-placement-note { margin: 0; color: var(--cf-soft); font-size: .72rem; line-height: 1.5; }
       .template-image-field { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--cf-border); border-radius: 14px; background: rgba(255,255,255,.025); }
       .template-image-choice { display: flex; align-items: center; gap: 10px; }
       .template-image-choice strong { flex: 1; color: var(--cf-white); font-size: .8rem; overflow-wrap: anywhere; }
@@ -2057,6 +2142,8 @@
         .image-layout-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+        .template-placement-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .template-placement-fields { grid-template-columns: 1fr; }
 
         .article-content .wiki-placed-object[data-object-layout="wrap-left"],
         .article-content .wiki-placed-object[data-object-layout="wrap-right"] {
@@ -2572,8 +2659,40 @@
                   <button class="icon-button" id="close-template-button" type="button" aria-label="Close template picker">×</button>
                 </div>
                 <div class="dialog-body">
-                  <p class="template-picker-note">Choose a design, then fill its placeholders for this article. Template design updates automatically appear everywhere it is used.</p>
+                  <p class="template-picker-note">Choose a design, fill its placeholders, and control how this instance sits in the article. Template design updates automatically appear everywhere it is used.</p>
                   <div class="template-picker-grid" id="template-picker-list"><p class="wiki-list-state">Loading templates...</p></div>
+                  <section class="template-placement-panel" id="template-placement-panel">
+                    <div class="template-placement-heading">
+                      <div>
+                        <strong>Placement &amp; size</strong>
+                        <span>These settings only affect this instance of the template on this page.</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span class="field-label">Position around article text</span>
+                      <div class="template-placement-grid" id="template-placement-grid" role="group" aria-label="Template placement">
+                        <button class="template-placement-option" type="button" data-template-layout="break">Whole row</button>
+                        <button class="template-placement-option" type="button" data-template-layout="wrap-left">Wrap left</button>
+                        <button class="template-placement-option" type="button" data-template-layout="wrap-right">Wrap right</button>
+                        <button class="template-placement-option" type="button" data-template-layout="behind">Behind text</button>
+                        <button class="template-placement-option" type="button" data-template-layout="front">In front</button>
+                      </div>
+                    </div>
+                    <div class="template-placement-fields">
+                      <label>
+                        <span class="field-label">Scale</span>
+                        <span class="template-scale-input-row">
+                          <input id="template-scale-input" type="number" min="0.25" max="3" step="0.05" value="1" inputmode="decimal" />
+                          <output class="template-scale-badge" id="template-scale-output">1×</output>
+                        </span>
+                      </label>
+                      <label class="template-full-width-field">
+                        <input id="template-full-width-input" type="checkbox" />
+                        <span>Fill the full article width (inside the page margins)</span>
+                      </label>
+                    </div>
+                    <p class="template-placement-note" id="template-placement-note">Whole row keeps the template on its own line. Wrap modes let article text flow beside it. Behind/In front layer the template with text.</p>
+                  </section>
                   <div class="template-value-fields" id="template-value-fields"></div>
                   <p class="wiki-feedback" id="template-picker-feedback" aria-live="polite"></p>
                   <div class="form-actions">
@@ -3709,8 +3828,8 @@
     </script>
     <script src="wiki-style-client.js?v=1"></script>
     <script src="wiki-media-client.js"></script>
-    <script src="wiki-wikitext.js"></script>
-    <script src="wiki-template-wikitext.js?v=25-template-visual-links"></script>
-    <script src="wiki-editor.js?v=25-template-visual-links"></script>
+    <script src="wiki-wikitext.js?v=26-template-placement"></script>
+    <script src="wiki-template-wikitext.js?v=26-template-placement"></script>
+    <script src="wiki-editor.js?v=26-template-placement"></script>
   </body>
 </html>
