@@ -307,7 +307,9 @@
         const options = parts.map((part) => part.trim()).filter(Boolean);
         const caption = [...options].reverse().find((part) => !/^(?:thumb|thumbnail|frameless|frame|border|left|right|center|none|upright(?:=[\d.]+)?|\d+(?:x\d+)?px)$/i.test(part)) || title;
         const width = options.map((part) => part.match(/^(\d+)(?:x\d+)?px$/i)).find(Boolean)?.[1];
-        return `<img data-wiki-file-title="${escapeHtml(title)}" alt="${escapeHtml(caption)}"${width ? ` style="max-width:${Math.min(1600, Number(width))}px;width:100%;height:auto;"` : ""}>`;
+        const directSource = /^https:\/\/[^\s"'<>]+$/i.test(title) ? ` src="${escapeHtml(title)}"` : "";
+        const catalogTitle = directSource ? "" : ` data-wiki-file-title="${escapeHtml(title)}"`;
+        return `<img${catalogTitle}${directSource} alt="${escapeHtml(caption)}"${width ? ` style="max-width:${Math.min(1600, Number(width))}px;width:100%;height:auto;"` : ""}>`;
       }
       const label = parts.length ? parts.join("|") : target;
       return `<a href="wiki.html?page=${encodeURIComponent(slugify(target))}">${label}</a>`;

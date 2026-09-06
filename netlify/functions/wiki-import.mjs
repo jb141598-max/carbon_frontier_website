@@ -144,44 +144,104 @@ function normalizedParameterKey(value) {
 }
 
 function templatePlaceholders(definition) {
-  const seen = new Set();
-  return (Array.isArray(definition?.elements) ? definition.elements : [])
+  const candidates = (Array.isArray(definition?.elements) ? definition.elements : [])
     .filter((element) => ["placeholder", "image-placeholder"].includes(element?.type))
     .map((element) => ({
       key: String(element.placeholderKey || "").trim(),
       kind: element.type === "image-placeholder" ? "image" : "text",
-    }))
-    .filter((placeholder) => {
-      const normalized = normalizedParameterKey(placeholder.key);
-      if (!normalized || seen.has(normalized)) return false;
-      seen.add(normalized);
-      return true;
-    });
+    }));
+  if (definition?.kind === "wikitext" && typeof definition.source === "string") {
+    for (const match of definition.source.matchAll(/\{\{\{\s*([^|{}]+?)(?:\|([^{}]*?))?\}\}\}/g)) {
+      const key = String(match[1] || "").trim().slice(0, 80);
+      const fallback = String(match[2] || "").trim();
+      candidates.push({
+        key,
+        kind: /(?:image|img|file|photo|picture|icon|logo|arrowfile|plusfile)$/i.test(key)
+          || /\.(?:gif|jpe?g|png|webp)$/i.test(fallback) ? "image" : "text",
+      });
+    }
+  }
+  const placeholders = new Map();
+  candidates.forEach((placeholder) => {
+    const normalized = normalizedParameterKey(placeholder.key);
+    if (!normalized) return;
+    const existing = placeholders.get(normalized);
+    if (!existing || placeholder.kind === "image") placeholders.set(normalized, placeholder);
+  });
+  return [...placeholders.values()];
+}
+
+function splitTemplateParts(value) {
+  const parts = [];
+  let current = "", templateDepth = 0, parameterDepth = 0, linkDepth = 0;
+  for (let index = 0; index < value.length;) {
+    const next3 = value.slice(index, index + 3);
+    const next2 = value.slice(index, index + 2);
+    if (next3 === "{{{") { parameterDepth += 1; current += next3; index += 3; continue; }
+    if (next3 === "}}}" && parameterDepth) { parameterDepth -= 1; current += next3; index += 3; continue; }
+    if (next2 === "{{") { templateDepth += 1; current += next2; index += 2; continue; }
+    if (next2 === "}}" && templateDepth) { templateDepth -= 1; current += next2; index += 2; continue; }
+    if (next2 === "[[") { linkDepth += 1; current += next2; index += 2; continue; }
+    if (next2 === "]]" && linkDepth) { linkDepth -= 1; current += next2; index += 2; continue; }
+    if (value[index] === "|" && !templateDepth && !parameterDepth && !linkDepth) {
+      parts.push(current); current = ""; index += 1; continue;
+    }
+    current += value[index++];
+  }
+  parts.push(current);
+  return parts;
+}
+
+function topLevelEquals(value) {
+  let templateDepth = 0, parameterDepth = 0, linkDepth = 0;
+  for (let index = 0; index < value.length;) {
+    const next3 = value.slice(index, index + 3);
+    const next2 = value.slice(index, index + 2);
+    if (next3 === "{{{") { parameterDepth += 1; index += 3; continue; }
+    if (next3 === "}}}" && parameterDepth) { parameterDepth -= 1; index += 3; continue; }
+    if (next2 === "{{") { templateDepth += 1; index += 2; continue; }
+    if (next2 === "}}" && templateDepth) { templateDepth -= 1; index += 2; continue; }
+    if (next2 === "[[") { linkDepth += 1; index += 2; continue; }
+    if (next2 === "]]" && linkDepth) { linkDepth -= 1; index += 2; continue; }
+    if (value[index] === "=" && !templateDepth && !parameterDepth && !linkDepth) return index;
+    index += 1;
+  }
+  return -1;
+}
+
+function readLooseNamedParameters(value, parameters) {
+  const matches = [];
+  const pattern = /(?:^|\s)([A-Za-z0-9][A-Za-z0-9_-]*)\s*=/g;
+  let match;
+  while ((match = pattern.exec(value))) matches.push({ key: match[1], start: match.index, valueStart: pattern.lastIndex });
+  matches.forEach((item, index) => {
+    const end = matches[index + 1]?.start ?? value.length;
+    parameters[item.key] = value.slice(item.valueStart, end).trim().slice(0, 1000);
+  });
 }
 
 export function parseMirahezeTemplateInvocation(raw) {
   const source = String(raw || "").trim();
   if (!source.startsWith("{{") || !source.endsWith("}}")) return null;
   const inner = source.slice(2, -2).trim();
-  const nameMatch = inner.match(/^([^|]*?)(?=\s+[A-Za-z][A-Za-z0-9_-]*\s*=|\||$)/);
+  const parts = splitTemplateParts(inner);
+  const head = String(parts.shift() || "").trim();
+  const nameMatch = head.match(/^(.+?)(?=\s+[A-Za-z0-9][A-Za-z0-9_-]*\s*=|$)/);
   const name = cleanTitle(nameMatch?.[1] || "").replace(/^Template\s*:/i, "");
   if (!name) return null;
-  const parameterSource = inner.slice(nameMatch[0].length).replace(/^\s*\|?\s*/, "");
-  const matches = [];
-  const pattern = /(?:^|[|\s])([A-Za-z][A-Za-z0-9_-]*)\s*=/g;
-  let match;
-  while ((match = pattern.exec(parameterSource))) {
-    matches.push({
-      key: match[1],
-      start: match.index,
-      valueStart: pattern.lastIndex,
-    });
-  }
   const parameters = {};
-  matches.forEach((item, index) => {
-    const end = matches[index + 1]?.start ?? parameterSource.length;
-    const value = parameterSource.slice(item.valueStart, end).replace(/[|\s]+$/g, "").trim();
-    parameters[item.key] = value.slice(0, 1000);
+  readLooseNamedParameters(head.slice(nameMatch[0].length).trim(), parameters);
+  let position = 1;
+  parts.slice(0, 100).forEach((part) => {
+    const equals = topLevelEquals(part);
+    const key = equals > 0 ? part.slice(0, equals).trim() : "";
+    if (key && /^[A-Za-z0-9][A-Za-z0-9 _-]{0,79}$/.test(key)) {
+      parameters[key] = part.slice(equals + 1).trim().slice(0, 1000);
+      return;
+    }
+    while (Object.prototype.hasOwnProperty.call(parameters, String(position))) position += 1;
+    parameters[String(position)] = part.trim().slice(0, 1000);
+    position += 1;
   });
   return { name, parameters, raw: source };
 }
@@ -237,19 +297,40 @@ function normalizedFileTitle(value) {
   return cleaned ? `File:${cleaned}` : "";
 }
 
+function looksLikeImageFile(value) {
+  const candidate = String(value || "")
+    .replace(/^\[\[(?:File|Image):/i, "")
+    .replace(/\]\]$/g, "")
+    .split("|")[0]
+    .trim();
+  return /\.(?:gif|jpe?g|png|webp)$/i.test(candidate);
+}
+
+function templateSourceImageTitles(template) {
+  const source = String(template?.currentRevision?.definition?.source || "");
+  const titles = [];
+  for (const match of source.matchAll(/(?:File:)?([A-Za-z0-9][A-Za-z0-9 _().,'-]*\.(?:gif|jpe?g|png|webp))/gi)) {
+    const fileTitle = normalizedFileTitle(match[0]);
+    if (fileTitle) titles.push(fileTitle);
+  }
+  return titles;
+}
+
 function templateImageReferences(wikitext, templates) {
   const references = [];
   for (const invocation of topLevelTemplateInvocations(wikitext)) {
     const template = matchingTemplate(invocation, templates);
     if (!template) continue;
-    const parameters = new Map(Object.entries(invocation.parameters)
-      .map(([key, value]) => [normalizedParameterKey(key), value]));
-    for (const placeholder of template.placeholders || templatePlaceholders(template.currentRevision?.definition)) {
-      if (placeholder.kind !== "image") continue;
-      const value = parameters.get(normalizedParameterKey(placeholder.key));
+    const placeholders = new Map((template.placeholders || templatePlaceholders(template.currentRevision?.definition))
+      .map((placeholder) => [normalizedParameterKey(placeholder.key), placeholder]));
+    for (const [key, value] of Object.entries(invocation.parameters)) {
+      if (!looksLikeImageFile(value) && placeholders.get(normalizedParameterKey(key))?.kind !== "image") continue;
       const fileTitle = normalizedFileTitle(value);
       if (fileTitle) references.push({ fileTitle, alt: fileTitle.slice(5), caption: "" });
     }
+    templateSourceImageTitles(template).forEach((fileTitle) => {
+      references.push({ fileTitle, alt: fileTitle.slice(5), caption: "" });
+    });
   }
   return references;
 }
@@ -296,25 +377,29 @@ function stripMigrationMarkup(wikitext) {
     .replace(/<ref\b[^>]*>[^]*?<\/ref\s*>/gi, "")
     .replace(/<ref\b[^>]*\/\s*>/gi, "")
     .replace(/__\w+__/g, "")
-    .replace(/\[\[Category:[^\]]+\]\]/gi, "");
+    .replace(/\[\[Category:[^\]]+\]\]/gi, "")
+    .replace(/^\s*<\/?div\b[^>]*>\s*$/gim, "");
 }
 
 function templateBlock(invocation, template, importedMedia) {
-  const parameters = new Map(Object.entries(invocation.parameters)
-    .map(([key, value]) => [normalizedParameterKey(key), String(value || "").trim()]));
   const placeholders = template.placeholders || templatePlaceholders(template.currentRevision?.definition);
+  const placeholderIndex = new Map(placeholders
+    .map((placeholder) => [normalizedParameterKey(placeholder.key), placeholder]));
   const values = {};
-  for (const placeholder of placeholders) {
-    const rawValue = parameters.get(normalizedParameterKey(placeholder.key));
-    if (rawValue === undefined) continue;
-    if (placeholder.kind === "image") {
+  for (const [sourceKey, value] of Object.entries(invocation.parameters).slice(0, 100)) {
+    const placeholder = placeholderIndex.get(normalizedParameterKey(sourceKey));
+    const key = String(placeholder?.key || sourceKey).trim().slice(0, 80);
+    if (!key) continue;
+    const rawValue = String(value || "").trim().slice(0, 1000);
+    if (placeholder?.kind === "image" || looksLikeImageFile(rawValue)) {
       const fileTitle = normalizedFileTitle(rawValue);
       const media = importedMedia.get(fileTitle.toLowerCase());
-      values[placeholder.key] = media?.id || "";
+      values[key] = media?.id || rawValue;
     } else {
-      values[placeholder.key] = rawValue.slice(0, 1000);
+      values[key] = rawValue;
     }
   }
+  const isInfoBox = normalizeTemplateIdentifier(template.name || template.slug).includes("infobox");
   return {
     id: crypto.randomUUID(),
     type: "template",
@@ -323,8 +408,8 @@ function templateBlock(invocation, template, importedMedia) {
     templateRevisionId: template.currentRevision?.id || "",
     values,
     snapshot: template.currentRevision?.definition || null,
-    layout: "wrap-right",
-    widthPercent: 46,
+    layout: isInfoBox ? "wrap-right" : "break",
+    widthPercent: isInfoBox ? 46 : 100,
     xPercent: 0,
     yPixels: 0,
   };

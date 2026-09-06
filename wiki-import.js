@@ -412,43 +412,123 @@
     return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
   }
 
-  function templatePlaceholders(template) {
+  function sourceTemplatePlaceholders(definition) {
+    if (definition?.kind !== "wikitext" || typeof definition.source !== "string") return [];
+    if (window.CarbonFrontierTemplateWikitext?.extractPlaceholders) {
+      return window.CarbonFrontierTemplateWikitext.extractPlaceholders(definition.source);
+    }
+    const placeholders = [];
     const seen = new Set();
-    return (Array.isArray(template?.placeholders) && template.placeholders.length
-      ? template.placeholders
-      : (template?.currentRevision?.definition?.elements || []).filter((element) =>
+    for (const match of definition.source.matchAll(/\{\{\{\s*([^|{}]+?)(?:\|([^{}]*?))?\}\}\}/g)) {
+      const key = String(match[1] || "").trim().slice(0, 80);
+      const normalized = normalizedParameterKey(key);
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      const fallback = String(match[2] || "").trim();
+      placeholders.push({
+        key,
+        kind: /(?:image|img|file|photo|picture|icon|logo|arrowfile|plusfile)$/i.test(key)
+          || /\.(?:gif|jpe?g|png|webp)$/i.test(fallback) ? "image" : "text",
+      });
+    }
+    return placeholders;
+  }
+
+  function templatePlaceholders(template) {
+    const definition = template?.currentRevision?.definition || {};
+    const candidates = [
+      ...(Array.isArray(template?.placeholders) ? template.placeholders : []),
+      ...sourceTemplatePlaceholders(definition),
+      ...(definition.elements || []).filter((element) =>
         ["placeholder", "image-placeholder"].includes(element?.type)
       ).map((element) => ({
         key: element.placeholderKey,
         kind: element.type === "image-placeholder" ? "image" : "text",
-      })))
-      .filter((placeholder) => {
-        const key = normalizedParameterKey(placeholder?.key);
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      })),
+    ];
+    const placeholders = new Map();
+    candidates.forEach((placeholder) => {
+      const key = normalizedParameterKey(placeholder?.key);
+      if (!key) return;
+      const existing = placeholders.get(key);
+      if (!existing || placeholder.kind === "image") {
+        placeholders.set(key, { key: String(placeholder.key).trim(), kind: placeholder.kind === "image" ? "image" : "text" });
+      }
+    });
+    return [...placeholders.values()];
+  }
+
+  function splitTemplateParts(value) {
+    const parts = [];
+    let current = "", templateDepth = 0, parameterDepth = 0, linkDepth = 0;
+    for (let index = 0; index < value.length;) {
+      const next3 = value.slice(index, index + 3);
+      const next2 = value.slice(index, index + 2);
+      if (next3 === "{{{") { parameterDepth += 1; current += next3; index += 3; continue; }
+      if (next3 === "}}}" && parameterDepth) { parameterDepth -= 1; current += next3; index += 3; continue; }
+      if (next2 === "{{") { templateDepth += 1; current += next2; index += 2; continue; }
+      if (next2 === "}}" && templateDepth) { templateDepth -= 1; current += next2; index += 2; continue; }
+      if (next2 === "[[") { linkDepth += 1; current += next2; index += 2; continue; }
+      if (next2 === "]]" && linkDepth) { linkDepth -= 1; current += next2; index += 2; continue; }
+      if (value[index] === "|" && !templateDepth && !parameterDepth && !linkDepth) {
+        parts.push(current); current = ""; index += 1; continue;
+      }
+      current += value[index++];
+    }
+    parts.push(current);
+    return parts;
+  }
+
+  function topLevelEquals(value) {
+    let templateDepth = 0, parameterDepth = 0, linkDepth = 0;
+    for (let index = 0; index < value.length;) {
+      const next3 = value.slice(index, index + 3);
+      const next2 = value.slice(index, index + 2);
+      if (next3 === "{{{") { parameterDepth += 1; index += 3; continue; }
+      if (next3 === "}}}" && parameterDepth) { parameterDepth -= 1; index += 3; continue; }
+      if (next2 === "{{") { templateDepth += 1; index += 2; continue; }
+      if (next2 === "}}" && templateDepth) { templateDepth -= 1; index += 2; continue; }
+      if (next2 === "[[") { linkDepth += 1; index += 2; continue; }
+      if (next2 === "]]" && linkDepth) { linkDepth -= 1; index += 2; continue; }
+      if (value[index] === "=" && !templateDepth && !parameterDepth && !linkDepth) return index;
+      index += 1;
+    }
+    return -1;
+  }
+
+  function readLooseNamedParameters(value, parameters) {
+    const matches = [];
+    const pattern = /(?:^|\s)([A-Za-z0-9][A-Za-z0-9_-]*)\s*=/g;
+    let match;
+    while ((match = pattern.exec(value))) matches.push({ key: match[1], start: match.index, valueStart: pattern.lastIndex });
+    matches.forEach((item, index) => {
+      const end = matches[index + 1]?.start ?? value.length;
+      parameters[item.key] = value.slice(item.valueStart, end).trim().slice(0, 1000);
+    });
   }
 
   function parseTemplateInvocation(raw) {
     const source = String(raw || "").trim();
     if (!source.startsWith("{{") || !source.endsWith("}}")) return null;
     const inner = source.slice(2, -2).trim();
-    const nameMatch = inner.match(/^([^|]*?)(?=\s+[A-Za-z][A-Za-z0-9_-]*\s*=|\||$)/);
+    const parts = splitTemplateParts(inner);
+    const head = String(parts.shift() || "").trim();
+    const nameMatch = head.match(/^(.+?)(?=\s+[A-Za-z0-9][A-Za-z0-9_-]*\s*=|$)/);
     const name = String(nameMatch?.[1] || "").trim().replace(/^Template\s*:/i, "");
     if (!name) return null;
-    const parameterSource = inner.slice(nameMatch[0].length).replace(/^\s*\|?\s*/, "");
-    const matches = [];
-    const pattern = /(?:^|[|\s])([A-Za-z][A-Za-z0-9_-]*)\s*=/g;
-    let match;
-    while ((match = pattern.exec(parameterSource))) {
-      matches.push({ key: match[1], start: match.index, valueStart: pattern.lastIndex });
-    }
     const parameters = {};
-    matches.forEach((item, index) => {
-      const end = matches[index + 1]?.start ?? parameterSource.length;
-      parameters[item.key] = parameterSource.slice(item.valueStart, end)
-        .replace(/[|\s]+$/g, "").trim().slice(0, 1000);
+    readLooseNamedParameters(head.slice(nameMatch[0].length).trim(), parameters);
+    let position = 1;
+    parts.slice(0, 100).forEach((part) => {
+      const equals = topLevelEquals(part);
+      const key = equals > 0 ? part.slice(0, equals).trim() : "";
+      if (key && /^[A-Za-z0-9][A-Za-z0-9 _-]{0,79}$/.test(key)) {
+        parameters[key] = part.slice(equals + 1).trim().slice(0, 1000);
+        return;
+      }
+      while (Object.prototype.hasOwnProperty.call(parameters, String(position))) position += 1;
+      parameters[String(position)] = part.trim().slice(0, 1000);
+      position += 1;
     });
     return { name, parameters, raw: source };
   }
@@ -503,6 +583,22 @@
     return cleaned ? `File:${cleaned}` : "";
   }
 
+  function looksLikeImageFile(value) {
+    const candidate = String(value || "").replace(/^\[\[(?:File|Image):/i, "")
+      .replace(/\]\]$/g, "").split("|")[0].trim();
+    return /\.(?:gif|jpe?g|png|webp)$/i.test(candidate);
+  }
+
+  function templateSourceImageTitles(template) {
+    const source = String(template?.currentRevision?.definition?.source || "");
+    const titles = [];
+    for (const match of source.matchAll(/(?:File:)?([A-Za-z0-9][A-Za-z0-9 _().,'-]*\.(?:gif|jpe?g|png|webp))/gi)) {
+      const title = normalizedFileTitle(match[0]);
+      if (title) titles.push(title);
+    }
+    return titles;
+  }
+
   function localCategories(wikitext) {
     const unique = new Map();
     String(wikitext || "").replace(/\[\[Category:([^|\]]+)(?:\|[^\]]*)?\]\]/gi, (_match, value) => {
@@ -525,11 +621,15 @@
     topLevelTemplateInvocations(combined).forEach((invocation) => {
       const template = matchingTemplate(invocation, templates);
       if (!template) return;
-      const parameters = new Map(Object.entries(invocation.parameters)
-        .map(([key, value]) => [normalizedParameterKey(key), value]));
-      templatePlaceholders(template).filter((placeholder) => placeholder.kind === "image").forEach((placeholder) => {
-        const title = normalizedFileTitle(parameters.get(normalizedParameterKey(placeholder.key)));
+      const placeholders = new Map(templatePlaceholders(template)
+        .map((placeholder) => [normalizedParameterKey(placeholder.key), placeholder]));
+      Object.entries(invocation.parameters).forEach(([key, value]) => {
+        if (!looksLikeImageFile(value) && placeholders.get(normalizedParameterKey(key))?.kind !== "image") return;
+        const title = normalizedFileTitle(value);
         if (title && !names.some((item) => item.toLowerCase() === title.toLowerCase())) names.push(title);
+      });
+      templateSourceImageTitles(template).forEach((title) => {
+        if (!names.some((item) => item.toLowerCase() === title.toLowerCase())) names.push(title);
       });
     });
     if (!names.length) return new Map();
@@ -540,21 +640,24 @@
   }
 
   function localTemplateBlock(invocation, template, images) {
-    const parameters = new Map(Object.entries(invocation.parameters)
-      .map(([key, value]) => [normalizedParameterKey(key), String(value || "").trim()]));
+    const placeholders = new Map(templatePlaceholders(template)
+      .map((placeholder) => [normalizedParameterKey(placeholder.key), placeholder]));
     const values = {};
-    templatePlaceholders(template).forEach((placeholder) => {
-      const raw = parameters.get(normalizedParameterKey(placeholder.key));
-      if (raw === undefined) return;
-      values[placeholder.key] = placeholder.kind === "image"
-        ? images.get(normalizedFileTitle(raw).toLowerCase()) || ""
-        : raw.slice(0, 1000);
+    Object.entries(invocation.parameters).slice(0, 100).forEach(([sourceKey, value]) => {
+      const placeholder = placeholders.get(normalizedParameterKey(sourceKey));
+      const key = String(placeholder?.key || sourceKey).trim().slice(0, 80);
+      if (!key) return;
+      const raw = String(value || "").trim().slice(0, 1000);
+      const imported = (placeholder?.kind === "image" || looksLikeImageFile(raw))
+        ? images.get(normalizedFileTitle(raw).toLowerCase()) : null;
+      values[key] = imported || raw;
     });
+    const isInfoBox = normalizeTemplateIdentifier(template.name || template.slug).includes("infobox");
     return {
       id: crypto.randomUUID(), type: "template", templateId: template.id,
       templateSlug: template.slug, templateRevisionId: template.currentRevision?.id || "",
       values, snapshot: template.currentRevision?.definition || null,
-      layout: "wrap-right", widthPercent: 46, xPercent: 0, yPixels: 0,
+      layout: isInfoBox ? "wrap-right" : "break", widthPercent: isInfoBox ? 46 : 100, xPercent: 0, yPixels: 0,
     };
   }
 
@@ -562,7 +665,8 @@
     const tokens = [];
     const templateTokens = [];
     let source = String(wikitext || "").replace(/<!--[^]*?-->/g, "")
-      .replace(/\[\[Category:[^\]]+\]\]/gi, "");
+      .replace(/\[\[Category:[^\]]+\]\]/gi, "")
+      .replace(/^\s*<\/?div\b[^>]*>\s*$/gim, "");
     const calls = topLevelTemplateInvocations(source);
     if (calls.length && templates.length) {
       let output = "";
