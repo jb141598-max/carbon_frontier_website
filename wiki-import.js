@@ -7,6 +7,8 @@
   const LOCAL_TEMPLATES_KEY = "carbon-frontier-wiki-local-templates-v1";
   const IMPORT_ENDPOINTS = ["/api/wiki/import", "/.netlify/functions/wiki-import"];
   const ACCESS_ENDPOINTS = ["/api/wiki-access", "/.netlify/functions/wiki-access"];
+  const BACKUP_ENDPOINTS = ["/api/wiki/backup", "/.netlify/functions/wiki-backup"];
+  const LAUNCH_CHECKLIST_KEY = "carbon-frontier-wiki-launch-checklist-v1";
   const CURSOR_ACCOUNT = { email: "jb141598@gmail.com", name: "Cursor Testing Owner", idToken: "" };
   const BATCH_SIZE = 8;
 
@@ -38,6 +40,16 @@
     countRedirects: document.getElementById("count-redirects"),
     countSkipped: document.getElementById("count-skipped"),
     resultList: document.getElementById("result-list"),
+    launchCheck: document.getElementById("run-launch-check"),
+    downloadBackup: document.getElementById("download-wiki-backup"),
+    launchFeedback: document.getElementById("launch-feedback"),
+    readinessSummary: document.getElementById("readiness-summary"),
+    readinessPages: document.getElementById("readiness-pages"),
+    readinessRevisions: document.getElementById("readiness-revisions"),
+    readinessTemplates: document.getElementById("readiness-templates"),
+    readinessMedia: document.getElementById("readiness-media"),
+    launchCheckList: document.getElementById("launch-check-list"),
+    manualLaunchChecks: [...document.querySelectorAll("[data-launch-check]")],
   };
 
   const state = {
@@ -49,6 +61,7 @@
     importing: false,
     googleInitialized: false,
     remoteEndpoint: "",
+    backupEndpoint: "",
   };
 
   function isTestingEnvironment() {
@@ -217,6 +230,40 @@
           throw error;
         }
         state.remoteEndpoint = endpoint;
+        return payload;
+      } catch (error) {
+        lastError = error;
+        if (error?.status && error.status !== 404) throw error;
+      }
+    }
+    throw lastError;
+  }
+
+  async function backupRequest(mode = "full") {
+    let lastError = new Error("The wiki backup service is unavailable.");
+    const endpoints = state.backupEndpoint
+      ? [state.backupEndpoint, ...BACKUP_ENDPOINTS.filter((item) => item !== state.backupEndpoint)]
+      : BACKUP_ENDPOINTS;
+    for (const endpoint of endpoints) {
+      try {
+        const url = new URL(endpoint, location.origin);
+        url.searchParams.set("mode", mode);
+        const response = await fetch(`${url.pathname}${url.search}`, {
+          method: "GET",
+          headers: { authorization: `Bearer ${state.idToken}` },
+          cache: "no-store",
+        });
+        const payload = await response.json().catch(() => null);
+        if (response.status === 404 && endpoint.startsWith("/api/")) {
+          lastError = new Error(payload?.error || "Backup Function not found.");
+          continue;
+        }
+        if (!response.ok) {
+          const error = new Error(payload?.error || `Backup request failed (${response.status}).`);
+          error.status = response.status;
+          throw error;
+        }
+        state.backupEndpoint = endpoint;
         return payload;
       } catch (error) {
         lastError = error;
@@ -591,6 +638,154 @@
     try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch (error) { return {}; }
   }
 
+  async function localBackupPayload() {
+    const synchronized = window.CarbonFrontierTestingSync?.getSection("wiki") || {};
+    const localPages = readJson(LOCAL_PAGES_KEY);
+    const pagesBySlug = new Map((Array.isArray(synchronized.pages) ? synchronized.pages : [])
+      .map((page) => [page.slug, page]));
+    Object.values(localPages && typeof localPages === "object" ? localPages : {}).forEach((page) => {
+      if (page?.slug) pagesBySlug.set(page.slug, page);
+    });
+    const localTemplates = (() => {
+      try { const parsed = JSON.parse(localStorage.getItem(LOCAL_TEMPLATES_KEY) || "[]"); return Array.isArray(parsed) ? parsed : []; }
+      catch (error) { return []; }
+    })();
+    const templatesById = new Map((Array.isArray(synchronized.templates) ? synchronized.templates : [])
+      .map((template) => [template.id, template]));
+    localTemplates.forEach((template) => { if (template?.id) templatesById.set(template.id, template); });
+    const localRedirects = readJson(LOCAL_REDIRECTS_KEY);
+    const redirectsBySource = new Map((Array.isArray(synchronized.redirects) ? synchronized.redirects : [])
+      .map((redirect) => [redirect.sourceSlug, redirect]));
+    Object.entries(localRedirects && typeof localRedirects === "object" ? localRedirects : {}).forEach(([sourceSlug, targetSlug]) => {
+      redirectsBySource.set(sourceSlug, { sourceSlug, targetSlug });
+    });
+    let media = Array.isArray(synchronized.media) ? synchronized.media : [];
+    try {
+      const catalog = window.CarbonFrontierWikiMedia?.create?.({ testing: true });
+      if (catalog) media = (await catalog.list({ limit: 10_000 })).media || media;
+    } catch (error) { /* Snapshot media metadata remains available. */ }
+    const pages = [...pagesBySlug.values()];
+    const templates = [...templatesById.values()];
+    return {
+      ok: true,
+      exportType: "carbon-frontier-wiki-backup",
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      environment: "local-testing-copy",
+      warning: "Image catalog metadata is included. Image binary files remain in local IndexedDB or Netlify Blobs.",
+      data: {
+        settings: synchronized.settings || { visibility: "private", editingMode: "restricted", reviewMode: "immediate" },
+        members: Array.isArray(synchronized.members) ? synchronized.members : [],
+        pages,
+        revisions: pages.flatMap((page) => page.localRevisions?.length ? page.localRevisions : (page.currentRevision ? [page.currentRevision] : [])),
+        categories: [...new Map(pages.flatMap((page) => Array.isArray(page.categories) ? page.categories : []).map((category) => [category.slug || category.id, category])).values()],
+        redirects: [...redirectsBySource.values()],
+        media,
+        pendingEdits: synchronized.moderation?.pendingEdits || [],
+        blockedUsers: synchronized.moderation?.blockedUsers || [],
+        templates,
+        templateRevisions: templates.flatMap((template) => template.localRevisions?.length ? [...template.localRevisions, template.currentRevision].filter(Boolean) : (template.currentRevision ? [template.currentRevision] : [])),
+        auditLog: synchronized.moderation?.auditLog || [],
+      },
+    };
+  }
+
+  function readinessFromBackup(backup) {
+    const data = backup?.data || {};
+    const pages = (Array.isArray(data.pages) ? data.pages : []).filter((page) => !page.isDeleted);
+    const templates = (Array.isArray(data.templates) ? data.templates : []).filter((template) => !template.isDeleted);
+    const redirects = Array.isArray(data.redirects) ? data.redirects : [];
+    const members = Array.isArray(data.members) ? data.members : [];
+    const revisions = Array.isArray(data.revisions) ? data.revisions : [];
+    const media = Array.isArray(data.media) ? data.media : [];
+    const pendingEdits = Array.isArray(data.pendingEdits) ? data.pendingEdits.filter((item) => !item.status || item.status === "pending") : [];
+    const activeSlugs = new Set(pages.map((page) => page.slug));
+    const unresolvedRedirects = redirects.filter((redirect) => !activeSlugs.has(redirect.targetSlug));
+    const pagesWithoutRevision = pages.filter((page) => !page.currentRevision && !page.current_revision_id);
+    const templatesWithoutRevision = templates.filter((template) => !template.currentRevision && !template.current_revision_id);
+    const frontPage = pages.find((page) => page.slug === "front-page");
+    const owners = members.filter((member) => member.role === "owner");
+    return {
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      summary: { pages: pages.length, revisions: revisions.length || pages.filter((page) => page.currentRevision).length, templates: templates.length, media: media.length },
+      checks: [
+        { status: owners.length ? "pass" : "fail", label: owners.length ? `${owners.length} Owner account${owners.length === 1 ? "" : "s"} assigned` : "No Owner account is assigned", detail: owners.length ? "At least one Owner can manage permissions and recovery." : "Assign an Owner before launch." },
+        { status: frontPage?.currentRevision || frontPage?.current_revision_id ? "pass" : "fail", label: "Wiki front page", detail: frontPage ? "The front page exists and has saved content." : "The front-page record is missing." },
+        { status: pagesWithoutRevision.length ? "fail" : "pass", label: "Page revision links", detail: pagesWithoutRevision.length ? `${pagesWithoutRevision.length} active page${pagesWithoutRevision.length === 1 ? " has" : "s have"} no current revision.` : "Every active page has a current revision." },
+        { status: templatesWithoutRevision.length ? "fail" : "pass", label: "Template revision links", detail: templatesWithoutRevision.length ? `${templatesWithoutRevision.length} template${templatesWithoutRevision.length === 1 ? " has" : "s have"} no current revision.` : "Every active template has a current revision." },
+        { status: unresolvedRedirects.length ? "fail" : "pass", label: "Redirect targets", detail: unresolvedRedirects.length ? `${unresolvedRedirects.length} redirect${unresolvedRedirects.length === 1 ? " points" : "s point"} to a missing page.` : "Every redirect points to an active page." },
+        { status: pendingEdits.length ? "warning" : "pass", label: "Moderation queue", detail: pendingEdits.length ? `${pendingEdits.length} pending edit${pendingEdits.length === 1 ? " needs" : "s need"} review before launch.` : "No edits are waiting for review." },
+      ],
+    };
+  }
+
+  function renderReadiness(report) {
+    const summary = report?.summary || {};
+    ui.readinessPages.textContent = Number(summary.pages || 0).toLocaleString();
+    ui.readinessRevisions.textContent = Number(summary.revisions || 0).toLocaleString();
+    ui.readinessTemplates.textContent = Number(summary.templates || 0).toLocaleString();
+    ui.readinessMedia.textContent = Number(summary.media || 0).toLocaleString();
+    ui.readinessSummary.hidden = false;
+    ui.launchCheckList.replaceChildren(...(report?.checks || []).map((check) => {
+      const row = document.createElement("div");
+      row.className = `launch-check is-${["pass", "warning", "fail"].includes(check.status) ? check.status : "warning"}`;
+      const copy = document.createElement("div");
+      const strong = document.createElement("strong");
+      strong.textContent = check.label || "Readiness check";
+      const detail = document.createElement("div");
+      detail.textContent = check.detail || "";
+      copy.append(strong, detail); row.append(copy); return row;
+    }));
+    const failed = (report?.checks || []).filter((check) => check.status === "fail").length;
+    const warnings = (report?.checks || []).filter((check) => check.status === "warning").length;
+    setFeedback(ui.launchFeedback, failed
+      ? `${failed} launch blocker${failed === 1 ? "" : "s"} found. Fix the red checks and run this again.`
+      : warnings ? `No blockers found. Review ${warnings} warning${warnings === 1 ? "" : "s"} before launch.`
+        : "All automatic checks passed. Finish the manual checklist and download your final backup.", failed > 0);
+  }
+
+  async function runLaunchCheck() {
+    ui.launchCheck.disabled = true;
+    setFeedback(ui.launchFeedback, "Checking pages, revisions, templates, redirects, media, roles, and moderation...");
+    try {
+      const report = state.testing ? readinessFromBackup(await localBackupPayload()) : await backupRequest("readiness");
+      renderReadiness(report);
+    } catch (error) {
+      setFeedback(ui.launchFeedback, error.message || "The readiness check could not be completed.", true);
+    } finally { ui.launchCheck.disabled = false; }
+  }
+
+  function saveManualChecklist() {
+    const values = Object.fromEntries(ui.manualLaunchChecks.map((input) => [input.dataset.launchCheck, input.checked]));
+    localStorage.setItem(LAUNCH_CHECKLIST_KEY, JSON.stringify(values));
+  }
+
+  function loadManualChecklist() {
+    const values = readJson(LAUNCH_CHECKLIST_KEY);
+    ui.manualLaunchChecks.forEach((input) => { input.checked = values[input.dataset.launchCheck] === true; });
+  }
+
+  async function downloadWikiBackup() {
+    ui.downloadBackup.disabled = true;
+    setFeedback(ui.launchFeedback, "Preparing the private wiki backup...");
+    try {
+      const payload = state.testing ? await localBackupPayload() : await backupRequest("full");
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `carbon-frontier-wiki-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.append(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1_000);
+      const backupCheck = ui.manualLaunchChecks.find((input) => input.dataset.launchCheck === "backup");
+      if (backupCheck) { backupCheck.checked = true; saveManualChecklist(); }
+      setFeedback(ui.launchFeedback, `Backup downloaded with ${payload.data?.pages?.length || 0} page records. Keep it private.`);
+    } catch (error) {
+      setFeedback(ui.launchFeedback, error.message || "The backup could not be downloaded.", true);
+    } finally { ui.downloadBackup.disabled = false; }
+  }
+
   async function importLocalBatch(titles) {
     const payload = await directMediaWikiRequest({
       prop: "revisions", titles: titles.join("|"), rvprop: "content|timestamp|user|comment", rvslots: "main",
@@ -700,6 +895,7 @@
       renderResults(results);
       setFeedback(ui.importFeedback,
         `${results.length} page result${results.length === 1 ? "" : "s"} completed · ${importedImages} image${importedImages === 1 ? "" : "s"} imported · ${matchedTemplates} matching CF template${matchedTemplates === 1 ? "" : "s"} inserted.${state.testing ? " These changes are in the Cursor testing copy only." : ""}`);
+      await runLaunchCheck();
     } catch (error) {
       if (results.length) renderResults(results);
       setFeedback(ui.importFeedback, `${error?.message || "The import stopped."} Completed batches were kept.`, true);
@@ -712,6 +908,7 @@
   }
 
   async function initialize() {
+    loadManualChecklist();
     if (state.testing) {
       state.account = CURSOR_ACCOUNT;
       showImportView();
@@ -743,5 +940,8 @@
     renderPages();
   });
   ui.importButton.addEventListener("click", handleImport);
+  ui.launchCheck.addEventListener("click", runLaunchCheck);
+  ui.downloadBackup.addEventListener("click", downloadWikiBackup);
+  ui.manualLaunchChecks.forEach((input) => input.addEventListener("change", saveManualChecklist));
   initialize();
 })();

@@ -10,6 +10,7 @@
   const FONT_FAMILIES = new Set(["Play", "Arial", "Georgia", "Times New Roman", "Verdana", "Courier New"]);
   const ELEMENT_TYPES = new Set(["text", "placeholder", "image-placeholder", "shape", "frame", "line", "image"]);
   const SHAPES = new Set(["rectangle", "rounded", "ellipse", "triangle", "diamond"]);
+  const templateWikitext = window.CarbonFrontierTemplateWikitext;
 
   const ui = {
     accountPill: document.getElementById("account-pill"),
@@ -22,6 +23,18 @@
     newButton: document.getElementById("new-template-button"),
     name: document.getElementById("template-name-input"),
     description: document.getElementById("template-description-input"),
+    studio: document.getElementById("template-studio"),
+    studioToolbar: document.getElementById("studio-toolbar"),
+    propertiesPanel: document.querySelector(".properties-panel"),
+    modeVisual: document.getElementById("template-mode-visual"),
+    modeWikitext: document.getElementById("template-mode-wikitext"),
+    sourceActions: document.getElementById("source-mode-actions"),
+    sourcePanel: document.getElementById("template-source-panel"),
+    sourceInput: document.getElementById("template-source-input"),
+    sourceStatus: document.getElementById("template-source-status"),
+    sourceApply: document.getElementById("template-source-apply"),
+    sourceHelpButton: document.getElementById("template-source-help-button"),
+    sourceHelp: document.getElementById("template-source-help"),
     canvas: document.getElementById("drawing-canvas"),
     undo: document.getElementById("undo-button"),
     redo: document.getElementById("redo-button"),
@@ -71,7 +84,7 @@
   const state = {
     testing: isTestingEnvironment(), account: null, idToken: "", remoteEndpoint: "",
     templates: [], current: null, draft: null, selectedId: "", selectedIds: [], undo: [], redo: [],
-    interaction: null, guides: { x: [], y: [] }, zoom: 1, gestureStartZoom: 1,
+    interaction: null, guides: { x: [], y: [] }, zoom: 1, gestureStartZoom: 1, mode: "visual",
     googleInitialized: false, objectUrls: new Map(),
   };
 
@@ -400,11 +413,75 @@
     renderList(); renderCanvas(); renderProperties(); updateUndoButtons();
   }
 
+  function setSourceStatus(message, isError = false) {
+    ui.sourceStatus.textContent = message || "";
+    ui.sourceStatus.classList.toggle("is-error", Boolean(isError));
+  }
+
+  function renderEditorMode() {
+    const sourceMode = state.mode === "wikitext";
+    ui.studio.classList.toggle("is-source-mode", sourceMode);
+    ui.modeVisual.setAttribute("aria-pressed", String(!sourceMode));
+    ui.modeWikitext.setAttribute("aria-pressed", String(sourceMode));
+    ui.studioToolbar.hidden = sourceMode;
+    ui.viewport.hidden = sourceMode;
+    ui.propertiesPanel.hidden = sourceMode;
+    ui.sourcePanel.hidden = !sourceMode;
+    ui.sourceActions.hidden = !sourceMode;
+    if (!sourceMode) setSourceStatus("Visual canvas mode");
+  }
+
+  function parseTemplateSource() {
+    if (!templateWikitext?.parse) throw new Error("Template Wikitext could not be loaded. Reload this page and try again.");
+    const definition = normalizedDefinition(templateWikitext.parse(ui.sourceInput.value));
+    pushHistory();
+    state.draft.definition = definition;
+    clearSelection();
+    return definition;
+  }
+
+  function switchTemplateMode(mode) {
+    if (!state.draft || !["visual", "wikitext"].includes(mode) || state.mode === mode) return;
+    if (mode === "wikitext") {
+      if (!templateWikitext?.format) { setFeedback(ui.feedback, "Template Wikitext could not be loaded. Reload this page and try again.", true); return; }
+      ui.sourceInput.value = templateWikitext.format(state.draft.definition);
+      state.mode = "wikitext";
+      setSourceStatus("Edit the source, then apply it to preview the design.");
+      renderEditorMode();
+      setTimeout(() => ui.sourceInput.focus(), 0);
+      return;
+    }
+    try {
+      parseTemplateSource();
+      state.mode = "visual";
+      renderEditorMode();
+      renderAll();
+      setFeedback(ui.feedback, "Template Wikitext applied to the visual canvas.");
+    } catch (error) {
+      setSourceStatus(error.message || "Fix the Template Wikitext before returning to Visual mode.", true);
+      setFeedback(ui.feedback, "The source has an error. Fix it before switching to Visual mode.", true);
+    }
+  }
+
+  function applyTemplateSource() {
+    if (!state.draft || state.mode !== "wikitext") return;
+    try {
+      parseTemplateSource();
+      state.mode = "visual";
+      renderEditorMode();
+      renderAll();
+      setFeedback(ui.feedback, "Template Wikitext applied. The visual preview is ready.");
+    } catch (error) {
+      setSourceStatus(error.message || "The Template Wikitext could not be applied.", true);
+      setFeedback(ui.feedback, "The source has an error and was not applied.", true);
+    }
+  }
+
   function openTemplate(template) {
     state.current = clone(template);
     const definition = normalizedDefinition(template.currentRevision?.definition || seedDefinition(template.canvas?.width, template.canvas?.height));
     state.draft = { name: template.name, description: template.description || "", definition };
-    clearSelection(); state.undo = []; state.redo = []; ui.summary.value = ""; setFeedback(ui.feedback, ""); renderAll();
+    clearSelection(); state.undo = []; state.redo = []; state.mode = "visual"; ui.summary.value = ""; ui.sourceHelp.hidden = true; ui.sourceHelpButton.setAttribute("aria-expanded", "false"); setFeedback(ui.feedback, ""); renderEditorMode(); renderAll();
   }
 
   async function loadTemplates() {
@@ -575,6 +652,15 @@
     if (!state.current || !state.draft) return;
     state.draft.name = ui.name.value.trim(); state.draft.description = ui.description.value.trim();
     if (!state.draft.name) { setFeedback(ui.feedback, "Enter a template name.", true); return; }
+    const saveInSourceMode = state.mode === "wikitext";
+    if (saveInSourceMode) {
+      try { parseTemplateSource(); }
+      catch (error) {
+        setSourceStatus(error.message || "The Template Wikitext could not be saved.", true);
+        setFeedback(ui.feedback, "Fix the Template Wikitext error before saving.", true);
+        return;
+      }
+    }
     ui.save.disabled = true; setFeedback(ui.feedback, "Saving template revision...");
     try {
       let updated;
@@ -586,7 +672,9 @@
         updated = (await templateRequest({ id: state.current.id, method: "PATCH", body: { baseRevisionId: state.current.currentRevision.id, name: state.draft.name, description: state.draft.description, definition: state.draft.definition, editSummary: ui.summary.value.trim() } })).template;
         state.templates = state.templates.map((item) => item.id === updated.id ? updated : item);
       }
-      openTemplate(updated); setFeedback(ui.feedback, `Template revision ${updated.currentRevision.number} saved.`);
+      openTemplate(updated);
+      if (saveInSourceMode) switchTemplateMode("wikitext");
+      setFeedback(ui.feedback, `Template revision ${updated.currentRevision.number} saved.`);
     } catch (error) { setFeedback(ui.feedback, error.status === 409 ? "Someone changed this template after you opened it. Reload the page before saving." : error.message || "The template could not be saved.", true); }
     finally { ui.save.disabled = false; }
   }
@@ -606,6 +694,7 @@
 
   function keydown(event) {
     const typing = event.target.matches("input,textarea,select");
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") { event.preventDefault(); saveCurrent(); return; }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !typing) { event.preventDefault(); restoreHistory(event.shiftKey ? state.redo : state.undo, event.shiftKey ? state.undo : state.redo); return; }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "y" && !typing) { event.preventDefault(); restoreHistory(state.redo, state.undo); return; }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "d" && !typing) { event.preventDefault(); duplicateSelected(); return; }
@@ -640,6 +729,11 @@
   ui.zoomOut.addEventListener("click", () => setZoom(state.zoom / 1.2));
   ui.zoomIn.addEventListener("click", () => setZoom(state.zoom * 1.2));
   ui.zoomFit.addEventListener("click", fitZoom);
+  ui.modeVisual.addEventListener("click", () => switchTemplateMode("visual"));
+  ui.modeWikitext.addEventListener("click", () => switchTemplateMode("wikitext"));
+  ui.sourceApply.addEventListener("click", applyTemplateSource);
+  ui.sourceHelpButton.addEventListener("click", () => { const show = ui.sourceHelp.hidden; ui.sourceHelp.hidden = !show; ui.sourceHelpButton.setAttribute("aria-expanded", String(show)); });
+  ui.sourceInput.addEventListener("input", () => setSourceStatus("Unsaved source changes · Apply to preview or save the template."));
   ui.save.addEventListener("click", saveCurrent); ui.newButton.addEventListener("click", () => { ui.newForm.reset(); ui.newWidth.value = "720"; ui.newHeight.value = "420"; setFeedback(ui.newFeedback, ""); setDialog(ui.newDialog, true); setTimeout(() => ui.newName.focus(), 0); }); ui.cancelNew.addEventListener("click", () => setDialog(ui.newDialog, false)); ui.newDialog.addEventListener("click", (event) => { if (event.target === ui.newDialog) setDialog(ui.newDialog, false); }); ui.newForm.addEventListener("submit", createTemplate); document.addEventListener("keydown", keydown);
   ui.name.addEventListener("input", () => { if (state.draft) state.draft.name = ui.name.value; }); ui.description.addEventListener("input", () => { if (state.draft) state.draft.description = ui.description.value; });
 

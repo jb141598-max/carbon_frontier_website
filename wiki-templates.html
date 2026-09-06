@@ -54,6 +54,13 @@
       .template-list-button strong,.template-list-button span { display:block; } .template-list-button strong { color:var(--white); font-size:.86rem; } .template-list-button span { margin-top:4px; color:var(--soft); font-size:.68rem; }
       .editor-panel { min-width:0; background:#0d0d0d; }
       .document-fields { display:grid; grid-template-columns:minmax(180px,.6fr) minmax(260px,1.4fr); gap:8px; padding:11px 13px; border-bottom:1px solid var(--border); background:#101010; }
+      .template-mode-row { display:flex; align-items:center; flex-wrap:wrap; gap:9px; padding:9px 13px; border-bottom:1px solid var(--border); background:#111; }
+      .template-mode-switch { display:inline-flex; gap:3px; padding:3px; border:1px solid var(--border); border-radius:12px; background:#080808; }
+      .template-mode-button { min-height:32px; padding:6px 11px; border:0; border-radius:8px; color:var(--muted); background:transparent; font-size:.7rem; font-weight:700; letter-spacing:.04em; }
+      .template-mode-button[aria-pressed="true"] { color:#fff; background:rgba(223,37,49,.33); box-shadow:inset 0 0 0 1px rgba(223,37,49,.55); }
+      .source-mode-actions { display:flex; align-items:center; gap:7px; margin-left:auto; }
+      .source-mode-status { min-height:18px; margin:0; color:var(--soft); font-size:.7rem; }
+      .source-mode-status.is-error { color:#ff9ba2; }
       input,select,textarea { width:100%; min-height:40px; padding:9px 11px; border:1px solid var(--border); border-radius:10px; color:var(--white); background:#0b0b0b; outline:none; }
       input:focus,select:focus,textarea:focus { border-color:rgba(223,37,49,.78); box-shadow:0 0 0 3px rgba(223,37,49,.11); }
       .studio-toolbar { position:relative; z-index:5; flex-wrap:wrap; gap:7px; padding:10px 12px; border-bottom:1px solid var(--border); background:#151515; }
@@ -61,6 +68,13 @@
       .tool-button { min-height:34px; min-width:34px; padding:7px 9px; border-radius:9px; font-size:.7rem; letter-spacing:.03em; text-transform:none; }
       .tool-button.is-active { border-color:rgba(223,37,49,.7); background:rgba(223,37,49,.2); }
       .canvas-viewport { min-height:570px; max-height:690px; overflow:auto; padding:46px; background:radial-gradient(circle,rgba(255,255,255,.075) 1px,transparent 1px),#202124; background-size:18px 18px; }
+      .template-source-panel { min-height:570px; max-height:690px; overflow:auto; padding:18px; background:linear-gradient(180deg,#17181a,#101112); }
+      .template-source-input { min-height:510px; resize:vertical; border-radius:14px; color:#f3f3f3; background:#080909; font-family:"Courier New",monospace; font-size:.84rem; line-height:1.65; tab-size:2; white-space:pre; }
+      .template-source-help { margin-top:12px; padding:16px; border:1px solid rgba(255,255,255,.1); border-radius:14px; color:var(--muted); background:rgba(255,255,255,.035); font-size:.76rem; line-height:1.6; }
+      .template-source-help h3 { margin:0 0 8px; color:#fff; font-size:.85rem; }
+      .template-source-help p { margin:7px 0; }
+      .template-source-help code { color:#ffb2b7; font-family:"Courier New",monospace; overflow-wrap:anywhere; }
+      .studio.is-source-mode { grid-template-columns:245px minmax(480px,1fr); }
       .drawing-canvas { position:relative; width:720px; height:420px; margin:auto; overflow:hidden; background:#111; box-shadow:0 18px 44px rgba(0,0,0,.56); transform-origin:top left; touch-action:none; }
       .canvas-zoom-stage { position:relative; margin:auto; }
       .alignment-guide { position:absolute; z-index:2147483640; pointer-events:none; background:#ff4e88; box-shadow:0 0 0 1px rgba(255,78,136,.18); }
@@ -103,8 +117,8 @@
       .dialog-card { width:min(560px,100%); max-height:calc(100vh - 40px); overflow:auto; padding:24px; border:1px solid var(--border); border-radius:24px; background:#111; box-shadow:var(--shadow); }
       .dialog-card h2 { margin:0; } .dialog-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px; } .dialog-grid .wide { grid-column:1/-1; }
       .form-actions { justify-content:flex-end; gap:8px; margin-top:18px; }
-      @media(max-width:1120px) { .studio { grid-template-columns:210px minmax(450px,1fr); } .properties-panel { grid-column:1/-1; border-top:1px solid var(--border); border-left:0; max-height:none; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; } }
-      @media(max-width:760px) { .page-shell{padding:16px}.topbar,.heading-row{align-items:flex-start;flex-direction:column}.heading-copy{text-align:left}.studio{display:block}.library-panel{border-right:0;border-bottom:1px solid var(--border)}.template-list{max-height:220px}.document-fields{grid-template-columns:1fr}.canvas-viewport{padding:26px;min-height:500px}.properties-panel{display:block}.topbar-actions{justify-content:flex-start}.account-pill{max-width:80vw} }
+      @media(max-width:1120px) { .studio { grid-template-columns:210px minmax(450px,1fr); } .properties-panel { grid-column:1/-1; border-top:1px solid var(--border); border-left:0; max-height:none; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; } .studio.is-source-mode{grid-template-columns:210px minmax(450px,1fr)} }
+      @media(max-width:760px) { .page-shell{padding:16px}.topbar,.heading-row{align-items:flex-start;flex-direction:column}.heading-copy{text-align:left}.studio,.studio.is-source-mode{display:block}.library-panel{border-right:0;border-bottom:1px solid var(--border)}.template-list{max-height:220px}.document-fields{grid-template-columns:1fr}.template-mode-row{align-items:flex-start}.source-mode-actions{width:100%;margin-left:0}.canvas-viewport{padding:26px;min-height:500px}.template-source-panel{min-height:480px;padding:12px}.template-source-input{min-height:440px}.properties-panel{display:block}.topbar-actions{justify-content:flex-start}.account-pill{max-width:80vw} }
     </style>
   </head>
   <body>
@@ -120,11 +134,16 @@
       <section class="unavailable-card" id="unavailable-view" hidden><h1>Templates unavailable</h1><p id="unavailable-copy">Sign in with an assigned wiki staff account.</p><div class="signin-slot" id="google-signin-slot"></div></section>
 
       <main id="templates-view" hidden>
-        <div class="heading-row"><div><p class="eyebrow">Step 9 · Reusable designs</p><h1>Template Studio</h1></div><p class="heading-copy">Build reusable wiki cards, banners, diagrams, and infoboxes. Placeholder text is filled separately on every article.</p></div>
-        <section class="studio" aria-label="Visual wiki template editor">
+        <div class="heading-row"><div><p class="eyebrow">Reusable designs</p><h1>Template Studio</h1></div><p class="heading-copy">Build reusable wiki cards, banners, diagrams, and infoboxes visually or with Template Wikitext. Placeholder values are filled separately on every article.</p></div>
+        <section class="studio" id="template-studio" aria-label="Wiki template editor">
           <aside class="library-panel"><div class="panel-heading"><h2>Templates</h2><button class="mini-button" id="new-template-button" type="button" title="New template">+</button></div><div class="template-list" id="template-list"><div class="empty-state">Loading templates...</div></div></aside>
           <div class="editor-panel">
             <div class="document-fields"><input id="template-name-input" maxlength="100" placeholder="Template name" aria-label="Template name" /><input id="template-description-input" maxlength="500" placeholder="Describe when this template should be used" aria-label="Template description" /></div>
+            <div class="template-mode-row">
+              <div class="template-mode-switch" role="group" aria-label="Template editing mode"><button class="template-mode-button" id="template-mode-visual" type="button" aria-pressed="true">Visual</button><button class="template-mode-button" id="template-mode-wikitext" type="button" aria-pressed="false">Wikitext</button></div>
+              <p class="source-mode-status" id="template-source-status" aria-live="polite">Visual canvas mode</p>
+              <div class="source-mode-actions" id="source-mode-actions" hidden><button class="tool-button" id="template-source-help-button" type="button" aria-expanded="false">Syntax Help</button><button class="primary-button" id="template-source-apply" type="button">Apply &amp; Preview</button></div>
+            </div>
             <div class="studio-toolbar" id="studio-toolbar">
               <div class="toolbar-group"><button class="tool-button" id="undo-button" type="button" title="Undo">↶</button><button class="tool-button" id="redo-button" type="button" title="Redo">↷</button></div><span class="toolbar-divider"></span>
               <div class="toolbar-group"><button class="tool-button" data-add-element="text" type="button">Text</button><button class="tool-button" data-add-element="placeholder" type="button">Text Placeholder</button><button class="tool-button" data-add-element="rectangle" type="button">Rectangle</button><button class="tool-button" data-add-element="ellipse" type="button">Circle</button><button class="tool-button" data-add-element="frame" type="button">Frame</button><button class="tool-button" data-add-element="line" type="button">Line</button><button class="tool-button" id="add-image-button" type="button">Image Placeholder</button></div><span class="toolbar-divider"></span>
@@ -132,6 +151,7 @@
               <span class="toolbar-divider"></span><div class="toolbar-group" aria-label="Canvas zoom"><button class="tool-button" id="zoom-out-button" type="button" aria-label="Zoom out">−</button><span class="zoom-label" id="zoom-label">100%</span><button class="tool-button" id="zoom-in-button" type="button" aria-label="Zoom in">+</button><button class="tool-button" id="zoom-fit-button" type="button">Fit</button></div>
             </div>
             <div class="canvas-viewport" id="canvas-viewport"><div class="canvas-zoom-stage" id="canvas-zoom-stage"><div class="drawing-canvas" id="drawing-canvas" tabindex="0" aria-label="Template drawing canvas"></div></div></div>
+            <div class="template-source-panel" id="template-source-panel" hidden><textarea class="template-source-input" id="template-source-input" aria-label="Template Wikitext source" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea><div class="template-source-help" id="template-source-help" hidden><h3>Template Wikitext</h3><p>Use one safe design directive per line. Available directives: <code>Canvas</code>, <code>Frame</code>, <code>Shape</code>, <code>Line</code>, <code>Text</code>, <code>Placeholder</code>, <code>ImagePlaceholder</code>, and <code>Image</code>.</p><p>Example: <code>{{Placeholder|id=name|x=30|y=30|width=320|height=44|key=machine_name|default=Machine Name|font=Play|size=28|weight=700|color=#ffffff}}</code></p><p>Position with <code>x</code>/<code>y</code>, size with <code>width</code>/<code>height</code>, layer with <code>z</code>, rotate with <code>rotation</code>, and style with directive-specific properties. Escape a pipe in text as <code>\|</code> and a line break as <code>\n</code>. HTML and scripts are never executed.</p></div></div>
             <div class="editor-footer"><input id="template-summary-input" maxlength="300" placeholder="Describe this template change..." aria-label="Template edit summary" /><p class="feedback" id="template-feedback" aria-live="polite"></p><button class="primary-button" id="save-template-button" type="button">Save Template</button></div>
           </div>
           <aside class="properties-panel">
@@ -150,6 +170,6 @@
     </div></div>
 
     <div class="dialog" id="new-template-dialog" role="dialog" aria-modal="true" aria-labelledby="new-template-heading" hidden><form class="dialog-card" id="new-template-form"><p class="eyebrow">New reusable design</p><h2 id="new-template-heading">Create template</h2><div class="dialog-grid"><label class="wide"><span class="field-label">Name</span><input id="new-template-name" maxlength="100" required placeholder="Machine card" /></label><label class="wide"><span class="field-label">Description</span><input id="new-template-description" maxlength="500" placeholder="When should editors use this?" /></label><label><span class="field-label">Canvas width</span><input id="new-template-width" type="number" min="240" max="1600" value="720" required /></label><label><span class="field-label">Canvas height</span><input id="new-template-height" type="number" min="120" max="1600" value="420" required /></label></div><p class="feedback" id="new-template-feedback" aria-live="polite"></p><div class="form-actions"><button class="secondary-button" id="cancel-new-template" type="button">Cancel</button><button class="primary-button" type="submit">Create Template</button></div></form></div>
-    <script src="testing-sync.js"></script><script src="wiki-templates.js"></script>
+    <script src="testing-sync.js"></script><script src="wiki-template-wikitext.js"></script><script src="wiki-templates.js"></script>
   </body>
 </html>

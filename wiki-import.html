@@ -58,7 +58,7 @@
       .primary-button { border-color: rgba(223,37,49,.9); background: rgba(223,37,49,.44); }
       .primary-button:hover, .primary-button:focus-visible { background: rgba(223,37,49,.64); outline: none; transform: translateY(-1px); }
       .account-pill { min-height: 44px; display: flex; align-items: center; max-width: min(38vw, 310px); padding: 10px 14px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: rgba(255,255,255,.04); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .loading-card, .unavailable-card, .source-panel, .pages-panel, .summary-card { border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); }
+      .loading-card, .unavailable-card, .source-panel, .pages-panel, .summary-card, .launch-panel { border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); }
       .loading-card, .unavailable-card { width: min(760px, 100%); margin: 10vh auto 0; padding: clamp(30px,6vw,58px); border-radius: 32px; text-align: center; }
       .loading-card h1, .unavailable-card h1 { margin: 0; font-size: clamp(2rem,7vw,3.8rem); text-transform: uppercase; }
       .loading-card p, .unavailable-card p { max-width: 590px; margin: 16px auto 0; color: var(--muted); line-height: 1.7; }
@@ -102,10 +102,33 @@
       .result-row { display: flex; justify-content: space-between; gap: 12px; padding: 11px 13px; border: 1px solid rgba(255,255,255,.08); border-radius: 13px; color: var(--muted); font-size: .8rem; }
       .result-row strong { color: var(--white); }
       .safety-note { margin: 14px 0 0; color: var(--soft); font-size: .78rem; line-height: 1.6; }
+      .launch-panel { margin-top: 18px; padding: 22px; border-radius: 28px; }
+      .launch-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+      .launch-header h2 { margin: 5px 0 0; font-size: clamp(1.65rem,4vw,2.5rem); text-transform: uppercase; }
+      .launch-header p { max-width: 650px; margin: 9px 0 0; color: var(--muted); line-height: 1.6; }
+      .launch-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; }
+      .readiness-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-top: 18px; }
+      .readiness-card { padding: 15px; border: 1px solid rgba(255,255,255,.09); border-radius: 17px; background: rgba(0,0,0,.26); }
+      .readiness-card span { display: block; color: var(--soft); font-size: .67rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      .readiness-card strong { display: block; margin-top: 6px; font-size: 1.55rem; }
+      .launch-checks { display: grid; gap: 8px; margin-top: 16px; }
+      .launch-check { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 11px; align-items: start; padding: 12px 14px; border: 1px solid rgba(255,255,255,.08); border-radius: 14px; color: var(--muted); background: rgba(0,0,0,.2); font-size: .8rem; line-height: 1.5; }
+      .launch-check::before { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; content: "?"; color: #fff; background: rgba(255,255,255,.12); font-size: .72rem; font-weight: 700; }
+      .launch-check.is-pass::before { content: "✓"; color: #07130c; background: #83e6aa; }
+      .launch-check.is-warning::before { content: "!"; color: #1b1203; background: #ffd27c; }
+      .launch-check.is-fail::before { content: "×"; background: #df2531; }
+      .manual-launch { margin: 18px 0 0; padding: 17px; border: 1px solid rgba(255,255,255,.09); border-radius: 17px; }
+      .manual-launch legend { padding: 0 8px; color: #ffabb1; font-size: .74rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+      .manual-launch-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+      .manual-launch label { display: flex; align-items: flex-start; gap: 9px; min-height: 44px; padding: 10px 12px; border-radius: 12px; color: var(--muted); background: rgba(255,255,255,.03); font-size: .78rem; line-height: 1.45; }
+      .manual-launch input { width: 17px; height: 17px; flex: 0 0 auto; margin-top: 1px; accent-color: var(--red); }
       @media (max-width: 820px) {
         .topbar, .heading-row { align-items: flex-start; flex-direction: column; }
         .heading-copy { text-align: left; }
         .source-grid, .import-options { grid-template-columns: 1fr; }
+        .launch-header { flex-direction: column; }
+        .launch-actions { justify-content: flex-start; }
+        .readiness-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
         .topbar-actions { flex-wrap: wrap; }
         .account-pill { max-width: 70vw; }
       }
@@ -115,6 +138,7 @@
         .list-tools, .form-actions { align-items: stretch; flex-direction: column; }
         .list-tools input { max-width: none; }
         .summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+        .manual-launch-grid { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -212,10 +236,35 @@
               <div class="result-list" id="result-list"></div>
             </div>
           </section>
+
+          <section class="launch-panel" aria-labelledby="launch-heading">
+            <div class="launch-header">
+              <div><p class="eyebrow">Step 14 · Final launch</p><h2 id="launch-heading">Launch Center</h2><p>Validate the database after migration, download a complete JSON content backup, and finish the last manual checks before making the new wiki your official one.</p></div>
+              <div class="launch-actions"><button class="secondary-button" id="run-launch-check" type="button">Run Readiness Check</button><button class="primary-button" id="download-wiki-backup" type="button">Download Backup</button></div>
+            </div>
+            <p class="feedback" id="launch-feedback" aria-live="polite">Run the check after your final Miraheze import.</p>
+            <div class="readiness-grid" id="readiness-summary" hidden>
+              <article class="readiness-card"><span>Active pages</span><strong id="readiness-pages">0</strong></article>
+              <article class="readiness-card"><span>Revisions</span><strong id="readiness-revisions">0</strong></article>
+              <article class="readiness-card"><span>Templates</span><strong id="readiness-templates">0</strong></article>
+              <article class="readiness-card"><span>Catalog images</span><strong id="readiness-media">0</strong></article>
+            </div>
+            <div class="launch-checks" id="launch-check-list"></div>
+            <fieldset class="manual-launch"><legend>Manual deployment checklist</legend><div class="manual-launch-grid">
+              <label><input type="checkbox" data-launch-check="backup" /> I downloaded and safely stored a final JSON backup.</label>
+              <label><input type="checkbox" data-launch-check="import" /> I reviewed imported pages, templates, images, categories, and redirects.</label>
+              <label><input type="checkbox" data-launch-check="privacy" /> I tested both public/private viewing and open/restricted editing.</label>
+              <label><input type="checkbox" data-launch-check="roles" /> I tested Owner, Admin, Wiki Editor, and signed-out access.</label>
+              <label><input type="checkbox" data-launch-check="mobile" /> I checked important pages on desktop and a narrow/mobile screen.</label>
+              <label><input type="checkbox" data-launch-check="deploy" /> I completed a production Netlify deploy and re-ran this readiness check.</label>
+            </div></fieldset>
+            <p class="safety-note">The JSON backup contains private wiki text and member email addresses. Only Owners and Admins can create it; store it somewhere private. Uploaded image files remain in Netlify Blobs and are listed by metadata in the backup.</p>
+          </section>
         </main>
       </div>
     </div>
     <script src="testing-sync.js"></script>
+    <script src="wiki-media-client.js"></script>
     <script src="wiki-import.js"></script>
   </body>
 </html>
