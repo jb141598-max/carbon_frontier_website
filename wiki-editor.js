@@ -1198,26 +1198,49 @@
     }
   }
 
-  function visualTemplateWikiHref(target) {
+  function visualTemplateWikiTarget(target) {
     const raw = String(target || "").trim().replace(/^:/, "");
     if (raw.toLowerCase() === "cf-edit-current") {
-      return app.currentSlug && app.currentSlug !== "front-page"
-        ? `wiki.html?page=${encodeURIComponent(app.currentSlug)}&edit=1`
-        : "wiki.html?edit=1";
+      const href = isTesting() || /wiki\.html$/i.test(window.location.pathname)
+        ? (app.currentSlug && app.currentSlug !== "front-page"
+            ? `wiki.html?page=${encodeURIComponent(app.currentSlug)}&edit=1`
+            : "wiki.html?edit=1")
+        : (app.currentSlug && app.currentSlug !== "front-page"
+            ? `/wiki/${encodeURIComponent(app.currentSlug)}?edit=1`
+            : "/wiki?edit=1");
+      return { kind: "edit-current", href, slug: app.currentSlug || "front-page" };
     }
     const [title = "", ...fragmentParts] = raw.split("#");
     const wanted = String(title || "").trim();
+    const categoryMatch = wanted.match(/^category\s*:\s*(.+)$/i);
+    if (categoryMatch) {
+      const categoryName = categoryMatch[1].trim();
+      const knownCategory = categoryDirectory().find((category) =>
+        category.name.toLowerCase() === categoryName.toLowerCase() || category.slug.toLowerCase() === categoryName.toLowerCase()
+      );
+      const slug = knownCategory?.slug || wikitext.slugify(categoryName);
+      const href = isTesting() || /wiki\.html$/i.test(window.location.pathname)
+        ? `wiki.html?category=${encodeURIComponent(slug)}`
+        : `/wiki/category/${encodeURIComponent(slug)}`;
+      return { kind: "category", href, slug };
+    }
     const known = app.pages.find((page) =>
       String(page?.title || "").trim().toLowerCase() === wanted.toLowerCase() ||
       String(page?.slug || "").trim().toLowerCase() === wanted.toLowerCase()
     );
     const slug = known?.slug || wikitext.slugify(wanted);
-    let href = slug ? `wiki.html?page=${encodeURIComponent(slug)}` : "wiki.html";
+    let href = isTesting() || /wiki\.html$/i.test(window.location.pathname)
+      ? (slug ? `wiki.html?page=${encodeURIComponent(slug)}` : "wiki.html")
+      : (slug ? `/wiki/${encodeURIComponent(slug)}` : "/wiki");
     if (fragmentParts.length) {
       const fragment = wikitext.slugify(fragmentParts.join("#"));
       if (fragment) href += `#${encodeURIComponent(fragment)}`;
     }
-    return href;
+    return { kind: "page", href, slug };
+  }
+
+  function visualTemplateWikiHref(target) {
+    return visualTemplateWikiTarget(target).href;
   }
 
   function appendVisualTemplateText(node, source) {
@@ -1230,9 +1253,13 @@
       if (match[1] !== undefined) {
         const parts = String(match[1] || "").split("|");
         const target = String(parts.shift() || "").trim();
-        anchor.href = visualTemplateWikiHref(target);
+        const resolved = visualTemplateWikiTarget(target);
+        anchor.href = resolved.href;
         anchor.textContent = parts.length ? parts.join("|") : target;
         anchor.title = target.toLowerCase() === "cf-edit-current" ? "Edit this wiki page" : target;
+        if (resolved.kind === "edit-current") anchor.dataset.wikiEditCurrent = "1";
+        else if (resolved.kind === "category") anchor.dataset.wikiCategoryTarget = resolved.slug;
+        else if (resolved.kind === "page") anchor.dataset.wikiPageTarget = resolved.slug;
       } else {
         anchor.href = match[2];
         anchor.textContent = match[3] || match[2];
@@ -3557,7 +3584,32 @@
   ui.content.addEventListener("keyup", updateToolbarState);
   ui.content.addEventListener("mouseup", updateToolbarState);
   ui.content.addEventListener("click", (event) => {
+    const editCurrentLink = event.target.closest("[data-wiki-edit-current]");
+    if (editCurrentLink) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (app.editing) {
+        setFeedback(ui.feedback, "This page is already in edit mode.");
+      } else if (app.currentPage?.permissions?.canEdit) {
+        enterEditing();
+      } else {
+        setFeedback(ui.feedback, "Sign in with an account that can edit this page to open the editor.", true);
+      }
+      return;
+    }
     if (!app.editing) {
+      const templateCategoryLink = event.target.closest("[data-wiki-category-target]");
+      if (templateCategoryLink) {
+        event.preventDefault();
+        openCategoryPage(templateCategoryLink.dataset.wikiCategoryTarget);
+        return;
+      }
+      const templatePageLink = event.target.closest("[data-wiki-page-target]");
+      if (templatePageLink) {
+        event.preventDefault();
+        openPage(templatePageLink.dataset.wikiPageTarget);
+        return;
+      }
       const categoryPageLink = event.target.closest("[data-category-page-slug]");
       if (categoryPageLink) {
         event.preventDefault();

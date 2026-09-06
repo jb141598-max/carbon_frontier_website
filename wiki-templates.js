@@ -6,6 +6,7 @@
   const ACCESS_ENDPOINTS = ["/api/wiki-access", "/.netlify/functions/wiki-access"];
   const TEMPLATE_ENDPOINTS = ["/api/wiki/templates", "/.netlify/functions/wiki-templates"];
   const MEDIA_ENDPOINTS = ["/api/wiki/media", "/.netlify/functions/wiki-media"];
+  const PAGE_ENDPOINTS = ["/api/wiki/pages", "/.netlify/functions/wiki-pages"];
   const CURSOR_ACCOUNT = { email: "jb141598@gmail.com", name: "Cursor Testing Owner", idToken: "" };
   const FONT_FAMILIES = new Set(["Play", "Arial", "Georgia", "Times New Roman", "Verdana", "Courier New"]);
   const ELEMENT_TYPES = new Set(["text", "placeholder", "image-placeholder", "shape", "frame", "line", "image"]);
@@ -51,6 +52,7 @@
     textLinkType: document.getElementById("template-text-link-type"),
     textLinkTargetField: document.getElementById("template-text-link-target-field"),
     textLinkTarget: document.getElementById("template-text-link-target"),
+    textLinkSuggestions: document.getElementById("template-text-link-suggestions"),
     textLinkLabel: document.getElementById("template-text-link-label"),
     textLinkNote: document.getElementById("template-text-link-note"),
     textLinkCancel: document.getElementById("template-text-link-cancel"),
@@ -102,7 +104,7 @@
     templates: [], current: null, draft: null, selectedId: "", selectedIds: [], undo: [], redo: [],
     interaction: null, guides: { x: [], y: [] }, zoom: 1, gestureStartZoom: 1, mode: "visual",
     googleInitialized: false, objectUrls: new Map(),
-    imageUploadMode: "add", textLinkSelection: null,
+    imageUploadMode: "add", textLinkSelection: null, linkTargets: { pages: [], categories: [] }, linkSuggestionIndex: -1,
   };
 
   function isTestingEnvironment() {
@@ -150,7 +152,20 @@
     if (!raw) return "#";
     if (raw.toLowerCase() === "cf-edit-current") return "#";
     const [title = "", ...fragmentParts] = raw.replace(/^:/, "").split("#");
-    const slug = slugify(title);
+    const categoryMatch = String(title).match(/^category\s*:\s*(.+)$/i);
+    if (categoryMatch) {
+      const wanted = categoryMatch[1].trim();
+      const known = state.linkTargets.categories.find((category) =>
+        category.name.toLowerCase() === wanted.toLowerCase() || category.slug.toLowerCase() === wanted.toLowerCase()
+      );
+      const slug = known?.slug || slugify(wanted);
+      return slug ? `wiki.html?category=${encodeURIComponent(slug)}` : "wiki.html";
+    }
+    const wanted = String(title || "").trim();
+    const known = state.linkTargets.pages.find((page) =>
+      page.title.toLowerCase() === wanted.toLowerCase() || page.slug.toLowerCase() === wanted.toLowerCase()
+    );
+    const slug = known?.slug || slugify(wanted);
     let href = slug ? `wiki.html?page=${encodeURIComponent(slug)}` : "wiki.html";
     if (fragmentParts.length) {
       const fragment = slugify(fragmentParts.join("#"));
@@ -269,6 +284,43 @@
     return fetch(endpoint, { ...options, headers, cache: "no-store" });
   }
 
+  function setLinkTargetData(pages) {
+    const cleanPages = (Array.isArray(pages) ? pages : [])
+      .filter((page) => page && !page.isDeleted && page.slug && page.title)
+      .map((page) => ({ slug: String(page.slug), title: String(page.title), categories: Array.isArray(page.categories) ? page.categories : [] }));
+    const categories = new Map();
+    cleanPages.forEach((page) => page.categories.forEach((category) => {
+      const name = String(category?.name || "").trim();
+      const slug = String(category?.slug || slugify(name)).trim();
+      if (name && slug && !categories.has(slug)) categories.set(slug, { slug, name });
+    }));
+    state.linkTargets = { pages: cleanPages, categories: [...categories.values()] };
+  }
+
+  async function loadLinkTargets() {
+    if (state.testing) {
+      const snapshotPages = window.CarbonFrontierTestingSync?.getSection?.("wiki")?.pages;
+      setLinkTargetData(snapshotPages || []);
+      return state.linkTargets;
+    }
+    let lastError = null;
+    for (const endpoint of PAGE_ENDPOINTS) {
+      try {
+        const response = await fetchWithAuth(endpoint);
+        const payload = await response.json().catch(() => null);
+        if (response.status === 404 && endpoint.startsWith("/api/")) continue;
+        if (!response.ok) throw new Error(payload?.error || `Wiki page list failed (${response.status}).`);
+        setLinkTargetData(payload?.pages || []);
+        return state.linkTargets;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (lastError) console.warn("Could not load wiki link suggestions", lastError);
+    setLinkTargetData([]);
+    return state.linkTargets;
+  }
+
   async function templateRequest({ id = "", method = "GET", body = null } = {}) {
     let lastError = new Error("The wiki template service is unavailable.");
     const bases = state.remoteEndpoint ? [state.remoteEndpoint, ...TEMPLATE_ENDPOINTS.filter((item) => item !== state.remoteEndpoint)] : TEMPLATE_ENDPOINTS;
@@ -356,7 +408,7 @@
         if (response.status === 404 && endpoint.startsWith("/api/")) { lastError = new Error("Wiki access Function not found."); continue; }
         if (!response.ok) { const error = new Error(payload?.error || `Access check failed (${response.status}).`); error.status = response.status; throw error; }
         if (!payload?.viewer?.isAssignedStaff) { showUnavailable("Only assigned Wiki Editors, Admins, and Owners can open Template Studio."); return false; }
-        showView(); await loadTemplates(); return true;
+        showView(); await Promise.all([loadTemplates(), loadLinkTargets()]); return true;
       } catch (error) { lastError = error; if (error?.status && error.status !== 404) break; }
     }
     showUnavailable(lastError.message); return false;
@@ -648,13 +700,81 @@
     }
   }
 
+  function closeLinkTargetSuggestions() {
+    if (!ui.textLinkSuggestions) return;
+    ui.textLinkSuggestions.hidden = true;
+    ui.textLinkSuggestions.replaceChildren();
+    state.linkSuggestionIndex = -1;
+  }
+
+  function matchingLinkTargets(query) {
+    const needle = String(query || "").trim().toLowerCase();
+    if (!needle) return [];
+    const scored = [];
+    state.linkTargets.pages.forEach((page) => {
+      const title = page.title.toLowerCase(), slug = page.slug.toLowerCase();
+      if (!title.includes(needle) && !slug.includes(needle)) return;
+      scored.push({ kind: "Page", label: page.title, target: page.title, score: title.startsWith(needle) ? 0 : 2 });
+    });
+    state.linkTargets.categories.forEach((category) => {
+      const name = category.name.toLowerCase(), slug = category.slug.toLowerCase();
+      if (!name.includes(needle) && !slug.includes(needle) && !`category:${name}`.includes(needle)) return;
+      scored.push({ kind: "Category", label: category.name, target: `Category:${category.name}`, score: name.startsWith(needle) ? 1 : 3 });
+    });
+    return scored.sort((a, b) => a.score - b.score || a.label.localeCompare(b.label)).slice(0, 10);
+  }
+
+  function renderLinkTargetSuggestions() {
+    if (!ui.textLinkSuggestions || ui.textLinkType.value !== "wiki") { closeLinkTargetSuggestions(); return; }
+    const query = ui.textLinkTarget.value;
+    if (!query.trim()) { closeLinkTargetSuggestions(); return; }
+    const matches = matchingLinkTargets(query);
+    ui.textLinkSuggestions.replaceChildren();
+    if (!matches.length) {
+      const empty = document.createElement("div");
+      empty.className = "template-link-suggestions-empty";
+      empty.textContent = "No matching wiki pages or categories.";
+      ui.textLinkSuggestions.append(empty);
+      ui.textLinkSuggestions.hidden = false;
+      state.linkSuggestionIndex = -1;
+      return;
+    }
+    matches.forEach((match, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "template-link-suggestion";
+      button.dataset.linkTarget = match.target;
+      button.dataset.linkLabel = match.label;
+      button.dataset.linkSuggestionIndex = String(index);
+      const strong = document.createElement("strong");
+      strong.textContent = match.kind === "Category" ? `Category: ${match.label}` : match.label;
+      const kind = document.createElement("span");
+      kind.textContent = match.kind;
+      button.append(strong, kind);
+      ui.textLinkSuggestions.append(button);
+    });
+    ui.textLinkSuggestions.hidden = false;
+    state.linkSuggestionIndex = -1;
+  }
+
+  function chooseLinkTarget(button) {
+    if (!button) return;
+    ui.textLinkTarget.value = button.dataset.linkTarget || "";
+    if (!ui.textLinkLabel.value.trim()) ui.textLinkLabel.value = button.dataset.linkLabel || "";
+    closeLinkTargetSuggestions();
+    ui.textLinkLabel.focus();
+  }
+
   function updateTextLinkTargetField() {
     const type = ui.textLinkType.value;
     ui.textLinkTargetField.hidden = type === "current-edit";
-    ui.textLinkTarget.placeholder = type === "external" ? "https://example.com" : "Coal";
+    ui.textLinkTarget.placeholder = type === "external" ? "https://example.com" : "Coal or Category:Machines";
     ui.textLinkNote.textContent = type === "current-edit"
       ? "This opens the editor for whichever wiki article the template is shown on."
-      : "The link is inserted exactly at the current text cursor position.";
+      : type === "wiki"
+        ? "Start typing a page or category name, then choose a match. The link is inserted at the current text cursor position."
+        : "The link is inserted exactly at the current text cursor position.";
+    closeLinkTargetSuggestions();
   }
 
   function openTextLinkMenu() {
@@ -674,6 +794,7 @@
 
   function closeTextLinkMenu({ restoreFocus = true } = {}) {
     ui.textLinkMenu.hidden = true;
+    closeLinkTargetSuggestions();
     if (restoreFocus && ui.textValueInput) ui.textValueInput.focus();
   }
 
@@ -951,6 +1072,26 @@
   ui.replaceImage.addEventListener("click", () => beginFixedImageUpload("replace"));
   ui.textLinkButton.addEventListener("click", openTextLinkMenu);
   ui.textLinkType.addEventListener("change", updateTextLinkTargetField);
+  ui.textLinkTarget.addEventListener("input", renderLinkTargetSuggestions);
+  ui.textLinkTarget.addEventListener("keydown", (event) => {
+    if (ui.textLinkSuggestions?.hidden) return;
+    const buttons = [...ui.textLinkSuggestions.querySelectorAll(".template-link-suggestion")];
+    if (!buttons.length) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const delta = event.key === "ArrowDown" ? 1 : -1;
+      state.linkSuggestionIndex = (state.linkSuggestionIndex + delta + buttons.length) % buttons.length;
+      buttons.forEach((button, index) => button.classList.toggle("is-active", index === state.linkSuggestionIndex));
+      buttons[state.linkSuggestionIndex].scrollIntoView({ block: "nearest" });
+    } else if (event.key === "Enter" && state.linkSuggestionIndex >= 0) {
+      event.preventDefault();
+      chooseLinkTarget(buttons[state.linkSuggestionIndex]);
+    } else if (event.key === "Escape") {
+      closeLinkTargetSuggestions();
+    }
+  });
+  ui.textLinkSuggestions?.addEventListener("mousedown", (event) => event.preventDefault());
+  ui.textLinkSuggestions?.addEventListener("click", (event) => chooseLinkTarget(event.target.closest(".template-link-suggestion")));
   ui.textLinkCancel.addEventListener("click", () => closeTextLinkMenu());
   ui.textLinkInsert.addEventListener("click", insertTextLink);
   ui.zoomOut.addEventListener("click", () => setZoom(state.zoom / 1.2));
@@ -966,7 +1107,7 @@
 
   async function initialize() {
     updateUndoButtons();
-    if (state.testing) { state.account = CURSOR_ACCOUNT; showView(); await loadTemplates(); return; }
+    if (state.testing) { state.account = CURSOR_ACCOUNT; showView(); await Promise.all([loadTemplates(), loadLinkTargets()]); return; }
     const session = loadSession(); if (session) { state.account = session; state.idToken = session.idToken; await verifyAccess(); } else showUnavailable("Sign in with an assigned Wiki Editor, Admin, or Owner account to open Template Studio.");
   }
   initialize();
