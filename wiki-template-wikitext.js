@@ -17,7 +17,7 @@
     "SUB", "SUP", "TABLE", "TBODY", "TD", "TFOOT", "TH", "THEAD", "TR", "U", "UL",
   ]);
   const ALLOWED_STYLES = new Set([
-    "align-items", "align-content", "align-self", "background", "background-color", "border",
+    "align-items", "align-content", "align-self", "aspect-ratio", "background", "background-color", "border",
     "border-bottom", "border-bottom-color", "border-bottom-style", "border-bottom-width",
     "border-color", "border-left", "border-left-color", "border-left-style", "border-left-width",
     "border-radius", "border-right", "border-right-color", "border-right-style", "border-right-width",
@@ -27,7 +27,7 @@
     "font-style", "font-weight", "gap", "grid-template-columns", "grid-template-rows", "height",
     "justify-content", "justify-items", "left", "letter-spacing", "line-height", "margin",
     "margin-bottom", "margin-left", "margin-right", "margin-top", "max-height", "max-width",
-    "min-height", "min-width", "object-fit", "opacity", "overflow", "overflow-wrap", "overflow-x",
+    "min-height", "min-width", "object-fit", "object-position", "opacity", "overflow", "overflow-wrap", "overflow-x",
     "overflow-y", "padding", "padding-bottom", "padding-left", "padding-right", "padding-top",
     "place-items", "position", "right", "row-gap", "text-align", "text-decoration", "text-overflow",
     "text-transform", "top", "transform", "transform-origin", "vertical-align", "white-space", "width",
@@ -514,11 +514,42 @@
       if (/^(?:File|Image):/i.test(target)) {
         const title = target.replace(/^(?:File|Image):/i, "").trim();
         const imageOptions = parts.map((part) => part.trim()).filter(Boolean);
-        const caption = [...imageOptions].reverse().find((part) => !/^(?:thumb|thumbnail|frameless|frame|border|left|right|center|none|upright(?:=[\d.]+)?|\d+(?:x\d+)?px|link=.*|alt=.*|class=.*|lang=.*)$/i.test(part)) || title;
+        const caption = [...imageOptions].reverse().find((part) => !/^(?:thumb|thumbnail|frameless|frame|border|left|right|center|none|upright(?:=[\d.]+)?|\d+(?:x\d+)?px|link=.*|alt=.*|class=.*|lang=.*|(?:fit|object-fit)=.*|(?:position|object-position)=.*)$/i.test(part)) || title;
         const width = imageOptions.map((part) => part.match(/^(\d+)(?:x\d+)?px$/i)).find(Boolean)?.[1];
         const linkOption = imageOptions.find((part) => /^link\s*=/i.test(part));
         const linkTarget = linkOption === undefined ? null : linkOption.replace(/^link\s*=/i, "").trim();
-        const imageHtml = `<img data-wiki-file-title="${escapeHtml(title)}" alt="${escapeHtml(caption)}"${width ? ` style="max-width:${Math.min(1600, Number(width))}px;width:100%;height:auto;"` : ""}>`;
+
+        // Carbon Frontier extension for fixed image frames used by visual templates such as PictureButton.
+        // MediaWiki-style images keep their normal intrinsic aspect ratio unless fit= is explicitly supplied.
+        const fitOption = imageOptions.find((part) => /^(?:fit|object-fit)\s*=/i.test(part));
+        const fitValue = fitOption ? fitOption.replace(/^(?:fit|object-fit)\s*=/i, "").trim().toLowerCase() : "";
+        const fitMap = {
+          crop: "cover", cover: "cover",
+          fit: "contain", contain: "contain",
+          stretch: "fill", fill: "fill",
+          original: "none", none: "none",
+          "scale-down": "scale-down", scaledown: "scale-down",
+        };
+        const objectFit = fitOption ? (fitMap[fitValue] || "cover") : "";
+
+        const positionOption = imageOptions.find((part) => /^(?:position|object-position)\s*=/i.test(part));
+        const rawPosition = positionOption ? positionOption.replace(/^(?:position|object-position)\s*=/i, "").trim().toLowerCase() : "center";
+        const positionMap = {
+          center: "center center", middle: "center center",
+          top: "center top", bottom: "center bottom",
+          left: "left center", right: "right center",
+          "top-left": "left top", "top-right": "right top",
+          "bottom-left": "left bottom", "bottom-right": "right bottom",
+        };
+        const objectPosition = positionMap[rawPosition] || "center center";
+
+        let imageStyle = "";
+        if (objectFit) {
+          imageStyle = `width:100%;height:100%;max-width:100%;max-height:100%;object-fit:${objectFit};object-position:${objectPosition};display:block;`;
+        } else if (width) {
+          imageStyle = `max-width:${Math.min(1600, Number(width))}px;width:100%;height:auto;`;
+        }
+        const imageHtml = `<img data-wiki-file-title="${escapeHtml(title)}" alt="${escapeHtml(caption)}"${imageStyle ? ` style="${imageStyle}"` : ""}>`;
 
         // MediaWiki's [[File:...|link=Page]] syntax makes the image/cell clickable.
         // An explicitly empty link= disables linking, which RecipeSlot uses for arrows and plus signs.
