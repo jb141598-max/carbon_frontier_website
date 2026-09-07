@@ -105,6 +105,7 @@
     interaction: null, guides: { x: [], y: [] }, zoom: 1, gestureStartZoom: 1, mode: "visual",
     googleInitialized: false, objectUrls: new Map(),
     imageUploadMode: "add", textLinkSelection: null, linkTargets: { pages: [], categories: [] }, linkSuggestionIndex: -1,
+    mediaCatalog: [], mediaCatalogLoaded: false,
   };
 
   function isTestingEnvironment() {
@@ -301,6 +302,7 @@
     if (state.testing) {
       const snapshotPages = window.CarbonFrontierTestingSync?.getSection?.("wiki")?.pages;
       setLinkTargetData(snapshotPages || []);
+      if (state.draft?.definition?.kind === "wikitext") renderCanvas();
       return state.linkTargets;
     }
     let lastError = null;
@@ -311,6 +313,7 @@
         if (response.status === 404 && endpoint.startsWith("/api/")) continue;
         if (!response.ok) throw new Error(payload?.error || `Wiki page list failed (${response.status}).`);
         setLinkTargetData(payload?.pages || []);
+        if (state.draft?.definition?.kind === "wikitext") renderCanvas();
         return state.linkTargets;
       } catch (error) {
         lastError = error;
@@ -366,6 +369,54 @@
       if (response.status === 404 && base.startsWith("/api/")) continue;
       if (!response.ok) return;
       const url = URL.createObjectURL(await response.blob()); state.objectUrls.set(element.mediaId, url); image.src = url; return;
+    }
+  }
+
+  async function loadPreviewMediaCatalog() {
+    if (state.mediaCatalogLoaded) return state.mediaCatalog;
+    if (state.testing) {
+      const media = window.CarbonFrontierTestingSync?.getSection?.("wiki")?.media;
+      state.mediaCatalog = Array.isArray(media) ? media : [];
+      state.mediaCatalogLoaded = true;
+      return state.mediaCatalog;
+    }
+    for (const base of MEDIA_ENDPOINTS) {
+      try {
+        const url = new URL(base, location.origin);
+        url.searchParams.set("limit", "100");
+        url.searchParams.set("sort", "newest");
+        const response = await fetchWithAuth(`${url.pathname}${url.search}`);
+        const payload = await response.json().catch(() => null);
+        if (response.status === 404 && base.startsWith("/api/")) continue;
+        if (!response.ok) continue;
+        state.mediaCatalog = Array.isArray(payload?.media) ? payload.media : [];
+        state.mediaCatalogLoaded = true;
+        return state.mediaCatalog;
+      } catch (error) { /* Try the fallback endpoint. */ }
+    }
+    state.mediaCatalogLoaded = true;
+    state.mediaCatalog = [];
+    return state.mediaCatalog;
+  }
+
+  async function hydrateWikitextPreviewMedia(container) {
+    const images = [...container.querySelectorAll("img[data-wiki-file-title]")];
+    if (!images.length) return;
+    const catalog = await loadPreviewMediaCatalog();
+    const normalized = (value) => String(value || "").trim().replace(/^File:/i, "").replaceAll("_", " ").toLowerCase();
+    for (const image of images) {
+      const wanted = normalized(image.dataset.wikiFileTitle);
+      const media = catalog.find((item) => item.id === image.dataset.wikiFileTitle ||
+        [item.title, item.originalName].some((name) => normalized(name) === wanted));
+      if (media) {
+        await hydrateImage(image, { mediaId: media.id, url: media.url && /^data:image\//i.test(media.url) ? media.url : "" });
+      } else if (!image.nextElementSibling?.classList?.contains("cf-template-missing")) {
+        image.hidden = true;
+        const missing = document.createElement("span");
+        missing.className = "cf-template-missing";
+        missing.textContent = `Missing image: ${image.dataset.wikiFileTitle}`;
+        image.after(missing);
+      }
     }
   }
 
@@ -510,8 +561,9 @@
         placeholder.kind === "image" ? placeholder.defaultAlt || "" : placeholder.defaultValue || "",
       ]));
       try {
-        const result = templateWikitext.render(definition.source, values, { templates: state.templates });
+        const result = templateWikitext.render(definition.source, values, { templates: state.templates, pages: state.linkTargets.pages });
         ui.wikitextPreview.innerHTML = result.html;
+        hydrateWikitextPreviewMedia(ui.wikitextPreview).catch(() => {});
       } catch (error) {
         ui.wikitextPreview.textContent = error.message || "This template preview could not be rendered.";
       }

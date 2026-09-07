@@ -229,6 +229,102 @@
     catch (error) { return "Expression error"; }
   }
 
+  function findTemplateBlockByPrefix(source, prefix) {
+    const wanted = String(prefix || "").toLowerCase();
+    const stack = [];
+    for (let index = 0; index < source.length;) {
+      if (source.startsWith("{{", index)) {
+        stack.push(index);
+        index += 2;
+        continue;
+      }
+      if (source.startsWith("}}", index) && stack.length) {
+        const start = stack.pop();
+        const content = source.slice(start + 2, index).trim();
+        if (content.toLowerCase().startsWith(wanted)) {
+          return { start, end: index + 2, innerEnd: index, content };
+        }
+        index += 2;
+        continue;
+      }
+      index += 1;
+    }
+    return null;
+  }
+
+  function dplParameters(content) {
+    const result = Object.create(null);
+    const source = String(content || "").replace(/^#dpl\s*:/i, "");
+    for (const part of splitTopLevel(source)) {
+      const equals = topLevelEquals(part);
+      if (equals < 1) continue;
+      const key = part.slice(0, equals).trim().toLowerCase();
+      if (!key) continue;
+      result[key] = part.slice(equals + 1).trim();
+    }
+    return result;
+  }
+
+  function pageHasCategory(page, wantedCategory) {
+    const wanted = normalizeName(String(wantedCategory || "").replace(/^category\s*:/i, ""));
+    if (!wanted) return false;
+    return (Array.isArray(page?.categories) ? page.categories : []).some((category) =>
+      normalizeName(category?.name) === wanted || normalizeName(category?.slug) === wanted
+    );
+  }
+
+  function replaceDplPageVariables(value, page) {
+    const title = String(page?.title || "");
+    const slug = String(page?.slug || slugify(title));
+    return String(value || "")
+      .replace(/%PAGE%/gi, title)
+      .replace(/%TITLE%/gi, title)
+      .replace(/%PAGENAME%/gi, title)
+      .replace(/%PAGEID%/gi, String(page?.id || ""))
+      .replace(/%PAGEURL%/gi, `wiki.html?page=${encodeURIComponent(slug)}`);
+  }
+
+  function renderDynamicPageList(content, options = {}, depth = 0, stack = []) {
+    const parameters = dplParameters(content);
+    const category = String(parameters.category || "").trim();
+    if (!category) return "";
+
+    let pages = (Array.isArray(options.pages) ? options.pages : [])
+      .filter((page) => page && !page.isDeleted && pageHasCategory(page, category));
+
+    const orderMethod = String(parameters.ordermethod || "title").trim().toLowerCase();
+    if (orderMethod === "title") {
+      pages.sort((left, right) => String(left.title || "").localeCompare(String(right.title || ""), undefined, { sensitivity: "base" }));
+    }
+    if (String(parameters.order || "ascending").trim().toLowerCase() === "descending") {
+      pages.reverse();
+    }
+
+    const requestedCount = Number.parseInt(parameters.count, 10);
+    if (Number.isFinite(requestedCount) && requestedCount >= 0) {
+      pages = pages.slice(0, Math.min(500, requestedCount));
+    } else {
+      pages = pages.slice(0, 500);
+    }
+
+    const mode = String(parameters.mode || "").trim().toLowerCase();
+    const format = parameters.format;
+    if (mode !== "userformat" || format === undefined) {
+      return pages.map((page) => `[[${page.title}]]`).join("\n");
+    }
+
+    const formatParts = splitTopLevel(format, ",");
+    const header = formatParts[0] || "";
+    const itemPattern = formatParts[1] || "%PAGE%";
+    const separator = formatParts[2] || "";
+    const footer = formatParts.slice(3).join(",") || "";
+    const renderedItems = pages.map((page) => {
+      const itemSource = replaceDplPageVariables(itemPattern, page);
+      return expandTemplates(itemSource, options, depth + 1, stack);
+    });
+    return `${replaceDplPageVariables(header, pages[0])}${renderedItems.join(separator)}${replaceDplPageVariables(footer, pages.at(-1))}`;
+  }
+
   function parserFunction(content, options = {}) {
     const lower = content.toLowerCase();
 
@@ -326,6 +422,16 @@
     if (depth > MAX_DEPTH) return '<span class="cf-template-error">Template nesting limit reached</span>';
     let output = source;
     for (let count = 0; count < MAX_EXPANSIONS; count += 1) {
+      // DPL's format= value intentionally contains nested template calls. Evaluate
+      // the #dpl block before generic innermost expansion so %PAGE% is replaced
+      // separately for every category member instead of expanding PictureButton once.
+      const dplBlock = findTemplateBlockByPrefix(output, "#dpl:");
+      if (dplBlock) {
+        const replacement = renderDynamicPageList(dplBlock.content, options, depth, stack);
+        output = output.slice(0, dplBlock.start) + replacement + output.slice(dplBlock.end);
+        continue;
+      }
+
       const block = findInnermost(output, "{{", "}}");
       if (!block) break;
       const content = output.slice(block.start + 2, block.innerEnd).trim();
@@ -365,6 +471,23 @@
     const [rawTitle = "", ...fragmentParts] = raw.split("#");
     const title = rawTitle.trim();
     if (!title) return "wiki.html";
+
+    const categoryMatch = title.match(/^category\s*:\s*(.+)$/i);
+    if (categoryMatch) {
+      const wantedCategory = categoryMatch[1].trim();
+      let categorySlug = "";
+      if (Array.isArray(options.pages)) {
+        const wanted = normalizeName(wantedCategory);
+        for (const page of options.pages) {
+          const match = (Array.isArray(page?.categories) ? page.categories : []).find((category) =>
+            normalizeName(category?.name) === wanted || normalizeName(category?.slug) === wanted
+          );
+          if (match) { categorySlug = String(match.slug || "").trim(); break; }
+        }
+      }
+      if (!categorySlug) categorySlug = slugify(wantedCategory);
+      return categorySlug ? `wiki.html?category=${encodeURIComponent(categorySlug)}` : "wiki.html";
+    }
 
     let slug = "";
     if (Array.isArray(options.pages)) {
