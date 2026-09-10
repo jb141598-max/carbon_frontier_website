@@ -6,6 +6,24 @@
   let pendingRegistration = null;
   let pendingResetEmail = "";
 
+  const MODE_COPY = {
+    login: {
+      title: "Sign into account",
+      description: "Use your Carbon Frontier wiki email and password.",
+      documentTitle: "Sign into account | Carbon Frontier Wiki",
+    },
+    register: {
+      title: "Create account",
+      description: "Create a wiki account and verify your email with a 6-digit code.",
+      documentTitle: "Create account | Carbon Frontier Wiki",
+    },
+    reset: {
+      title: "Reset password",
+      description: "Verify your email, then choose a new password for your wiki account.",
+      documentTitle: "Reset password | Carbon Frontier Wiki",
+    },
+  };
+
   const $ = (id) => document.getElementById(id);
   const panels = {
     login: $("login-panel"),
@@ -13,11 +31,30 @@
     reset: $("reset-panel"),
   };
 
-  function setMode(mode) {
-    for (const [name, panel] of Object.entries(panels)) panel.hidden = name !== mode;
+  function setMode(mode, { updateUrl = true } = {}) {
+    if (!Object.prototype.hasOwnProperty.call(panels, mode)) mode = "login";
+
+    for (const [name, panel] of Object.entries(panels)) {
+      panel.hidden = name !== mode;
+    }
+
     document.querySelectorAll("[data-mode]").forEach((button) => {
-      button.classList.toggle("is-active", button.dataset.mode === mode);
+      const active = button.dataset.mode === mode;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", active ? "true" : "false");
     });
+
+    const copy = MODE_COPY[mode];
+    $("mode-title").textContent = copy.title;
+    $("mode-description").textContent = copy.description;
+    document.title = copy.documentTitle;
+
+    if (updateUrl) {
+      const url = new URL(location.href);
+      if (mode === "login") url.searchParams.delete("mode");
+      else url.searchParams.set("mode", mode);
+      history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }
   }
 
   function setFeedback(element, message, kind = "") {
@@ -27,8 +64,8 @@
   }
 
   function setBusy(form, busy) {
-    form.querySelectorAll("button, input").forEach((element) => {
-      if (element.matches("button")) element.disabled = Boolean(busy);
+    form.querySelectorAll("button").forEach((element) => {
+      element.disabled = Boolean(busy);
     });
   }
 
@@ -89,6 +126,9 @@
   document.querySelectorAll("[data-mode]").forEach((button) => {
     button.addEventListener("click", () => setMode(button.dataset.mode));
   });
+
+  const requestedMode = new URLSearchParams(location.search).get("mode");
+  setMode(Object.prototype.hasOwnProperty.call(panels, requestedMode) ? requestedMode : "login", { updateUrl: false });
 
   $("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();

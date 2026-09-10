@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
-    <title>Wiki Sign In | Carbon Frontier</title>
+    <title>Sign into account | Carbon Frontier Wiki</title>
     <style>
       :root {
         color-scheme: dark;
@@ -12,7 +12,6 @@
         --accent-2: #ff4652;
         --bg: #09090b;
         --panel: rgba(20, 20, 24, 0.96);
-        --panel-2: #111115;
         --border: #34343d;
         --text: #f4f4f6;
         --muted: #a8a8b0;
@@ -55,15 +54,11 @@
         font-weight: 700;
       }
       main {
-        width: min(1080px, calc(100% - 32px));
+        width: min(620px, calc(100% - 32px));
         margin: 0 auto;
         padding: 64px 0 84px;
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(340px, 480px);
-        gap: 44px;
-        align-items: start;
       }
-      .hero { padding-top: 34px; }
+      .intro { margin-bottom: 24px; }
       .eyebrow {
         color: var(--accent-2);
         font-size: 13px;
@@ -71,15 +66,16 @@
         text-transform: uppercase;
         font-weight: 800;
       }
-      h1 { margin: 10px 0 16px; font-size: clamp(38px, 6vw, 66px); line-height: .98; }
-      .hero p { max-width: 580px; color: #c6c6cc; font-size: 18px; line-height: 1.65; }
-      .info-card {
-        margin-top: 26px;
-        padding: 18px 20px;
-        border: 1px solid rgba(223,37,49,.33);
-        border-radius: 14px;
-        background: rgba(223,37,49,.08);
-        color: #d7d7dc;
+      h1 {
+        margin: 10px 0 8px;
+        font-size: clamp(36px, 7vw, 52px);
+        line-height: 1.02;
+        letter-spacing: -.025em;
+      }
+      .intro-copy {
+        margin: 0;
+        color: #c6c6cc;
+        font-size: 16px;
         line-height: 1.55;
       }
       .auth-card {
@@ -103,6 +99,7 @@
         cursor: pointer;
       }
       .tab:last-child { border-right: 0; }
+      .tab:hover { color: #fff; background: #16161b; }
       .tab.is-active { color: #fff; background: #1a1a20; box-shadow: inset 0 -3px var(--accent); }
       .panel { padding: 26px; }
       .panel h2 { margin: 0 0 6px; font-size: 25px; }
@@ -144,9 +141,11 @@
       }
       .small { color: var(--muted); font-size: 12px; line-height: 1.5; }
       [hidden] { display: none !important; }
-      @media (max-width: 820px) {
-        main { grid-template-columns: 1fr; padding-top: 30px; }
-        .hero { padding-top: 0; }
+      @media (max-width: 560px) {
+        main { padding-top: 38px; }
+        .tabs { grid-template-columns: 1fr; }
+        .tab { border-right: 0; border-bottom: 1px solid var(--border); }
+        .tab:last-child { border-bottom: 0; }
       }
     </style>
   </head>
@@ -157,30 +156,22 @@
     </header>
 
     <main>
-      <section class="hero">
+      <section class="intro">
         <div class="eyebrow">Carbon Frontier Wiki</div>
-        <h1>Sign in without Google.</h1>
-        <p>
-          Use a verified email and password when Google sign-in is unavailable. Your wiki role is still
-          controlled by the existing Permissions page, so the same email receives the same Owner, Admin,
-          Wiki Editor, or contributor access.
-        </p>
-        <div class="info-card">
-          Creating an account does <strong>not</strong> grant Admin access by itself. The verified email is
-          matched against Carbon Frontier's existing wiki permissions.
-        </div>
+        <h1 id="mode-title">Sign into account</h1>
+        <p class="intro-copy" id="mode-description">Use your Carbon Frontier wiki email and password.</p>
       </section>
 
       <section class="auth-card" aria-label="Wiki account">
-        <div class="tabs" role="tablist">
-          <button class="tab is-active" type="button" data-mode="login">Sign in</button>
-          <button class="tab" type="button" data-mode="register">Create account</button>
-          <button class="tab" type="button" data-mode="reset">Reset password</button>
+        <div class="tabs" role="tablist" aria-label="Account action">
+          <button class="tab is-active" type="button" data-mode="login" aria-selected="true">Sign in</button>
+          <button class="tab" type="button" data-mode="register" aria-selected="false">Create account</button>
+          <button class="tab" type="button" data-mode="reset" aria-selected="false">Reset password</button>
         </div>
 
         <div class="panel" id="login-panel">
-          <h2>Email &amp; password</h2>
-          <p class="panel-copy">Sign in using an account that has already been verified.</p>
+          <h2>Sign in</h2>
+          <p class="panel-copy">Enter the email and password for your wiki account.</p>
           <form id="login-form">
             <label>Email<input id="login-email" type="email" autocomplete="email" required /></label>
             <label>Password<input id="login-password" type="password" autocomplete="current-password" required /></label>
@@ -190,8 +181,8 @@
         </div>
 
         <div class="panel" id="register-panel" hidden>
-          <h2>Create wiki account</h2>
-          <p class="panel-copy">We'll email a 6-digit code to verify that you own the address.</p>
+          <h2>Create account</h2>
+          <p class="panel-copy">Choose a password, then verify your email with a 6-digit code.</p>
           <form id="register-form">
             <label>Email<input id="register-email" type="email" autocomplete="email" required /></label>
             <label>Password<input id="register-password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required /></label>
@@ -206,12 +197,12 @@
             </form>
           </div>
           <p class="feedback" id="register-feedback" aria-live="polite"></p>
-          <p class="small">Passwords must be at least 10 characters. Verification codes expire after 10 minutes.</p>
+          <p class="small">Passwords must be at least 10 characters. Codes expire after 10 minutes.</p>
         </div>
 
         <div class="panel" id="reset-panel" hidden>
           <h2>Reset password</h2>
-          <p class="panel-copy">We'll send a verification code if a manual wiki account exists for the email.</p>
+          <p class="panel-copy">We'll email you a code so you can choose a new password.</p>
           <form id="reset-request-form">
             <label>Email<input id="reset-email" type="email" autocomplete="email" required /></label>
             <button class="button primary" type="submit">Send reset code</button>
@@ -229,6 +220,7 @@
       </section>
     </main>
 
-    <script src="wiki-login.js?v=1"></script>
+    <!-- Absolute path is required because this page is served at /wiki/login. -->
+    <script src="/wiki-login.js?v=2" defer></script>
   </body>
 </html>
