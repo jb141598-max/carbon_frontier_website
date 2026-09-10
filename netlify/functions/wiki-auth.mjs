@@ -142,8 +142,10 @@ async function sendVerificationEmail(email, code, purpose) {
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "User-Agent": "Carbon-Frontier-Wiki/1.0",
     },
     body: JSON.stringify({
       from,
@@ -166,8 +168,34 @@ async function sendVerificationEmail(email, code, purpose) {
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    console.error("Resend rejected wiki auth email", response.status, detail.slice(0, 500));
-    throw new Error("Verification email could not be sent.");
+    console.error("Resend rejected wiki auth email", response.status, detail.slice(0, 1000));
+
+    let resendType = "";
+    let resendMessage = "";
+    try {
+      const parsed = JSON.parse(detail);
+      resendType = String(parsed?.name || parsed?.type || "").trim();
+      resendMessage = String(parsed?.message || "").trim();
+    } catch (error) {}
+
+    const combined = `${resendType} ${resendMessage}`.toLowerCase();
+    if (combined.includes("invalid_api_key") || combined.includes("api key is invalid")) {
+      throw new Error("RESEND_INVALID_API_KEY");
+    }
+    if (combined.includes("not verified") || combined.includes("domain mismatch")) {
+      throw new Error("RESEND_DOMAIN_MISMATCH");
+    }
+    if (combined.includes("rate_limit") || response.status === 429) {
+      throw new Error("RESEND_RATE_LIMIT");
+    }
+    if (combined.includes("quota") || combined.includes("monthly_quota") || combined.includes("daily_quota")) {
+      throw new Error("RESEND_QUOTA");
+    }
+    if (combined.includes("1010")) {
+      throw new Error("RESEND_USER_AGENT");
+    }
+
+    throw new Error(`Verification email could not be sent. Resend status ${response.status}.`);
   }
 }
 
@@ -515,8 +543,23 @@ export default async function handler(request) {
     if (message.includes("WIKI_AUTH_SECRET")) {
       return json({ error: "Manual wiki sign-in is not configured yet." }, 503);
     }
+    if (message.includes("RESEND_INVALID_API_KEY")) {
+      return json({ error: "Resend rejected the API key. Check RESEND_API_KEY in Netlify, or create a new Resend sending key and replace it." }, 502);
+    }
+    if (message.includes("RESEND_DOMAIN_MISMATCH")) {
+      return json({ error: "Resend rejected the sender domain. WIKI_AUTH_FROM_EMAIL must use @carbonfrontier.org and the API key must have access to that domain." }, 502);
+    }
+    if (message.includes("RESEND_RATE_LIMIT")) {
+      return json({ error: "Resend is rate-limiting verification emails. Wait a moment and try again." }, 429);
+    }
+    if (message.includes("RESEND_QUOTA")) {
+      return json({ error: "The Resend sending quota has been reached." }, 502);
+    }
+    if (message.includes("RESEND_USER_AGENT")) {
+      return json({ error: "Resend rejected the request because of its request headers. The updated wiki-auth function fixes this; redeploy and try again." }, 502);
+    }
     if (message.includes("Verification email could not be sent")) {
-      return json({ error: "The verification email could not be sent. Try again in a minute." }, 502);
+      return json({ error: "Resend rejected the verification email request. Check the wiki-auth Function log for the exact Resend status." }, 502);
     }
     return json({ error: "The wiki account service could not complete this request." }, 500);
   }
