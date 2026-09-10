@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { OAuth2Client } from "google-auth-library";
 
 export const DEFAULT_OWNER_ACCOUNTS = new Set([
@@ -15,6 +16,89 @@ const ROLE_ORDER = new Map([
   ["wiki_editor", 2],
 ]);
 const googleClient = new OAuth2Client();
+const WIKI_SESSION_ISSUER = "carbon-frontier-wiki";
+const WIKI_SESSION_LIFETIME_SECONDS = 60 * 60 * 12;
+
+function base64UrlJson(value) {
+  return Buffer.from(JSON.stringify(value)).toString("base64url");
+}
+
+function decodeJwtPayloadUnsafe(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3) return null;
+  try {
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  } catch (error) {
+    return null;
+  }
+}
+
+function getWikiAuthSecret() {
+  return String(getEnvironmentValue("WIKI_AUTH_SECRET") || "").trim();
+}
+
+function signWikiSessionParts(headerPart, payloadPart, secret) {
+  return createHmac("sha256", secret)
+    .update(`${headerPart}.${payloadPart}`)
+    .digest("base64url");
+}
+
+export function createWikiSessionToken(account, lifetimeSeconds = WIKI_SESSION_LIFETIME_SECONDS) {
+  const secret = getWikiAuthSecret();
+  if (secret.length < 32) {
+    throw new Error("WIKI_AUTH_SECRET must be configured with at least 32 characters.");
+  }
+
+  const email = normalizeEmail(account?.email);
+  if (!isValidEmail(email)) {
+    throw new Error("A valid email is required to create a wiki session.");
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const headerPart = base64UrlJson({ alg: "HS256", typ: "JWT" });
+  const payloadPart = base64UrlJson({
+    iss: WIKI_SESSION_ISSUER,
+    sub: email,
+    email,
+    email_verified: true,
+    auth_method: "password",
+    iat: now,
+    exp: now + Math.max(300, Number(lifetimeSeconds) || WIKI_SESSION_LIFETIME_SECONDS),
+  });
+  const signature = signWikiSessionParts(headerPart, payloadPart, secret);
+  return `${headerPart}.${payloadPart}.${signature}`;
+}
+
+export function verifyWikiSessionToken(token) {
+  const secret = getWikiAuthSecret();
+  if (secret.length < 32) return null;
+
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3) return null;
+  const [headerPart, payloadPart, suppliedSignature] = parts;
+  const payload = decodeJwtPayloadUnsafe(token);
+  if (!payload || payload.iss !== WIKI_SESSION_ISSUER || payload.auth_method !== "password") {
+    return null;
+  }
+
+  const expectedSignature = signWikiSessionParts(headerPart, payloadPart, secret);
+  const left = Buffer.from(suppliedSignature);
+  const right = Buffer.from(expectedSignature);
+  if (left.length !== right.length || !timingSafeEqual(left, right)) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const email = normalizeEmail(payload.email || payload.sub);
+  if (!isValidEmail(email) || payload.email_verified !== true) return null;
+  if (!Number.isFinite(Number(payload.exp)) || Number(payload.exp) <= now) return null;
+  if (Number(payload.iat || 0) > now + 60) return null;
+
+  return {
+    email,
+    name: "",
+    picture: "",
+    authMethod: "password",
+  };
+}
 
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -40,7 +124,7 @@ export function isValidEmail(value) {
   );
 }
 
-function getEnvironmentValue(name) {
+export function getEnvironmentValue(name) {
   return globalThis.Netlify?.env?.get(name) || process.env[name] || "";
 }
 
@@ -70,6 +154,14 @@ export async function verifyGoogleRequest(request, { optional = false } = {}) {
       : { ok: false, status: 401, message: "Sign in with a verified email first." };
   }
 
+  const unverifiedPayload = decodeJwtPayloadUnsafe(idToken);
+  if (unverifiedPayload?.iss === WIKI_SESSION_ISSUER) {
+    const account = verifyWikiSessionToken(idToken);
+    return account
+      ? { ok: true, account }
+      : { ok: false, status: 401, message: "Your sign-in expired. Sign in again and retry." };
+  }
+
   try {
     const ticket = await googleClient.verifyIdToken({
       idToken,
@@ -91,6 +183,7 @@ export async function verifyGoogleRequest(request, { optional = false } = {}) {
         email,
         name: String(payload?.name || "").trim(),
         picture: String(payload?.picture || "").trim(),
+        authMethod: "google",
       },
     };
   } catch (error) {

@@ -972,6 +972,35 @@
       .wiki-template-wikitext { display: inline-block; width: max-content; max-width: none; color: var(--cf-white); font-family: "Play", sans-serif; font-weight: 400; overflow: visible; }
       .wiki-template-instance[data-template-kind="wikitext"] { max-width: 100%; }
       .wiki-template-instance[data-template-kind="wikitext"][data-template-full-width="1"] { width: 100% !important; }
+
+      .wiki-template-row {
+        position: relative;
+        display: flex;
+        width: 100%;
+        max-width: 100%;
+        margin: 28px 0;
+        clear: both;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 18px;
+        overflow: visible;
+      }
+
+      .wiki-template-row > .wiki-template-instance {
+        flex: 0 0 auto;
+        float: none !important;
+        clear: none !important;
+        margin: 0 !important;
+      }
+
+      .article-surface.is-editing .wiki-template-row {
+        min-height: 24px;
+        border-radius: 12px;
+      }
+
+      .article-surface.is-editing .wiki-template-row:hover {
+        background: rgba(255, 255, 255, 0.015);
+      }
       .wiki-template-wikitext img { max-width: 100%; height: auto; }
       .wiki-template-wikitext .cf-template-missing,
       .wiki-template-wikitext .cf-template-error { display: inline-block; padding: 5px 8px; border: 1px dashed rgba(255, 155, 162, 0.65); border-radius: 7px; color: #ffabb1; background: rgba(223, 37, 49, 0.09); font-size: 0.76rem; }
@@ -1076,6 +1105,28 @@
         font-weight: 700;
         letter-spacing: 0.03em;
         white-space: nowrap;
+      }
+
+      .wiki-object-drop-guide.is-column-guide {
+        right: auto;
+        width: 0;
+        border-top: 0;
+        border-left: 3px solid var(--cf-red);
+      }
+
+      .wiki-object-drop-guide.is-column-guide::before,
+      .wiki-object-drop-guide.is-column-guide::after {
+        left: -7px;
+        right: auto;
+      }
+
+      .wiki-object-drop-guide.is-column-guide::before { top: -2px; }
+      .wiki-object-drop-guide.is-column-guide::after { top: auto; bottom: -2px; }
+
+      .wiki-object-drop-guide.is-column-guide span {
+        left: 8px;
+        top: 50%;
+        transform: translate(0, -50%);
       }
 
       .article-content ul,
@@ -2249,6 +2300,11 @@
                 <p class="account-menu-copy" id="account-menu-copy">
                   Sign in to check whether this email has wiki access.
                 </p>
+                <div class="account-menu-actions" id="signin-method-actions">
+                  <a class="secondary-button" id="email-signin-button" href="/wiki/login">
+                    Email &amp; Password
+                  </a>
+                </div>
                 <div class="google-signin-slot" id="google-signin-slot"></div>
                 <div class="account-menu-actions">
                   <button class="secondary-button" id="signout-button" type="button" hidden>
@@ -2971,6 +3027,7 @@
         accountMenuEmail: document.getElementById("account-menu-email"),
         accountMenuCopy: document.getElementById("account-menu-copy"),
         googleSigninSlot: document.getElementById("google-signin-slot"),
+        emailSigninButton: document.getElementById("email-signin-button"),
         signoutButton: document.getElementById("signout-button"),
         authNote: document.getElementById("auth-note"),
         analyticsButton: document.getElementById("analytics-button"),
@@ -3177,9 +3234,13 @@
         setAvatar(elements.accountMenuAvatar, account);
 
         if (account?.email) {
-          elements.accountMenuTitle.textContent = account.name || "Signed in with Google";
+          const tokenPayload = decodeJwtPayload(account.idToken);
+          const signedInWithPassword = tokenPayload?.auth_method === "password";
+          elements.accountMenuTitle.textContent =
+            account.name || (signedInWithPassword ? "Signed in with email" : "Signed in with Google");
           elements.accountMenuEmail.textContent = account.email;
           elements.signoutButton.hidden = wikiState.cursorTesting;
+          elements.emailSigninButton.hidden = true;
           elements.googleSigninSlot.hidden = true;
           if (viewer?.role) {
             elements.accountMenuCopy.textContent = `Wiki role: ${roleLabel(viewer.role)}.`;
@@ -3203,10 +3264,14 @@
           elements.accountMenuTitle.textContent = "Wiki account";
           elements.accountMenuEmail.textContent = "Not signed in";
           elements.accountMenuCopy.textContent =
-            "Sign in with Google to check whether your email has wiki access.";
+            "Sign in with Google or with a verified email and password to check wiki access.";
           elements.authNote.textContent =
             "Editing always requires a verified email account.";
           elements.signoutButton.hidden = true;
+          elements.emailSigninButton.hidden = false;
+          elements.emailSigninButton.href = `/wiki/login?return=${encodeURIComponent(
+            `${window.location.pathname}${window.location.search}${window.location.hash}`
+          )}`;
           elements.googleSigninSlot.hidden = false;
         }
       }
@@ -3864,8 +3929,8 @@
     </script>
     <script src="wiki-style-client.js?v=1"></script>
     <script src="wiki-media-client.js"></script>
-    <script src="wiki-wikitext.js?v=26-template-placement"></script>
+    <script src="wiki-wikitext.js?v=30-template-rows"></script>
     <script src="wiki-template-wikitext.js?v=29-picturebutton-image-fit"></script>
-    <script src="wiki-editor.js?v=28-dpl-category-gallery"></script>
+    <script src="wiki-editor.js?v=30-template-rows"></script>
   </body>
 </html>

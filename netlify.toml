@@ -14,6 +14,17 @@
   to = "/wiki.html"
   status = 200
 
+# Manual email/password sign-in. Keep this above the broad /wiki/* article route.
+[[redirects]]
+  from = "/wiki/login"
+  to = "/wiki-login.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/login/"
+  to = "/wiki-login.html"
+  status = 200
+
 # Wiki permission management has its own page and URL. Keep these before the
 # general wiki wildcard used for future article routes.
 [[redirects]]
