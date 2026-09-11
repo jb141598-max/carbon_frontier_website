@@ -7,6 +7,18 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Shared Carbon Frontier email/password account page. Keep this before
+# the broad /:slug updates fallback near the end of this file.
+[[redirects]]
+  from = "/login"
+  to = "/wiki-login.html"
+  status = 200
+
+[[redirects]]
+  from = "/login/"
+  to = "/wiki-login.html"
+  status = 200
+
 # Native Carbon Frontier wiki. These routes must stay above the broad
 # Updates permalink fallbacks below.
 [[redirects]]

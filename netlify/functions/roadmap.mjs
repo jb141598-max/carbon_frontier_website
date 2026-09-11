@@ -1,13 +1,17 @@
 import { getStore } from "@netlify/blobs";
-import { OAuth2Client } from "google-auth-library";
+import { getDatabase } from "@netlify/database";
 
-const ADMIN_ACCOUNTS = new Set(["jb141598@gmail.com", "jb14296@gmail.com"]);
-const DEFAULT_GOOGLE_CLIENT_ID =
-  "609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com";
+import {
+  createViewer,
+  loadAccessState,
+  verifyGoogleRequest,
+  verifyMutationOrigin,
+} from "./_shared/wiki-security.mjs";
 const ROADMAP_STORE_NAME = "carbon-frontier-roadmap";
 const ROADMAP_STORE_KEY = "shared-state";
 
-const googleClient = new OAuth2Client();
+
+const db = getDatabase();
 
 export const config = {
   path: "/api/roadmap",
@@ -76,37 +80,32 @@ function normalizeState(payload) {
 }
 
 async function verifyAdminRequest(request) {
-  const authHeader = request.headers.get("authorization") || "";
-  const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-
-  if (!idToken) {
-    return { ok: false, message: "Missing Google ID token." };
+  const auth = await verifyGoogleRequest(request);
+  if (!auth.ok) {
+    return { ok: false, status: auth.status || 401, message: auth.message };
   }
 
-  const audience =
-    globalThis.Netlify?.env?.get("GOOGLE_CLIENT_ID") ||
-    process.env.GOOGLE_CLIENT_ID ||
-    DEFAULT_GOOGLE_CLIENT_ID;
-
+  const client = await db.pool.connect();
   try {
-    const ticket = await googleClient.verifyIdToken({
-      idToken,
-      audience,
-    });
-    const payload = ticket.getPayload();
-    const email = normalizeEmail(payload?.email);
-
-    if (!email || payload?.email_verified === false) {
-      return { ok: false, message: "Google account could not be verified." };
+    const accessState = await loadAccessState(client);
+    const viewer = createViewer(accessState, auth.account);
+    if (!viewer.canManageSettings) {
+      return {
+        ok: false,
+        status: 403,
+        message: "Only Carbon Frontier owners and admins can manage the roadmap.",
+      };
     }
 
-    if (!ADMIN_ACCOUNTS.has(email)) {
-      return { ok: false, message: "This email is not allowed to edit the roadmap." };
-    }
-
-    return { ok: true, email };
-  } catch (error) {
-    return { ok: false, message: "Google sign-in token is invalid or expired." };
+    return {
+      ok: true,
+      status: 200,
+      email: auth.account.email,
+      role: viewer.role,
+      authMethod: auth.account.authMethod || "google",
+    };
+  } finally {
+    client.release();
   }
 }
 
@@ -130,9 +129,13 @@ export default async function handler(request) {
     return json({ error: "Method not allowed." }, 405);
   }
 
+  if (!verifyMutationOrigin(request)) {
+    return json({ error: "Cross-site admin request blocked." }, 403);
+  }
+
   const auth = await verifyAdminRequest(request);
   if (!auth.ok) {
-    return json({ error: auth.message }, 401);
+    return json({ error: auth.message }, auth.status || 401);
   }
 
   let body;

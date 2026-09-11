@@ -337,6 +337,14 @@
         font-size: 1.2rem;
       }
 
+
+      .email-signin-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+      }
+
       .branding-hero {
         position: relative;
         display: grid;
@@ -1517,10 +1525,11 @@
                   </div>
                 </div>
                 <p class="account-menu-copy" id="account-menu-copy">
-                  Sign in with Google to unlock the updates admin panel.
+                  Sign in with Google or Email &amp; Password to access approved admin tools.
                 </p>
                 <div class="google-signin-slot" id="google-signin-slot"></div>
                 <div class="account-menu-actions">
+                  <a class="subtle-button email-signin-button" id="email-signin-button" href="/login">Email &amp; Password</a>
                   <button class="subtle-button" id="signout-button" type="button" hidden>Sign Out</button>
                 </div>
                 <p class="auth-note" id="auth-note"></p>
@@ -1754,6 +1763,7 @@
       const UPDATE_STORAGE_KEY = "carbon-frontier-update-rows-v1";
       const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
       const REMOTE_UPDATES_ENDPOINTS = ["/api/updates", "/.netlify/functions/updates"];
+      const SITE_ACCESS_ENDPOINTS = ["/api/wiki-access", "/.netlify/functions/wiki-access"];
       const IMAGE_UPLOAD_ENDPOINT = "/api/images";
       const MAX_UPLOAD_IMAGE_BYTES = Math.floor(4.5 * 1024 * 1024);
       const ALLOWED_UPLOAD_IMAGE_TYPES = new Set([
@@ -1790,6 +1800,9 @@
         authIdToken: "",
         authMenuOpen: false,
         googleAuthInitialized: false,
+        accountRole: null,
+        canManageSite: false,
+        accessChecked: false,
         storageMode: "localStorage",
         remoteEndpoint: "",
       };
@@ -1805,6 +1818,7 @@
         accountMenuCopy: document.getElementById("account-menu-copy"),
         accountPill: document.getElementById("account-pill"),
         googleSigninSlot: document.getElementById("google-signin-slot"),
+        emailSigninButton: document.getElementById("email-signin-button"),
         authNote: document.getElementById("auth-note"),
         signoutButton: document.getElementById("signout-button"),
         adminPanelButton: document.getElementById("admin-panel-button"),
@@ -1921,7 +1935,7 @@
         }
       }
 
-      function isGoogleIdTokenUsable(idToken) {
+      function isAuthTokenUsable(idToken) {
         if (!idToken) {
           return false;
         }
@@ -1949,7 +1963,7 @@
           const rawSession = JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null");
           const email = normalizeEmail(rawSession?.email);
           const idToken = String(rawSession?.idToken || "").trim();
-          if (!email || !isGoogleIdTokenUsable(idToken)) {
+          if (!email || !isAuthTokenUsable(idToken)) {
             localStorage.removeItem(AUTH_STORAGE_KEY);
             return null;
           }
@@ -1979,6 +1993,63 @@
             picture: String(account.picture || "").trim(),
             idToken: String(account.idToken || "").trim(),
           })
+        );
+      }
+
+      function formatAccountRole(role) {
+        if (role === "owner") return "Owner";
+        if (role === "admin") return "Admin";
+        if (role === "wiki_editor") return "Wiki Editor";
+        return "Signed-in account";
+      }
+
+      function currentReturnPath() {
+        return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      }
+
+      async function refreshSiteAccess() {
+        updatesState.accountRole = null;
+        updatesState.canManageSite = false;
+        updatesState.accessChecked = true;
+
+        if (!isAuthTokenUsable(updatesState.authIdToken)) {
+          return false;
+        }
+
+        for (const endpoint of SITE_ACCESS_ENDPOINTS) {
+          try {
+            const response = await fetch(endpoint, {
+              headers: {
+                accept: "application/json",
+                authorization: `Bearer ${updatesState.authIdToken}`,
+              },
+              cache: "no-store",
+            });
+            if (response.status === 404 && endpoint.startsWith("/api/")) {
+              continue;
+            }
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) {
+              continue;
+            }
+            const viewer = payload?.viewer || {};
+            updatesState.accountRole = String(viewer.role || "").trim() || null;
+            updatesState.canManageSite = Boolean(
+              viewer.canManageSettings || viewer.role === "owner" || viewer.role === "admin"
+            );
+            return true;
+          } catch (error) {
+            continue;
+          }
+        }
+        return false;
+      }
+
+      function hasAdminPermission() {
+        const currentAccount = getCurrentAccount();
+        return Boolean(
+          updatesState.canManageSite ||
+          (typeof currentAccount === "string" && ADMIN_ACCOUNTS.includes(currentAccount))
         );
       }
 
@@ -2018,26 +2089,45 @@
 
       function syncAccountMenu() {
         const account = updatesState.authAccount;
+        const hasAuthorizedAccount = hasAdminPermission();
         setAvatar(elements.accountAvatar, account);
         setAvatar(elements.accountMenuAvatar, account);
 
         if (account?.email) {
-          elements.accountMenuTitle.textContent = account.name || "Signed in";
+          const tokenPayload = decodeJwtPayload(account.idToken);
+          const viaPassword = tokenPayload?.auth_method === "password";
+          elements.accountMenuTitle.textContent =
+            account.name || (viaPassword ? "Signed in with email" : "Signed in with Google");
           elements.accountMenuEmail.textContent = account.email;
-          elements.accountMenuCopy.textContent = ADMIN_ACCOUNTS.includes(normalizeEmail(account.email))
-            ? "This Google account can manage update rows."
-            : "This Google account is signed in, but it is not on the admin allowlist.";
           elements.signoutButton.hidden = false;
-        } else {
-          elements.accountMenuTitle.textContent = "Account";
-          elements.accountMenuEmail.textContent = "Not signed in";
-          elements.accountMenuCopy.textContent =
-            "Sign in with Google to unlock the updates admin panel.";
-          elements.signoutButton.hidden = true;
+          elements.emailSigninButton.hidden = true;
+          elements.googleSigninSlot.hidden = true;
+
+          if (hasAuthorizedAccount) {
+            elements.accountMenuCopy.textContent = `${formatAccountRole(updatesState.accountRole || "admin")} access is active for Updates.`;
+            elements.authNote.textContent = "You can open and save changes from the admin panel.";
+          } else {
+            elements.accountMenuCopy.textContent =
+              "This account is signed in, but only Carbon Frontier Owners and Admins can manage Updates.";
+            elements.authNote.textContent = updatesState.accountRole === "wiki_editor"
+              ? "Wiki Editor access still works on the wiki."
+              : "Ask an Owner to assign Admin access from Wiki Permissions.";
+          }
+          return;
         }
+
+        elements.accountMenuTitle.textContent = "Account";
+        elements.accountMenuEmail.textContent = "Not signed in";
+        elements.accountMenuCopy.textContent =
+          "Sign in with Google or Email & Password to access the Updates admin panel.";
+        elements.authNote.textContent = "Owners and Admins can manage Updates.";
+        elements.signoutButton.hidden = true;
+        elements.emailSigninButton.hidden = false;
+        elements.emailSigninButton.href = `/login?return=${encodeURIComponent(currentReturnPath())}`;
+        elements.googleSigninSlot.hidden = false;
       }
 
-      function handleGoogleCredential(response) {
+      async function handleGoogleCredential(response) {
         const payload = decodeJwtPayload(response?.credential);
         if (!payload?.email) {
           elements.authNote.textContent = "Google sign-in did not return an email.";
@@ -2054,6 +2144,7 @@
         updatesState.authAccount = account;
         updatesState.authIdToken = account.idToken;
         saveAuthSession(account);
+        await refreshSiteAccess();
         elements.authNote.textContent = "";
         syncAccountMenu();
         updateAdminUI();
@@ -2112,6 +2203,9 @@
       function signOutGoogleAccount() {
         updatesState.authAccount = null;
         updatesState.authIdToken = "";
+        updatesState.accountRole = null;
+        updatesState.canManageSite = false;
+        updatesState.accessChecked = true;
         saveAuthSession(null);
         window.google?.accounts?.id?.disableAutoSelect?.();
         syncAccountMenu();
@@ -2488,27 +2582,15 @@
       }
 
       function getPublicCurrentUpdates() {
-        // The Updates home URL must always point at the newest visible current
-        // update. Release date is the main signal. publishedAt breaks same-day
-        // ties for newly published updates, version breaks legacy ties, and the
-        // saved order is the final fallback (new updates were historically
-        // appended to the end of the list).
+        // The version number is required for every update, so it is the most
+        // reliable way to decide which update /updates should use as its home.
+        // Do not let an optional/blank Release Date make an older hotfix win.
+        // publishedAt and Release Date are only tie-breakers, then exact ties
+        // preserve the admin's saved live order.
         return getCurrentUpdates()
           .filter((update) => update.isHidden !== true)
           .map((update, index) => ({ update, index }))
           .sort((first, second) => {
-            const firstReleaseTimestamp = getUpdateReleaseTimestamp(first.update);
-            const secondReleaseTimestamp = getUpdateReleaseTimestamp(second.update);
-            if (firstReleaseTimestamp !== secondReleaseTimestamp) {
-              return secondReleaseTimestamp > firstReleaseTimestamp ? 1 : -1;
-            }
-
-            const firstPublishedTimestamp = getUpdatePublishedTimestamp(first.update);
-            const secondPublishedTimestamp = getUpdatePublishedTimestamp(second.update);
-            if (firstPublishedTimestamp !== secondPublishedTimestamp) {
-              return secondPublishedTimestamp > firstPublishedTimestamp ? 1 : -1;
-            }
-
             const versionDifference = compareUpdateVersionsNewestFirst(
               first.update,
               second.update
@@ -2517,7 +2599,19 @@
               return versionDifference;
             }
 
-            return second.index - first.index;
+            const firstPublishedTimestamp = getUpdatePublishedTimestamp(first.update);
+            const secondPublishedTimestamp = getUpdatePublishedTimestamp(second.update);
+            if (firstPublishedTimestamp !== secondPublishedTimestamp) {
+              return secondPublishedTimestamp > firstPublishedTimestamp ? 1 : -1;
+            }
+
+            const firstReleaseTimestamp = getUpdateReleaseTimestamp(first.update);
+            const secondReleaseTimestamp = getUpdateReleaseTimestamp(second.update);
+            if (firstReleaseTimestamp !== secondReleaseTimestamp) {
+              return secondReleaseTimestamp > firstReleaseTimestamp ? 1 : -1;
+            }
+
+            return first.index - second.index;
           })
           .map(({ update }) => update);
       }
@@ -3412,7 +3506,7 @@
       }
 
       async function saveSharedUpdatesState() {
-        if (!isGoogleIdTokenUsable(updatesState.authIdToken)) {
+        if (!isAuthTokenUsable(updatesState.authIdToken)) {
           updatesState.authAccount = null;
           updatesState.authIdToken = "";
           saveAuthSession(null);
@@ -3420,7 +3514,7 @@
           updateAdminUI();
           return {
             ok: false,
-            message: "Your Google admin session expired. Sign in again, then save the row one more time.",
+            message: "Your admin session expired. Sign in again, then save the row one more time.",
           };
         }
 
@@ -3524,7 +3618,7 @@
         }
 
         const canSaveShared =
-          ADMIN_ACCOUNTS.includes(getCurrentAccount()) && isGoogleIdTokenUsable(updatesState.authIdToken);
+          hasAdminPermission() && isAuthTokenUsable(updatesState.authIdToken);
 
         if (!canSaveShared) {
           setFeedback(localMessage);
@@ -3562,17 +3656,19 @@
       }
 
       function updateAdminUI() {
-        if (updatesState.authIdToken && !isGoogleIdTokenUsable(updatesState.authIdToken)) {
+        if (updatesState.authIdToken && !isAuthTokenUsable(updatesState.authIdToken)) {
           updatesState.authAccount = null;
           updatesState.authIdToken = "";
+          updatesState.accountRole = null;
+          updatesState.canManageSite = false;
+          updatesState.accessChecked = true;
           saveAuthSession(null);
         }
 
         const currentAccount = getCurrentAccount();
-        const hasAuthorizedAccount =
-          typeof currentAccount === "string" && ADMIN_ACCOUNTS.includes(currentAccount);
+        const hasAuthorizedAccount = hasAdminPermission();
         const hasDevOverride = isCursorTestingEnvironment();
-        const hasUsableAdminSession = hasAuthorizedAccount && isGoogleIdTokenUsable(updatesState.authIdToken);
+        const hasUsableAdminSession = hasAuthorizedAccount && isAuthTokenUsable(updatesState.authIdToken);
 
         updatesState.hasAdminAccess = hasUsableAdminSession || hasDevOverride;
         elements.adminPanelButton.hidden = !updatesState.hasAdminAccess;
@@ -3585,7 +3681,7 @@
         }
 
         if (hasUsableAdminSession) {
-          elements.accountPill.textContent = `Admin account: ${currentAccount}`;
+          elements.accountPill.textContent = `${formatAccountRole(updatesState.accountRole || "admin")}: ${currentAccount}`;
           return;
         }
 
@@ -4001,10 +4097,10 @@
           return false;
         }
 
-        if (!isGoogleIdTokenUsable(updatesState.authIdToken)) {
+        if (!isAuthTokenUsable(updatesState.authIdToken)) {
           setImageUploadStatus(
             statusElement,
-            "Your Google admin session expired. Sign in again before uploading.",
+            "Your admin session expired. Sign in again before uploading.",
             true
           );
           return false;
@@ -5017,14 +5113,16 @@
         initializeUpdatesState();
       });
 
-      updatesState.authAccount = loadAuthSession();
-      updatesState.authIdToken = updatesState.authAccount?.idToken || "";
-      syncRowBuilderOptions();
-      syncAccountMenu();
-      updateAdminUI();
-      waitForGoogleIdentityClient();
-
-      initializeUpdatesState();
+      (async () => {
+        updatesState.authAccount = loadAuthSession();
+        updatesState.authIdToken = updatesState.authAccount?.idToken || "";
+        await refreshSiteAccess();
+        syncRowBuilderOptions();
+        syncAccountMenu();
+        updateAdminUI();
+        waitForGoogleIdentityClient();
+        await initializeUpdatesState();
+      })();
     </script>
   </body>
 </html>

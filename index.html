@@ -319,6 +319,13 @@
         gap: 10px;
       }
 
+      .email-signin-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+      }
+
       .admin-button,
       .save-button,
       .subtle-button,
@@ -1860,10 +1867,11 @@
                   </div>
                 </div>
                 <p class="account-menu-copy" id="account-menu-copy">
-                  Sign in with Google to unlock the admin panel for approved admin accounts.
+                  Sign in with Google or Email &amp; Password to access approved admin tools.
                 </p>
                 <div class="google-signin-slot" id="google-signin-slot"></div>
                 <div class="account-menu-actions">
+                  <a class="subtle-button email-signin-button" id="email-signin-button" href="/login">Email &amp; Password</a>
                   <button class="subtle-button" id="signout-button" type="button" hidden>Sign Out</button>
                 </div>
                 <p class="auth-note" id="auth-note"></p>
@@ -2106,6 +2114,7 @@
       const ORDER_MODE_KEY = "carbon-frontier-roadmap-order-mode-v1";
       const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
       const REMOTE_ROADMAP_ENDPOINTS = ["/api/roadmap", "/.netlify/functions/roadmap"];
+      const SITE_ACCESS_ENDPOINTS = ["/api/wiki-access", "/.netlify/functions/wiki-access"];
       const IMAGE_UPLOAD_ENDPOINT = "/api/images";
       const MAX_IMAGE_UPLOAD_BYTES = Math.floor(4.5 * 1024 * 1024);
       const roadmapState = {
@@ -2128,6 +2137,9 @@
         authIdToken: "",
         authMenuOpen: false,
         googleAuthInitialized: false,
+        accountRole: null,
+        canManageSite: false,
+        accessChecked: false,
         storageMode: "localStorage",
         remoteEndpoint: "",
       };
@@ -2144,6 +2156,7 @@
         accountPill: document.getElementById("account-pill"),
         accountStatus: document.getElementById("account-status"),
         googleSigninSlot: document.getElementById("google-signin-slot"),
+        emailSigninButton: document.getElementById("email-signin-button"),
         authNote: document.getElementById("auth-note"),
         signoutButton: document.getElementById("signout-button"),
         adminPanelButton: document.getElementById("admin-panel-button"),
@@ -2223,7 +2236,7 @@
             return null;
           }
 
-          if (!isGoogleIdTokenUsable(idToken)) {
+          if (!isAuthTokenUsable(idToken)) {
             localStorage.removeItem(AUTH_STORAGE_KEY);
             return null;
           }
@@ -2278,7 +2291,7 @@
         }
       }
 
-      function isGoogleIdTokenUsable(idToken) {
+      function isAuthTokenUsable(idToken) {
         if (!idToken) {
           return false;
         }
@@ -2300,6 +2313,63 @@
         const expiresAtMs = Number(payload.exp) * 1000;
         const nowMs = Date.now();
         return Number.isFinite(expiresAtMs) && nowMs < expiresAtMs - 30000;
+      }
+
+      function formatAccountRole(role) {
+        if (role === "owner") return "Owner";
+        if (role === "admin") return "Admin";
+        if (role === "wiki_editor") return "Wiki Editor";
+        return "Signed-in account";
+      }
+
+      function currentReturnPath() {
+        return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      }
+
+      async function refreshSiteAccess() {
+        roadmapState.accountRole = null;
+        roadmapState.canManageSite = false;
+        roadmapState.accessChecked = true;
+
+        if (!isAuthTokenUsable(roadmapState.authIdToken)) {
+          return false;
+        }
+
+        for (const endpoint of SITE_ACCESS_ENDPOINTS) {
+          try {
+            const response = await fetch(endpoint, {
+              headers: {
+                accept: "application/json",
+                authorization: `Bearer ${roadmapState.authIdToken}`,
+              },
+              cache: "no-store",
+            });
+            if (response.status === 404 && endpoint.startsWith("/api/")) {
+              continue;
+            }
+            const payload = await response.json().catch(() => null);
+            if (!response.ok) {
+              continue;
+            }
+            const viewer = payload?.viewer || {};
+            roadmapState.accountRole = String(viewer.role || "").trim() || null;
+            roadmapState.canManageSite = Boolean(
+              viewer.canManageSettings || viewer.role === "owner" || viewer.role === "admin"
+            );
+            return true;
+          } catch (error) {
+            continue;
+          }
+        }
+        return false;
+      }
+
+      function hasAdminPermission() {
+        const currentAccount = getCurrentAccount();
+        return Boolean(
+          roadmapState.canManageSite ||
+          (typeof currentAccount === "string" && ADMIN_ACCOUNTS.includes(currentAccount))
+        );
       }
 
       function getAccountInitials(account) {
@@ -2361,59 +2431,63 @@
       function syncAccountMenu() {
         const currentAccount = getCurrentAccount();
         const signedInAccount = roadmapState.authAccount;
-        const hasAuthorizedAccount =
-          typeof currentAccount === "string" && ADMIN_ACCOUNTS.includes(currentAccount);
+        const hasAuthorizedAccount = hasAdminPermission();
         const hasDevOverride = isCursorTestingEnvironment();
 
         setAvatarVisual(elements.accountAvatar, signedInAccount);
         setAvatarVisual(elements.accountMenuAvatar, signedInAccount);
 
         if (signedInAccount) {
-          elements.accountMenuTitle.textContent = signedInAccount.name || "Signed in with Google";
+          const tokenPayload = decodeJwtPayload(signedInAccount.idToken);
+          const viaPassword = tokenPayload?.auth_method === "password";
+          elements.accountMenuTitle.textContent =
+            signedInAccount.name || (viaPassword ? "Signed in with email" : "Signed in with Google");
           elements.accountMenuEmail.textContent = signedInAccount.email;
           elements.signoutButton.hidden = false;
+          elements.emailSigninButton.hidden = true;
+          elements.googleSigninSlot.hidden = true;
         } else if (hasDevOverride) {
           elements.accountMenuTitle.textContent = "Local testing";
           elements.accountMenuEmail.textContent = "Cursor/local override active";
           elements.signoutButton.hidden = true;
+          elements.emailSigninButton.hidden = true;
+          elements.googleSigninSlot.hidden = true;
         } else {
           elements.accountMenuTitle.textContent = "Account";
           elements.accountMenuEmail.textContent = currentAccount || "Not signed in";
           elements.signoutButton.hidden = true;
+          elements.emailSigninButton.hidden = false;
+          elements.emailSigninButton.href = `/login?return=${encodeURIComponent(currentReturnPath())}`;
+          elements.googleSigninSlot.hidden = false;
         }
 
-        if (hasAuthorizedAccount) {
-          elements.accountMenuCopy.textContent =
-            "This Google account is approved for Carbon Frontier admin access.";
-          elements.authNote.textContent = "Approved emails can open the admin panel immediately.";
-          elements.googleSigninSlot.hidden = true;
+        if (hasAuthorizedAccount && signedInAccount) {
+          const roleName = formatAccountRole(roadmapState.accountRole || "admin");
+          elements.accountMenuCopy.textContent = `${roleName} access is active for the roadmap.`;
+          elements.authNote.textContent = "You can open and save changes from the admin panel.";
           return;
         }
 
         if (signedInAccount) {
           elements.accountMenuCopy.textContent =
-            "You are signed in, but this email is not on the admin allowlist.";
-          elements.authNote.textContent =
-            "Only jb141598@gmail.com and jb14296@gmail.com can open the admin panel.";
-          elements.googleSigninSlot.hidden = true;
+            "This account is signed in, but only Carbon Frontier Owners and Admins can manage the roadmap.";
+          elements.authNote.textContent = roadmapState.accountRole === "wiki_editor"
+            ? "Wiki Editor access still works on the wiki."
+            : "Ask an Owner to assign Admin access from Wiki Permissions.";
           return;
         }
 
         if (hasDevOverride) {
-          elements.accountMenuCopy.textContent =
-            "This local preview is still treated as admin while we prototype the live login flow.";
-          elements.authNote.textContent =
-            "When deployed online, approved Google accounts will control admin access.";
-          elements.googleSigninSlot.hidden = true;
+          elements.accountMenuCopy.textContent = "This local preview is using the development admin override.";
+          elements.authNote.textContent = "Live access still requires an Owner or Admin account.";
           return;
         }
 
         elements.accountMenuCopy.textContent =
-          "Sign in with Google to check whether your email is approved for admin access.";
+          "Sign in with Google or Email & Password to access the roadmap admin panel.";
         elements.authNote.textContent = getConfiguredGoogleClientId()
-          ? "Only approved emails can open the admin panel."
-          : "Add your Google client ID in the meta tag to enable the Google login button.";
-        elements.googleSigninSlot.hidden = false;
+          ? "Owners and Admins can manage the roadmap."
+          : "Email & Password sign-in is available even when Google is blocked.";
       }
 
       function parseGoogleCredentialResponse(credential) {
@@ -2446,6 +2520,7 @@
         roadmapState.authAccount = account;
         roadmapState.authIdToken = account.idToken;
         saveAuthSession(account);
+        await refreshSiteAccess();
         syncAccountMenu();
         updateAdminUI();
         closeAccountMenu();
@@ -2494,6 +2569,9 @@
       function signOutGoogleAccount() {
         roadmapState.authAccount = null;
         roadmapState.authIdToken = "";
+        roadmapState.accountRole = null;
+        roadmapState.canManageSite = false;
+        roadmapState.accessChecked = true;
         saveAuthSession(null);
         window.google?.accounts?.id?.disableAutoSelect?.();
         syncAccountMenu();
@@ -2688,7 +2766,7 @@
       }
 
       async function saveSharedRoadmapState() {
-        if (!isGoogleIdTokenUsable(roadmapState.authIdToken)) {
+        if (!isAuthTokenUsable(roadmapState.authIdToken)) {
           roadmapState.authAccount = null;
           roadmapState.authIdToken = "";
           saveAuthSession(null);
@@ -2696,7 +2774,7 @@
           updateAdminUI();
           return {
             ok: false,
-            message: "Your Google admin session expired. Sign in again, then save the card one more time.",
+            message: "Your admin session expired. Sign in again, then save the card one more time.",
           };
         }
 
@@ -2795,7 +2873,7 @@
       async function maybeSeedSharedRoadmapFromLocal() {
         const canSeedRemote =
           roadmapState.cards.length > 0 &&
-          ADMIN_ACCOUNTS.includes(getCurrentAccount()) &&
+          hasAdminPermission() &&
           Boolean(roadmapState.authIdToken);
 
         if (!canSeedRemote || !window.location.protocol.startsWith("http")) {
@@ -2824,6 +2902,7 @@
       async function initializeRoadmapState() {
         roadmapState.authAccount = loadAuthSession();
         roadmapState.authIdToken = roadmapState.authAccount?.idToken || "";
+        await refreshSiteAccess();
 
         const localCards = loadCards();
         const localOrderMode = loadOrderMode();
@@ -2843,7 +2922,7 @@
           const canSeedRemote =
             !sharedState.exists &&
             localCards.length > 0 &&
-            ADMIN_ACCOUNTS.includes(getCurrentAccount()) &&
+            hasAdminPermission() &&
             Boolean(roadmapState.authIdToken);
 
           if (canSeedRemote) {
@@ -3384,9 +3463,9 @@
           return false;
         }
 
-        if (!isGoogleIdTokenUsable(roadmapState.authIdToken)) {
+        if (!isAuthTokenUsable(roadmapState.authIdToken)) {
           setRoadmapImageUploadStatus(
-            "You need an active Google admin sign-in before uploading. Sign in again, then retry.",
+            "You need an active Owner/Admin sign-in before uploading. Sign in again, then retry.",
             true
           );
           return false;
@@ -3749,24 +3828,26 @@
       }
 
       function updateAdminUI() {
-        if (roadmapState.authIdToken && !isGoogleIdTokenUsable(roadmapState.authIdToken)) {
+        if (roadmapState.authIdToken && !isAuthTokenUsable(roadmapState.authIdToken)) {
           roadmapState.authAccount = null;
           roadmapState.authIdToken = "";
+          roadmapState.accountRole = null;
+          roadmapState.canManageSite = false;
+          roadmapState.accessChecked = true;
           saveAuthSession(null);
         }
 
         const currentAccount = getCurrentAccount();
-        const hasAuthorizedAccount =
-          typeof currentAccount === "string" && ADMIN_ACCOUNTS.includes(currentAccount);
+        const hasAuthorizedAccount = hasAdminPermission();
         const hasDevOverride = isCursorTestingEnvironment();
-        const hasUsableAdminSession = hasAuthorizedAccount && isGoogleIdTokenUsable(roadmapState.authIdToken);
+        const hasUsableAdminSession = hasAuthorizedAccount && isAuthTokenUsable(roadmapState.authIdToken);
 
         roadmapState.hasAdminAccess = hasUsableAdminSession || hasDevOverride;
         elements.adminPanelButton.hidden = !roadmapState.hasAdminAccess;
         syncAccountMenu();
 
         if (hasUsableAdminSession) {
-          elements.accountPill.textContent = `Admin account: ${currentAccount}`;
+          elements.accountPill.textContent = `${formatAccountRole(roadmapState.accountRole || "admin")}: ${currentAccount}`;
           elements.accountStatus.innerHTML =
             '<span class="status-dot" aria-hidden="true"></span><span>Approved admin account detected. You can open the admin panel.</span>';
           return;
@@ -3781,8 +3862,8 @@
 
         elements.accountPill.textContent = currentAccount ? `Signed in: ${currentAccount}` : "No account connected";
         elements.accountStatus.innerHTML = currentAccount
-          ? '<span class="status-dot" aria-hidden="true"></span><span>A signed-in account was found, but it is not on the admin allowlist.</span>'
-          : '<span class="status-dot" aria-hidden="true"></span><span>No account is connected yet. Sign in with Google from the top-right account menu to unlock approved admin access.</span>';
+          ? '<span class="status-dot" aria-hidden="true"></span><span>A signed-in account was found, but only Owners and Admins can manage the roadmap.</span>'
+          : '<span class="status-dot" aria-hidden="true"></span><span>No account is connected yet. Sign in with Google or Email & Password from the top-right account menu to unlock admin access.</span>';
         closeAdminPanel();
       }
 

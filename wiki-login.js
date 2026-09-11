@@ -9,18 +9,18 @@
   const MODE_COPY = {
     login: {
       title: "Sign into account",
-      description: "Use your Carbon Frontier wiki email and password.",
-      documentTitle: "Sign into account | Carbon Frontier Wiki",
+      description: "Use your Carbon Frontier email and password.",
+      documentTitle: "Sign into account | Carbon Frontier",
     },
     register: {
       title: "Create account",
-      description: "Create a wiki account and verify your email with a 6-digit code.",
-      documentTitle: "Create account | Carbon Frontier Wiki",
+      description: "Create an account and verify your email with a 6-digit code.",
+      documentTitle: "Create account | Carbon Frontier",
     },
     reset: {
       title: "Reset password",
-      description: "Verify your email, then choose a new password for your wiki account.",
-      documentTitle: "Reset password | Carbon Frontier Wiki",
+      description: "Verify your email, then choose a new password for your account.",
+      documentTitle: "Reset password | Carbon Frontier",
     },
   };
 
@@ -70,7 +70,7 @@
   }
 
   async function callAuth(body) {
-    let lastError = new Error("The wiki account service is unavailable.");
+    let lastError = new Error("The Carbon Frontier account service is unavailable.");
     for (const endpoint of ENDPOINTS) {
       try {
         const response = await fetch(endpoint, {
@@ -142,7 +142,7 @@
         email: $("login-email").value,
         password: $("login-password").value,
       });
-      setFeedback(feedback, "Signed in. Opening the wiki...", "success");
+      setFeedback(feedback, "Signed in. Returning to Carbon Frontier...", "success");
       finishLogin(payload);
     } catch (error) {
       setFeedback(feedback, error.message, "error");
@@ -204,7 +204,7 @@
         email,
         code: $("register-code").value,
       });
-      setFeedback(feedback, "Email verified. Opening the wiki...", "success");
+      setFeedback(feedback, "Email verified. Returning to Carbon Frontier...", "success");
       finishLogin(payload);
     } catch (error) {
       setFeedback(feedback, error.message, "error");
@@ -254,7 +254,7 @@
         code: $("reset-code").value,
         newPassword: password,
       });
-      setFeedback(feedback, "Password reset. Opening the wiki...", "success");
+      setFeedback(feedback, "Password reset. Returning to Carbon Frontier...", "success");
       finishLogin(payload);
     } catch (error) {
       setFeedback(feedback, error.message, "error");

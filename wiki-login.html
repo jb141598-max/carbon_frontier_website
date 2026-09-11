@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
-    <title>Sign into account | Carbon Frontier Wiki</title>
+    <title>Sign into account | Carbon Frontier</title>
     <style>
       :root {
         color-scheme: dark;
@@ -152,17 +152,17 @@
   <body>
     <header class="topbar">
       <div class="brand">Carbon Frontier</div>
-      <a class="wiki-link" href="/wiki">WIKI</a>
+      <nav style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><a class="wiki-link" href="/">ROADMAP</a><a class="wiki-link" href="/updates">UPDATES</a><a class="wiki-link" href="/wiki">WIKI</a></nav>
     </header>
 
     <main>
       <section class="intro">
-        <div class="eyebrow">Carbon Frontier Wiki</div>
+        <div class="eyebrow">Carbon Frontier Account</div>
         <h1 id="mode-title">Sign into account</h1>
-        <p class="intro-copy" id="mode-description">Use your Carbon Frontier wiki email and password.</p>
+        <p class="intro-copy" id="mode-description">Use your Carbon Frontier email and password.</p>
       </section>
 
-      <section class="auth-card" aria-label="Wiki account">
+      <section class="auth-card" aria-label="Carbon Frontier account">
         <div class="tabs" role="tablist" aria-label="Account action">
           <button class="tab is-active" type="button" data-mode="login" aria-selected="true">Sign in</button>
           <button class="tab" type="button" data-mode="register" aria-selected="false">Create account</button>
@@ -171,7 +171,7 @@
 
         <div class="panel" id="login-panel">
           <h2>Sign in</h2>
-          <p class="panel-copy">Enter the email and password for your wiki account.</p>
+          <p class="panel-copy">Enter your Carbon Frontier account email and password.</p>
           <form id="login-form">
             <label>Email<input id="login-email" type="email" autocomplete="email" required /></label>
             <label>Password<input id="login-password" type="password" autocomplete="current-password" required /></label>
@@ -220,7 +220,7 @@
       </section>
     </main>
 
-    <!-- Absolute path is required because this page is served at /wiki/login. -->
+    <!-- Absolute path works from both /login and the legacy /wiki/login route. -->
     <script src="/wiki-login.js?v=2" defer></script>
   </body>
 </html>

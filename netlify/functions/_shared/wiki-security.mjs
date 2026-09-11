@@ -3,7 +3,7 @@ import { OAuth2Client } from "google-auth-library";
 
 export const DEFAULT_OWNER_ACCOUNTS = new Set([
   "jb141598@gmail.com",
-  "jb14296@gmail.com",
+  "jb14296@bullischarterschool.com",
 ]);
 export const STAFF_ROLES = new Set(["owner", "admin", "wiki_editor"]);
 export const ASSIGNABLE_ROLES = new Set(["admin", "wiki_editor"]);
