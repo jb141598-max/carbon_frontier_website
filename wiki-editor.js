@@ -467,7 +467,7 @@
           {
             id: "front-page-intro",
             type: "paragraph",
-            text: "Welcome to the Carbon Frontier wiki. Use this page to introduce the game and guide readers to its most important articles.",
+            text: "Welcome to the Carbon Frontier wiki. Use this page to introduce the project and guide readers to its most important articles.",
           },
         ],
       },
