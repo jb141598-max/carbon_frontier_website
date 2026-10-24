@@ -975,9 +975,29 @@
       .wiki-template-instance[data-template-kind="wikitext"] { max-width: 100%; }
       .wiki-template-instance[data-template-kind="wikitext"][data-template-full-width="1"] { width: 100% !important; }
 
+      /* PictureButton transclusions flow side by side, as on MediaWiki. */
+      .article-content > .wiki-template-instance[data-button-template-kind="tile"]:not([data-object-layout="break"]):not([data-object-layout="behind"]):not([data-object-layout="front"]):not([data-template-full-width="1"]) {
+        display: inline-block;
+        float: none !important;
+        clear: none !important;
+        vertical-align: top;
+        margin: 8px 12px 12px 0;
+        max-width: 100%;
+      }
+
+      /* Dynamic galleries and PictureButtonRow must wrap within article margins. */
+      .article-content > .wiki-template-instance[data-button-template-kind="gallery"]:not([data-object-layout="behind"]):not([data-object-layout="front"]) {
+        display: block;
+        float: none !important;
+        clear: both;
+        max-width: 100%;
+        margin: 18px 0;
+      }
+
       .wiki-template-row {
         position: relative;
         display: flex;
+        flex-wrap: wrap;
         width: 100%;
         max-width: 100%;
         margin: 28px 0;
@@ -3933,6 +3953,6 @@
     <script src="wiki-media-client.js"></script>
     <script src="wiki-wikitext.js?v=30-template-rows"></script>
     <script src="wiki-template-wikitext.js?v=29-picturebutton-image-fit"></script>
-    <script src="wiki-editor.js?v=30-template-rows"></script>
+    <script src="wiki-editor.js?v=31-picturebutton-inline"></script>
   </body>
 </html>

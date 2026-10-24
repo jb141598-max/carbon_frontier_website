@@ -1401,12 +1401,42 @@
         rendered.textContent = error.message || "This template source could not be rendered.";
       }
       instance.replaceChildren(rendered);
+      // Category galleries can expand to multiple PictureButtons without using
+      // the standard PictureButtonRow template name.
+      if (rendered.querySelectorAll(".machine-img-fill").length > 1) {
+        instance.dataset.buttonTemplateKind = "gallery";
+      }
 
       const sizeWikitextTemplate = () => {
         if (!instance.isConnected || !rendered.isConnected) return;
         const fullWidth = templateFullWidth(instance);
         const requestedScale = templateScale(instance);
-        const contentWidth = Math.max(1, ui.content?.clientWidth || instance.parentElement?.clientWidth || 1);
+        const host = instance.parentElement || ui.content;
+        const hostStyle = host ? window.getComputedStyle(host) : null;
+        const contentWidth = Math.max(1,
+          (host?.clientWidth || ui.content?.clientWidth || 1) -
+          (parseFloat(hostStyle?.paddingLeft) || 0) -
+          (parseFloat(hostStyle?.paddingRight) || 0)
+        );
+
+        if (instance.dataset.buttonTemplateKind === "gallery" && !fullWidth &&
+            !["behind", "front"].includes(objectLayout(instance))) {
+          // max-content makes multi-button templates one unbroken strip and
+          // scales the whole result down. Use a real width so items can wrap.
+          const scale = requestedScale;
+          const targetWidth = Math.max(1, Math.round(contentWidth * Math.min(scale, 1)));
+          const sourceWidth = Math.max(1, Math.round(targetWidth / scale));
+          instance.style.width = `${targetWidth}px`;
+          instance.style.maxWidth = "100%";
+          rendered.style.width = `${sourceWidth}px`;
+          rendered.style.maxWidth = "none";
+          rendered.style.transform = scale === 1 ? "none" : `scale(${scale})`;
+          rendered.style.transformOrigin = "top left";
+          instance.style.height = scale === 1
+            ? "auto"
+            : `${Math.ceil(Math.max(1, rendered.scrollHeight) * scale)}px`;
+          return;
+        }
 
         // Measure the source itself. Wikitext templates are documents, not canvases,
         // so their saved canvas width/height must never create empty selection space.
@@ -1488,12 +1518,27 @@
     hydrateMediaImages(instance);
   }
 
+  function buttonTemplateKind(block) {
+    const name = String(block?.templateSlug || "").replace(/^Template:/i, "")
+      .replace(/[\s_-]+/g, "").toLowerCase();
+    if (name === "picturebutton") return "tile";
+    if (["picturebuttonrow", "buttonrow", "categorygallery", "buttongallery"].includes(name)) return "gallery";
+    return "";
+  }
+
+  function isInlineButtonBlock(block) {
+    return block?.type === "template" && buttonTemplateKind(block) === "tile" &&
+      block.fullWidth !== true && !["break", "behind", "front"].includes(block.layout);
+  }
+
   function createTemplateInstance(block, live = true) {
     const instance = document.createElement("div");
     instance.className = "wiki-template-instance";
     instance.contentEditable = "false";
     instance.dataset.wikiTemplateId = String(block.templateId || "");
     instance.dataset.wikiTemplateSlug = String(block.templateSlug || "");
+    const buttonKind = buttonTemplateKind(block);
+    if (buttonKind) instance.dataset.buttonTemplateKind = buttonKind;
     instance.__wikiTemplateBlock = clone(block);
     instance.dataset.templateBlock = JSON.stringify(block);
     configureTemplateInstance(instance, block);
@@ -1555,8 +1600,13 @@
       return;
     }
 
-    blocks.forEach((block) => {
+    blocks.forEach((block, index) => {
       const type = BLOCK_TYPES.has(block?.type) ? block.type : "preserved";
+      // Older editor saves inserted a blank cursor paragraph after every tile.
+      // Ignore it only when two inline PictureButtons surround it.
+      if (type === "paragraph" && !String(block.text || "").trim() &&
+          !String(block.html || "").replace(/<br\s*\/?\s*>/gi, "").trim() &&
+          isInlineButtonBlock(blocks[index - 1]) && isInlineButtonBlock(blocks[index + 1])) return;
       let element;
       if (type === "template") {
         element = createTemplateInstance(block, liveTemplates);
@@ -2753,7 +2803,21 @@
     const selection = window.getSelection();
     const anchor = restoreSavedSelection() && selection.rangeCount
       ? directContentChild(selection.getRangeAt(0).endContainer) : null;
-    if (anchor) anchor.after(element);
+    // When inserting an adjacent PictureButton, replace the temporary empty
+    // cursor paragraph instead of turning it into an unwanted new row.
+    const target = anchor || ui.content.lastElementChild;
+    const isEmptyCursor = target?.tagName === "P" &&
+      !String(target.textContent || "").trim() &&
+      [...target.children].every((child) => child.tagName === "BR");
+    const previousTile = target?.previousElementSibling;
+    if (element?.dataset?.buttonTemplateKind === "tile" &&
+        !["break", "behind", "front"].includes(objectLayout(element)) &&
+        !templateFullWidth(element) && isEmptyCursor &&
+        previousTile?.dataset?.buttonTemplateKind === "tile" &&
+        !["break", "behind", "front"].includes(objectLayout(previousTile)) &&
+        !templateFullWidth(previousTile)) {
+      target.replaceWith(element);
+    } else if (anchor) anchor.after(element);
     else ui.content.append(element);
     const paragraph = document.createElement("p");
     paragraph.append(document.createElement("br"));
@@ -3651,6 +3715,31 @@
     return `${before ? "Before" : "After"} this article block`;
   }
 
+  function horizontalButtonDropPlacement(event, draggingObject) {
+    if (draggingObject?.dataset?.buttonTemplateKind !== "tile") return null;
+    const candidates = [...ui.content.querySelectorAll(':scope > .wiki-template-instance[data-button-template-kind="tile"]')]
+      .filter((tile) => {
+        if (tile === draggingObject || !isPlacedObject(tile) ||
+            ["break", "behind", "front"].includes(objectLayout(tile)) || templateFullWidth(tile)) return false;
+        const rect = tile.getBoundingClientRect();
+        return event.clientY >= rect.top - 20 && event.clientY <= rect.bottom + 20 &&
+          event.clientX >= rect.left - 24 && event.clientX <= rect.right + 24;
+      });
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => {
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      const da = Math.abs(event.clientX - (ra.left + ra.width / 2)) +
+        Math.abs(event.clientY - (ra.top + ra.height / 2));
+      const db = Math.abs(event.clientX - (rb.left + rb.width / 2)) +
+        Math.abs(event.clientY - (rb.top + rb.height / 2));
+      return da - db;
+    });
+    const target = candidates[0], rect = target.getBoundingClientRect();
+    const before = event.clientX < rect.left + rect.width / 2;
+    return { mode: "column", target, before,
+      x: before ? rect.left : rect.right, y: rect.top, height: Math.max(24, rect.height) };
+  }
+
   function calculateObjectDropPlacement(clientY, draggingObject) {
     const children = [...ui.content.children].filter((child) => child !== draggingObject && !child.classList.contains("wiki-object-drop-guide"));
     if (!children.length) return { target: null, before: false, y: 0 };
@@ -3668,7 +3757,8 @@
   function showObjectDropGuide(event) {
     const object = app.draggingObject;
     if (!object) return;
-    const placement = calculateObjectDropPlacement(event.clientY, object);
+    const placement = horizontalButtonDropPlacement(event, object) ||
+      calculateObjectDropPlacement(event.clientY, object);
     app.dropPlacement = placement;
     if (!app.dropGuide) {
       const guide = document.createElement("div");
@@ -3682,7 +3772,21 @@
     const contentRect = ui.content.getBoundingClientRect();
     const top = Math.max(0, placement.y - contentRect.top + ui.content.scrollTop);
     app.dropGuide.style.top = `${top}px`;
-    app.dropGuide.querySelector("span").textContent = describeDropTarget(placement.target, placement.before);
+    if (placement.mode === "column") {
+      app.dropGuide.classList.add("is-column-guide");
+      app.dropGuide.style.left = `${Math.max(0, placement.x - contentRect.left + ui.content.scrollLeft)}px`;
+      app.dropGuide.style.right = "auto";
+      app.dropGuide.style.width = "0";
+      app.dropGuide.style.height = `${placement.height}px`;
+      app.dropGuide.querySelector("span").textContent = placement.before ? "Left of this button" : "Right of this button";
+    } else {
+      app.dropGuide.classList.remove("is-column-guide");
+      app.dropGuide.style.left = "14px";
+      app.dropGuide.style.right = "14px";
+      app.dropGuide.style.width = "auto";
+      app.dropGuide.style.height = "0";
+      app.dropGuide.querySelector("span").textContent = describeDropTarget(placement.target, placement.before);
+    }
   }
 
   ui.content.addEventListener("dragstart", (event) => {
@@ -3707,7 +3811,8 @@
     const object = app.draggingObject;
     if (!object) return;
     event.preventDefault();
-    const placement = app.dropPlacement || calculateObjectDropPlacement(event.clientY, object);
+    const placement = app.dropPlacement || horizontalButtonDropPlacement(event, object) ||
+      calculateObjectDropPlacement(event.clientY, object);
     const target = placement.target;
     if (target && target !== object) {
       target.insertAdjacentElement(placement.before ? "beforebegin" : "afterend", object);
@@ -3720,7 +3825,9 @@
     app.draggingFigure = null;
     clearObjectDropGuide();
     selectFigure(object);
-    setFeedback(ui.feedback, `${label} moved to the marked article line. Save the page to publish its new position.`);
+    setFeedback(ui.feedback, placement.mode === "column"
+      ? `${label} moved beside the other button. Save the page to publish its position.`
+      : `${label} moved to the marked article line. Save the page to publish its new position.`);
   });
   ui.content.addEventListener("dragend", () => {
     app.draggingObject?.classList.remove("is-object-dragging", "is-image-dragging");
