@@ -994,6 +994,26 @@
         margin: 18px 0;
       }
 
+      /* Whole row isolates templates from article text, not from each other.
+         Consecutive Whole-row templates float into one shared, text-free strip
+         and retain their own rendered widths. The next article block clears it. */
+      .article-content > .wiki-template-instance[data-object-layout="break"]:not([data-template-full-width="1"]),
+      .article-content > .wiki-template-instance[data-button-template-kind="gallery"][data-object-layout="break"]:not([data-template-full-width="1"]) {
+        display: block;
+        float: left !important;
+        clear: both !important;
+        margin: 8px 12px 12px 0;
+        max-width: 100%;
+      }
+      .article-content > .wiki-template-instance[data-object-layout="break"]:not([data-template-full-width="1"])
+        + .wiki-template-instance[data-object-layout="break"]:not([data-template-full-width="1"]) {
+        clear: none !important;
+      }
+      .article-content > .wiki-template-instance[data-object-layout="break"]
+        + :not(.wiki-template-instance[data-object-layout="break"]) {
+        clear: both;
+      }
+
       .wiki-template-row {
         position: relative;
         display: flex;
@@ -2851,7 +2871,7 @@
                         <span>Fill the full article width (inside the page margins)</span>
                       </label>
                     </div>
-                    <p class="template-placement-note" id="template-placement-note">Whole row keeps the template on its own line. Wrap modes let article text flow beside it. Behind/In front layer the template with text.</p>
+                    <p class="template-placement-note" id="template-placement-note">Whole row prevents article text from appearing beside these templates, but neighboring Whole-row templates can share the same row without changing size. Wrap modes let article text flow beside a template.</p>
                   </section>
                   <div class="template-value-fields" id="template-value-fields"></div>
                   <p class="wiki-feedback" id="template-picker-feedback" aria-live="polite"></p>
@@ -3999,6 +4019,6 @@
     <script src="wiki-media-client.js"></script>
     <script src="wiki-wikitext.js?v=30-template-rows"></script>
     <script src="wiki-template-wikitext.js?v=30-width-modes"></script>
-    <script src="wiki-editor.js?v=32-width-modes"></script>
+    <script src="wiki-editor.js?v=33-width-grid-fix"></script>
   </body>
 </html>

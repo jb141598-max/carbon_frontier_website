@@ -1055,10 +1055,9 @@
   }
 
   function templateFullWidth(node) {
-    return Boolean(
-      node?.dataset?.templateFullWidth === "1" ||
-      (node && objectLayout(node) === "break" && objectWidth(node) >= 99.5)
-    );
+    // "Whole row" is a placement choice. Only the separate full-width checkbox
+    // should stretch a template to the article edges.
+    return node?.dataset?.templateFullWidth === "1";
   }
 
   function isPlacedObject(node) {
@@ -1419,49 +1418,85 @@
           (parseFloat(hostStyle?.paddingRight) || 0)
         );
 
-        if (instance.dataset.buttonTemplateKind === "gallery" && !fullWidth &&
+        if (instance.dataset.buttonTemplateKind === "gallery" &&
             !["behind", "front"].includes(objectLayout(instance))) {
-          // max-content makes multi-button templates one unbroken strip and
-          // scales the whole result down. Use a real width so items can wrap.
-          const scale = requestedScale;
-          const targetWidth = Math.max(1, Math.round(contentWidth * Math.min(scale, 1)));
-          const sourceWidth = Math.max(1, Math.round(targetWidth / scale));
-          instance.style.width = `${targetWidth}px`;
-          instance.style.maxWidth = "100%";
-          rendered.style.width = `${sourceWidth}px`;
+          // Size the gallery from the article width, but honor its own
+          // totalwidth or totalwidthscale. A Whole-row placement MUST NOT
+          // replace the requested width with 100%.
+          const gallery = instance.__wikiTemplateBlock?.values || {};
+          const isRow = ["picturebuttonrow", "buttonrow"].includes(
+            String(instance.dataset.wikiTemplateSlug || "")
+              .replace(/^template:/i, "").replace(/[\s_-]+/g, "").toLowerCase());
+          let naturalWidth = contentWidth;
+          if (isRow && !fullWidth) {
+            if (String(gallery.totalwidthmode || "pixel").toLowerCase() === "scale") {
+              const parts = String(gallery.totalwidthscale || "1/1").trim()
+                .match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+              if (parts && Number(parts[2]) > 0) {
+                naturalWidth = contentWidth * Math.min(1, Number(parts[1]) / Number(parts[2]));
+              }
+            } else if (Number(gallery.totalwidth) > 0) {
+              naturalWidth = Math.min(contentWidth, Number(gallery.totalwidth));
+            }
+          }
+          naturalWidth = Math.max(1, Math.floor(naturalWidth));
+          const scale = fullWidth ? 1 : Math.max(0.05, Math.min(requestedScale, contentWidth / naturalWidth));
+          const targetWidth = Math.max(1, Math.floor(naturalWidth * scale));
+          const grid = isRow ? rendered.querySelector("div") : null;
+          if (grid) {
+            // The outer wrapper already owns total width. Prevent a second
+            // percentage reduction when the row's totalwidthmode is Scale.
+            grid.style.width = "100%";
+            grid.style.maxWidth = "100%";
+          }
+          rendered.style.width = `${naturalWidth}px`;
           rendered.style.maxWidth = "none";
           rendered.style.transform = scale === 1 ? "none" : `scale(${scale})`;
           rendered.style.transformOrigin = "top left";
+          instance.style.width = `${targetWidth}px`;
+          instance.style.maxWidth = "100%";
           instance.style.height = scale === 1
             ? "auto"
             : `${Math.ceil(Math.max(1, rendered.scrollHeight) * scale)}px`;
           return;
         }
 
-        // Fractional buttons must resolve percentages against article width.
+        // Size standalone PictureButtons against the article, not the nested
+        // template div. For 1/3: 3 * (card wrapper + right margin) <= article.
+        // A one-pixel safety allowance prevents subpixel wrapping at any zoom.
         const saved = instance.__wikiTemplateBlock?.values || {};
         if (instance.dataset.buttonTemplateKind === "tile" &&
             String(saved.widthmode || "pixel").toLowerCase() === "scale" &&
             !String(saved.csswidth || "").trim() && !fullWidth &&
             !["behind", "front"].includes(objectLayout(instance))) {
-          rendered.style.width = contentWidth + "px";
-          rendered.style.maxWidth = "none";
-          rendered.style.transform = "none";
+          const parts = String(saved.scalewidth || "1/3").trim()
+            .match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+          const fraction = parts ? Number(parts[1]) / Number(parts[2]) : 1 / 3;
+          const share = Number.isFinite(fraction) ? Math.max(0.001, Math.min(1, fraction)) : 1 / 3;
           const tile = rendered.querySelector(".machine-img-fill")?.parentElement;
           if (tile) {
+            const wrapperStyle = window.getComputedStyle(instance);
+            const leftMargin = parseFloat(wrapperStyle.marginLeft) || 0;
+            const rightMargin = parseFloat(wrapperStyle.marginRight) || 0;
+            // On extremely narrow screens, reduce the inter-button margin so
+            // even three columns can fit without a forced second row.
+            const gap = Math.min(rightMargin, Math.max(0, contentWidth * share - leftMargin - 2));
+            instance.style.marginRight = `${gap}px`;
+            const targetWidth = Math.max(1, Math.floor(contentWidth * share - leftMargin - gap - 1));
             const tileStyle = window.getComputedStyle(tile);
-            const rect = tile.getBoundingClientRect();
-            const width = rect.width + (parseFloat(tileStyle.marginLeft) || 0) +
-              (parseFloat(tileStyle.marginRight) || 0);
-            const height = rect.height + (parseFloat(tileStyle.marginTop) || 0) +
-              (parseFloat(tileStyle.marginBottom) || 0);
-            const scale = Math.min(requestedScale, contentWidth / Math.max(1, width));
-            instance.style.width = Math.ceil(width * scale) + "px";
-            instance.style.maxWidth = "100%";
-            instance.style.marginRight = "0";
-            instance.style.height = Math.ceil(height * scale) + "px";
-            rendered.style.transform = "scale(" + scale + ")";
+            const tileMargins = Math.max(0, parseFloat(tileStyle.marginLeft) || 0) +
+              Math.max(0, parseFloat(tileStyle.marginRight) || 0);
+            // Old templates may still use width=400px. The wrapper owns the
+            // fraction, so override that inner width, avoiding double scaling.
+            tile.style.width = `max(1px, calc(100% - ${tileMargins}px))`;
+            tile.style.maxWidth = "none";
+            rendered.style.width = `${targetWidth}px`;
+            rendered.style.maxWidth = "none";
+            rendered.style.transform = "none";
             rendered.style.transformOrigin = "top left";
+            instance.style.width = `${targetWidth}px`;
+            instance.style.maxWidth = "100%";
+            instance.style.height = "auto";
             return;
           }
         }
@@ -1559,6 +1594,37 @@
       block.fullWidth !== true && !["break", "behind", "front"].includes(block.layout);
   }
 
+  function isWholeRowTemplateBlock(block) {
+    return block?.type === "template" && block?.layout === "break" &&
+      block.fullWidth !== true;
+  }
+
+  function templatesShareLine(left, right) {
+    return (isInlineButtonBlock(left) && isInlineButtonBlock(right)) ||
+      (isWholeRowTemplateBlock(left) && isWholeRowTemplateBlock(right));
+  }
+
+  function placedTemplatesShareLine(left, right) {
+    if (!left?.classList?.contains("wiki-template-instance") ||
+        !right?.classList?.contains("wiki-template-instance")) return false;
+    const wholeRow = objectLayout(left) === "break" && objectLayout(right) === "break" &&
+      !templateFullWidth(left) && !templateFullWidth(right);
+    const buttons = left.dataset.buttonTemplateKind === "tile" &&
+      right.dataset.buttonTemplateKind === "tile" &&
+      !["break", "behind", "front"].includes(objectLayout(left)) &&
+      !["break", "behind", "front"].includes(objectLayout(right)) &&
+      !templateFullWidth(left) && !templateFullWidth(right);
+    return wholeRow || buttons;
+  }
+
+  function compactTemplateCursorParagraphs() {
+    [...ui.content.children].forEach((node) => {
+      if (node.tagName !== "P" || String(node.textContent || "").trim() ||
+          ![...node.children].every((child) => child.tagName === "BR")) return;
+      if (placedTemplatesShareLine(node.previousElementSibling, node.nextElementSibling)) node.remove();
+    });
+  }
+
   function createTemplateInstance(block, live = true) {
     const instance = document.createElement("div");
     instance.className = "wiki-template-instance";
@@ -1634,7 +1700,7 @@
       // Ignore it only when two inline PictureButtons surround it.
       if (type === "paragraph" && !String(block.text || "").trim() &&
           !String(block.html || "").replace(/<br\s*\/?\s*>/gi, "").trim() &&
-          isInlineButtonBlock(blocks[index - 1]) && isInlineButtonBlock(blocks[index + 1])) return;
+          templatesShareLine(blocks[index - 1], blocks[index + 1])) return;
       let element;
       if (type === "template") {
         element = createTemplateInstance(block, liveTemplates);
@@ -2831,25 +2897,27 @@
     const selection = window.getSelection();
     const anchor = restoreSavedSelection() && selection.rangeCount
       ? directContentChild(selection.getRangeAt(0).endContainer) : null;
-    // When inserting an adjacent PictureButton, replace the temporary empty
-    // cursor paragraph instead of turning it into an unwanted new row.
+    // When inserting adjacent tiles or Whole-row templates, reuse the empty
+    // cursor paragraph rather than breaking a row between the templates.
     const target = anchor || ui.content.lastElementChild;
     const isEmptyCursor = target?.tagName === "P" &&
       !String(target.textContent || "").trim() &&
       [...target.children].every((child) => child.tagName === "BR");
     const previousTile = target?.previousElementSibling;
-    if (element?.dataset?.buttonTemplateKind === "tile" &&
-        !["break", "behind", "front"].includes(objectLayout(element)) &&
-        !templateFullWidth(element) && isEmptyCursor &&
-        previousTile?.dataset?.buttonTemplateKind === "tile" &&
-        !["break", "behind", "front"].includes(objectLayout(previousTile)) &&
-        !templateFullWidth(previousTile)) {
+    if (isEmptyCursor && placedTemplatesShareLine(previousTile, element)) {
       target.replaceWith(element);
     } else if (anchor) anchor.after(element);
     else ui.content.append(element);
     const paragraph = document.createElement("p");
     paragraph.append(document.createElement("br"));
-    element.after(paragraph);
+    // If this template joins an existing template-only row, place the editing
+    // cursor after the entire row instead of splitting its middle.
+    let rowEnd = element;
+    while (placedTemplatesShareLine(rowEnd, rowEnd.nextElementSibling)) {
+      rowEnd = rowEnd.nextElementSibling;
+    }
+    rowEnd.after(paragraph);
+    compactTemplateCursorParagraphs();
     const range = document.createRange();
     range.setStart(paragraph, 0);
     range.collapse(true);
@@ -2916,10 +2984,10 @@
   }
 
   function validWidthFraction(value) {
-    const match = String(value ?? "").trim().match(/^(\d+(?:\.\d+)?)\s*(?:\/\s*(\d+(?:\.\d+)?))?$/);
-    if (!match) return false;
-    const a = Number(match[1]), b = Number(match[2] || 1);
-    return a > 0 && b > 0 && a <= b;
+    // Unit fractions always produce an exact integer column count in the
+    // PictureButtonRow CSS grid (1/3 -> repeat(3, 1fr)).
+    const match = String(value ?? "").trim().match(/^1\s*\/\s*(\d+)$/);
+    return Boolean(match && Number(match[1]) >= 1 && Number(match[1]) <= 20);
   }
 
   function buildWidthModeField({ title, modeKey, pixelKey, scaleKey, values,
@@ -3029,7 +3097,7 @@
       if (!input) continue;
       const value = input.value.trim();
       if (mode === "scale" && !validWidthFraction(value)) {
-        setFeedback(ui.templateFeedback, "Enter a valid fraction such as 1/3 or 1/2.", true);
+        setFeedback(ui.templateFeedback, "Enter a fraction in the form 1/N, such as 1/3 or 1/4.", true);
         input.focus();
         return false;
       }
@@ -3147,7 +3215,7 @@
     if (ui.templatePlacementNote) {
       ui.templatePlacementNote.textContent = fullWidth
         ? "Full width keeps the template on its own row and scales it uniformly to the article width inside the page margins."
-        : "Whole row keeps the template on its own line. Wrap modes let article text flow beside it. Behind/In front layer the template with text.";
+        : "Whole row keeps article text below the templates, but neighboring Whole-row templates can sit together at their original sizes. Wrap modes allow text beside the template.";
     }
   }
 
@@ -3227,6 +3295,7 @@
     } else {
       insertDocumentBlock(instance);
     }
+    compactTemplateCursorParagraphs();
     closeTemplateDialog();
     ui.content.focus();
     selectFigure(instance);
@@ -3886,11 +3955,12 @@
   }
 
   function horizontalButtonDropPlacement(event, draggingObject) {
-    if (draggingObject?.dataset?.buttonTemplateKind !== "tile") return null;
-    const candidates = [...ui.content.querySelectorAll(':scope > .wiki-template-instance[data-button-template-kind="tile"]')]
+    if (draggingObject?.dataset?.buttonTemplateKind !== "tile" &&
+        objectLayout(draggingObject) !== "break") return null;
+    const candidates = [...ui.content.querySelectorAll(':scope > .wiki-template-instance')]
       .filter((tile) => {
         if (tile === draggingObject || !isPlacedObject(tile) ||
-            ["break", "behind", "front"].includes(objectLayout(tile)) || templateFullWidth(tile)) return false;
+            !placedTemplatesShareLine(tile, draggingObject)) return false;
         const rect = tile.getBoundingClientRect();
         return event.clientY >= rect.top - 20 && event.clientY <= rect.bottom + 20 &&
           event.clientX >= rect.left - 24 && event.clientX <= rect.right + 24;
@@ -4108,7 +4178,7 @@
     if (ui.templateFullWidth?.checked) ui.templateFullWidth.checked = false;
     if (ui.templateScale) ui.templateScale.disabled = false;
     setTemplatePlacementChoice(button.dataset.templateLayout);
-    if (ui.templatePlacementNote) ui.templatePlacementNote.textContent = "Whole row keeps the template on its own line. Wrap modes let article text flow beside it. Behind/In front layer the template with text.";
+    if (ui.templatePlacementNote) ui.templatePlacementNote.textContent = "Whole row keeps article text below the templates, but neighboring Whole-row templates can sit together at their original sizes. Wrap modes allow text beside the template.";
   });
   ui.templateScale?.addEventListener("input", updateTemplateScaleDisplay);
   ui.templateScale?.addEventListener("change", updateTemplateScaleDisplay);
@@ -4119,7 +4189,7 @@
       if (ui.templatePlacementNote) ui.templatePlacementNote.textContent = "Full width keeps the template on its own row and scales it uniformly to the article width inside the page margins.";
     } else {
       if (ui.templateScale) ui.templateScale.disabled = false;
-      if (ui.templatePlacementNote) ui.templatePlacementNote.textContent = "Whole row keeps the template on its own line. Wrap modes let article text flow beside it. Behind/In front layer the template with text.";
+      if (ui.templatePlacementNote) ui.templatePlacementNote.textContent = "Whole row keeps article text below the templates, but neighboring Whole-row templates can sit together at their original sizes. Wrap modes allow text beside the template.";
     }
   });
   ui.templateForm.addEventListener("submit", insertTemplateBlock);
