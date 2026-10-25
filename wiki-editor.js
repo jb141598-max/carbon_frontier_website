@@ -1374,48 +1374,156 @@
     await hydrateMediaImages(container);
   }
 
-  function enforceCategoryGalleryColumns(instance, rendered, values) {
-    const slug = String(instance.dataset.wikiTemplateSlug || "")
-      .replace(/^template\s*:/i, "").replace(/[\s_-]+/g, "").toLowerCase();
-    if (slug !== "categorygallery" ||
-        String(values?.widthmode || "pixel").trim().toLowerCase() !== "scale") return;
+  // Source-declared controls: <!-- CF-EDITOR: {"widthControls":[],
+  // "repeatGroups":[]} -->. Never inspect a template's name.
+  const editorConfigCache = new Map();
+  const editorKeyPattern = /^[A-Za-z0-9_-]{1,64}$/;
 
-    const match = String(values?.scalewidth || "1/3").trim().match(/^1\s*\/\s*(\d+)$/);
-    const columns = match ? Math.max(1, Math.min(20, Number(match[1]))) : 3;
-    const gap = Math.max(0, Math.min(200, Number(values?.gap ?? 10) || 0));
-    const tiles = [...rendered.querySelectorAll(".machine-img-fill")]
-      .map((frame) => frame.parentElement).filter(Boolean);
-    if (!tiles.length) return;
-
-    // New templates have one gallery div. Older DPL templates emit
-    // PictureButtons directly. Support both without changing the wiki source.
-    const candidate = rendered.firstElementChild;
-    const root = rendered.children.length === 1 && candidate &&
-      !tiles.includes(candidate) && tiles.every((tile) => candidate.contains(tile))
-        ? candidate : rendered;
-    root.style.display = "grid";
-    root.style.gridTemplateColumns = "repeat(" + columns + ", minmax(0, 1fr))";
-    root.style.gap = gap + "px";
-    root.style.width = "100%";
-    root.style.maxWidth = "100%";
-    root.style.boxSizing = "border-box";
-    root.style.alignItems = "start";
-
-    for (const tile of tiles) {
-      // The gallery owns gaps. Do not add a second margin or fixed
-      // pixel width to the button occupying each fractional grid cell.
-      tile.style.width = "100%";
-      tile.style.maxWidth = "100%";
-      tile.style.margin = "0";
-      tile.style.boxSizing = "border-box";
-      let directChild = tile;
-      while (directChild.parentElement && directChild.parentElement !== root) {
-        directChild = directChild.parentElement;
+  function templateEditorConfig(definition) {
+    if (definition?.kind !== "wikitext" || typeof definition.source !== "string") return null;
+    const source = definition.source;
+    if (editorConfigCache.has(source)) return editorConfigCache.get(source);
+    const match = source.match(/<!--\s*CF-EDITOR:\s*([\s\S]*?)-->/i);
+    let raw;
+    if (match && match[1].length <= 12000) {
+      try { raw = JSON.parse(match[1]); }
+      catch (error) { console.warn("Invalid CF-EDITOR config", error); }
+    }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      editorConfigCache.set(source, null); return null;
+    }
+    const widthControls = [], keys = new Set();
+    for (const item of (Array.isArray(raw.widthControls) ? raw.widthControls : []).slice(0, 5)) {
+      const mode = String(item?.mode || ""), pixel = String(item?.pixel || ""), scale = String(item?.scale || "");
+      if (![mode,pixel,scale].every((key) => editorKeyPattern.test(key)) ||
+          new Set([mode,pixel,scale]).size !== 3 ||
+          [mode,pixel,scale].some((key) => keys.has(key))) continue;
+      [mode,pixel,scale].forEach((key) => keys.add(key));
+      widthControls.push({
+        label: String(item.label || "Width").slice(0,80),
+        mode,pixel,scale,
+        target: ["tile","columns","container","field"].includes(item.target) ? item.target : "field",
+        pixelDefault: String(item.pixelDefault ?? "").slice(0,32),
+        scaleDefault: /^1\/(?:[1-9]|1[0-9]|20)$/.test(String(item.scaleDefault || "1/3"))
+          ? String(item.scaleDefault || "1/3") : "1/3",
+        pixelHint: String(item.pixelHint || "").slice(0,160),
+        scaleHint: String(item.scaleHint || "").slice(0,160)
+      });
+    }
+    const repeatGroups = [];
+    for (const item of (Array.isArray(raw.repeatGroups) ? raw.repeatGroups : []).slice(0, 5)) {
+      const count = String(item?.count || ""), prefix = String(item?.prefix || "");
+      if (!editorKeyPattern.test(count) || keys.has(count) ||
+          repeatGroups.some((group) => group.count === count) ||
+          !/^[A-Za-z_][A-Za-z0-9_-]{0,40}$/.test(prefix)) continue;
+      const fields = [];
+      for (const field of (Array.isArray(item.fields) ? item.fields : []).slice(0, 12)) {
+        const key = String(field?.key || "");
+        if (!editorKeyPattern.test(key) || fields.some((f) => f.key === key)) continue;
+        fields.push({
+          key, label: String(field.label || key).slice(0,80),
+          type: ["image","text","textarea"].includes(field.type) ? field.type : "text",
+          default: String(field.default ?? "").slice(0,1000)
+        });
       }
-      if (directChild.parentElement === root) {
-        directChild.style.minWidth = "0";
-        directChild.style.width = "100%";
-        directChild.style.maxWidth = "100%";
+      if (!fields.length) continue;
+      const min = Math.max(0, Math.min(100,Math.round(Number(item.min ?? 1) || 0)));
+      const max = Math.max(1,min,Math.min(100,Math.round(Number(item.max ?? 100) || 100)));
+      repeatGroups.push({count,prefix,fields,min,max,
+        label:String(item.label || "Amount of items").slice(0,80),
+        itemLabel:String(item.itemLabel || "Item").slice(0,80),
+        default:Math.max(min,Math.min(max,Math.round(Number(item.default ?? 1) || 0)))
+      });
+      keys.add(count);
+    }
+    const labels = Object.create(null);
+    for(const [key,label] of Object.entries(raw.labels || {}).slice(0,40)) {
+      if (editorKeyPattern.test(key)) labels[key] = String(label).slice(0,80);
+    }
+    const hidden = Array.isArray(raw.hidden)
+      ? raw.hidden.map(String).filter((key)=>editorKeyPattern.test(key)).slice(0,20) : [];
+    const gapKey = editorKeyPattern.test(String(raw.gap || "")) ? String(raw.gap) : "";
+    const override = editorKeyPattern.test(String(raw.override || "")) ? String(raw.override) : "";
+    const itemClass = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/.test(String(raw.itemClass || ""))
+      ? String(raw.itemClass) : "machine-img-fill";
+    const layoutRole = ["tile","gallery"].includes(raw.layoutRole) ? raw.layoutRole : "";
+    const config = {widthControls,repeatGroups,labels,hidden,gapKey,override,itemClass,layoutRole};
+    editorConfigCache.set(source,config);
+    if(editorConfigCache.size>150)editorConfigCache.delete(editorConfigCache.keys().next().value);
+    return config;
+  }
+
+  function templateConfigForBlock(block) {
+    const t = app.templates.find((item) =>
+      (block?.templateId && item.id === block.templateId) ||
+      (block?.templateSlug && item.slug === block.templateSlug));
+    return templateEditorConfig(t?.currentRevision?.definition) || templateEditorConfig(block?.snapshot);
+  }
+
+  function templateLayoutKind(config) {
+    if(config?.layoutRole) return config.layoutRole;
+    if(config?.widthControls?.some((item)=>item.target==="tile")) return "tile";
+    if(config?.widthControls?.some((item)=>["columns","container"].includes(item.target))) return "gallery";
+    return "";
+  }
+
+  function scaleFraction(value, fallback="1/3") {
+    const match=String(value||fallback).trim().match(/^1\s*\/\s*(\d+)$/);
+    const n=match?Number(match[1]):Number(String(fallback).split("/")[1]);
+    return 1/Math.max(1,Math.min(20,Number.isFinite(n)?n:3));
+  }
+
+  function inferRepeatCount(group,values) {
+    const input=values?.[group.count];
+    if(input!==undefined && String(input).trim()!=="") {
+      const explicit=Number(input);
+      if(Number.isInteger(explicit))return Math.max(group.min,Math.min(group.max,explicit));
+    }
+    let count=group.default;
+    const pattern=new RegExp("^"+group.prefix+"(\\d+)_([A-Za-z0-9_-]+)$");
+    for(const [key,value] of Object.entries(values||{})) {
+      const match=key.match(pattern);
+      if(!match||!String(value||"").trim())continue;
+      const spec=group.fields.find((f)=>f.key===match[2]);
+      if(!spec)continue;
+      const index=Number(match[1]);
+      const defaultValue=String(spec.default).replace(/__N__|\{n\}/g,String(index));
+      if(String(value)!==defaultValue)count=Math.max(count,index);
+    }
+    return Math.max(group.min,Math.min(group.max,count));
+  }
+
+  function enforceTemplateColumnGrid(rendered,values,config) {
+    const ctrl=config?.widthControls?.find((item)=>item.target==="columns");
+    if(!ctrl||String(values?.[ctrl.mode]||"pixel").toLowerCase()!=="scale")return;
+    const columns=Math.round(1/scaleFraction(values?.[ctrl.scale],ctrl.scaleDefault));
+    const g=Number(values?.[config.gapKey]??10);
+    const gap=Number.isFinite(g)?Math.max(0,Math.min(200,g)):10;
+    const tiles=[...rendered.querySelectorAll("."+config.itemClass)]
+      .map((frame)=>frame.parentElement).filter(Boolean);
+    const candidate=rendered.firstElementChild;
+    const root=rendered.children.length===1&&candidate &&
+      (!tiles.length||tiles.every((tile)=>candidate!==tile&&candidate.contains(tile)))
+        ? candidate:rendered;
+    root.style.display="grid";
+    root.style.gridTemplateColumns="repeat("+columns+",minmax(0,1fr))";
+    root.style.gridAutoFlow="row";
+    root.style.gap=gap+"px";
+    root.style.width="100%";
+    root.style.maxWidth="100%";
+    root.style.boxSizing="border-box";
+    root.style.alignItems="start";
+    for(const tile of tiles) {
+      tile.style.width="100%";
+      tile.style.maxWidth="100%";
+      tile.style.margin="0";
+      tile.style.boxSizing="border-box";
+      let child=tile;
+      while(child.parentElement&&child.parentElement!==root)child=child.parentElement;
+      if(child.parentElement===root) {
+        child.style.minWidth="0";
+        child.style.width="100%";
+        child.style.maxWidth="100%";
       }
     }
   }
@@ -1427,6 +1535,7 @@
       return;
     }
     if (definition.kind === "wikitext" && definition.source && templateWikitext?.render) {
+      const editorConfig = templateEditorConfig(definition);
       instance.__templateResizeObserver?.disconnect?.();
       instance.dataset.templateKind = "wikitext";
       instance.style.removeProperty("--template-width");
@@ -1446,12 +1555,12 @@
         rendered.textContent = error.message || "This template source could not be rendered.";
       }
       instance.replaceChildren(rendered);
-      enforceCategoryGalleryColumns(instance, rendered, values);
-      // Category galleries can expand to multiple PictureButtons without using
-      // the standard PictureButtonRow template name.
-      if (rendered.querySelectorAll(".machine-img-fill").length > 1) {
-        instance.dataset.buttonTemplateKind = "gallery";
-      }
+      const declaredRole=templateLayoutKind(editorConfig);
+      const count=rendered.querySelectorAll("."+(editorConfig?.itemClass||"machine-img-fill")).length;
+      const inferredRole=count>1?"gallery":count===1?"tile":"";
+      if(declaredRole||inferredRole)instance.dataset.buttonTemplateKind=declaredRole||inferredRole;
+      else delete instance.dataset.buttonTemplateKind;
+      enforceTemplateColumnGrid(rendered,values,editorConfig);
 
       const sizeWikitextTemplate = () => {
         if (!instance.isConnected || !rendered.isConnected) return;
@@ -1471,19 +1580,14 @@
           // totalwidth or totalwidthscale. A Whole-row placement MUST NOT
           // replace the requested width with 100%.
           const gallery = instance.__wikiTemplateBlock?.values || {};
-          const isRow = ["picturebuttonrow", "buttonrow"].includes(
-            String(instance.dataset.wikiTemplateSlug || "")
-              .replace(/^template:/i, "").replace(/[\s_-]+/g, "").toLowerCase());
+          const containerControl=editorConfig?.widthControls?.find((item)=>item.target==="container");
+          const isRow=Boolean(containerControl);
           let naturalWidth = contentWidth;
           if (isRow && !fullWidth) {
-            if (String(gallery.totalwidthmode || "pixel").toLowerCase() === "scale") {
-              const parts = String(gallery.totalwidthscale || "1/1").trim()
-                .match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
-              if (parts && Number(parts[2]) > 0) {
-                naturalWidth = contentWidth * Math.min(1, Number(parts[1]) / Number(parts[2]));
-              }
-            } else if (Number(gallery.totalwidth) > 0) {
-              naturalWidth = Math.min(contentWidth, Number(gallery.totalwidth));
+            if(String(gallery[containerControl.mode]||"pixel").toLowerCase()==="scale") {
+              naturalWidth=contentWidth*scaleFraction(gallery[containerControl.scale],containerControl.scaleDefault);
+            } else if(Number(gallery[containerControl.pixel])>0) {
+              naturalWidth=Math.min(contentWidth,Number(gallery[containerControl.pixel]));
             }
           }
           naturalWidth = Math.max(1, Math.floor(naturalWidth));
@@ -1508,19 +1612,14 @@
           return;
         }
 
-        // Size standalone PictureButtons against the article, not the nested
-        // template div. For 1/3: 3 * (card wrapper + right margin) <= article.
-        // A one-pixel safety allowance prevents subpixel wrapping at any zoom.
-        const saved = instance.__wikiTemplateBlock?.values || {};
-        if (instance.dataset.buttonTemplateKind === "tile" &&
-            String(saved.widthmode || "pixel").toLowerCase() === "scale" &&
-            !String(saved.csswidth || "").trim() && !fullWidth &&
-            !["behind", "front"].includes(objectLayout(instance))) {
-          const parts = String(saved.scalewidth || "1/3").trim()
-            .match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
-          const fraction = parts ? Number(parts[1]) / Number(parts[2]) : 1 / 3;
-          const share = Number.isFinite(fraction) ? Math.max(0.001, Math.min(1, fraction)) : 1 / 3;
-          const tile = rendered.querySelector(".machine-img-fill")?.parentElement;
+        // Any template with a target="tile" control can use article fractions.
+        const ctrl=editorConfig?.widthControls?.find((item)=>item.target==="tile");
+        const overrideKey=editorConfig?.override;
+        if(ctrl && String(values?.[ctrl.mode]||"pixel").toLowerCase()==="scale" &&
+            !(overrideKey&&String(values?.[overrideKey]||"").trim()) &&
+            !fullWidth && !["behind","front"].includes(objectLayout(instance))) {
+          const share=scaleFraction(values?.[ctrl.scale],ctrl.scaleDefault);
+          const tile=rendered.querySelector("."+editorConfig.itemClass)?.parentElement||rendered.firstElementChild;
           if (tile) {
             const wrapperStyle = window.getComputedStyle(instance);
             const leftMargin = parseFloat(wrapperStyle.marginLeft) || 0;
@@ -1629,11 +1728,7 @@
   }
 
   function buttonTemplateKind(block) {
-    const name = String(block?.templateSlug || "").replace(/^Template:/i, "")
-      .replace(/[\s_-]+/g, "").toLowerCase();
-    if (name === "picturebutton") return "tile";
-    if (["picturebuttonrow", "buttonrow", "categorygallery", "buttongallery"].includes(name)) return "gallery";
-    return "";
+    return templateLayoutKind(templateConfigForBlock(block));
   }
 
   function isInlineButtonBlock(block) {
@@ -3023,13 +3118,6 @@
     return app.templates.find((template) => template.id === app.selectedTemplateId) || null;
   }
 
-  function pictureButtonEditorKind(template) {
-    if (template?.currentRevision?.definition?.kind !== "wikitext") return "";
-    const name = String(template?.slug || template?.name || "")
-      .replace(/^template\s*:/i, "").replace(/[\s_-]+/g, "").toLowerCase();
-    return ["picturebutton", "picturebuttonrow", "categorygallery"].includes(name) ? name : "";
-  }
-
   function validWidthFraction(value) {
     // Unit fractions always produce an exact integer column count in the
     // PictureButtonRow CSS grid (1/3 -> repeat(3, 1fr)).
@@ -3105,50 +3193,142 @@
     return field;
   }
 
-  function buildPictureButtonWidthFields(kind, values) {
-    const group = document.createElement("div");
-    group.className = "template-special-width-fields";
-    if (kind === "picturebutton") {
-      group.append(buildWidthModeField({
-        title: "Button width", modeKey: "widthmode", pixelKey: "width",
-        scaleKey: "scalewidth", values, pixelDefault: "200", scaleDefault: "1/3",
-        scaleHint: "1/3 fits three buttons across."
-      }));
-      const override = document.createElement("input");
-      override.type = "hidden";
-      override.dataset.templateValue = "csswidth";
-      override.value = "";
-      group.append(override);
-    } else if (kind === "categorygallery") {
-      // Gallery parameter 2 is the PIXEL WIDTH of each button, never
-      // the width of the entire gallery. Preserve |2=150 legacy use.
-      group.append(buildWidthModeField({
-        title: "Button width",
-        modeKey: "widthmode",
-        pixelKey: "2",
-        scaleKey: "scalewidth",
+  function buildTemplateWidthFields(config, values) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "template-special-width-fields";
+    for (const control of config.widthControls) {
+      wrapper.append(buildWidthModeField({
+        title: control.label,
+        modeKey: control.mode,
+        pixelKey: control.pixel,
+        scaleKey: control.scale,
         values,
-        pixelDefault: "100",
-        scaleDefault: "1/3",
-        pixelHint: "Width of each gallery button in pixels (default: 100).",
-        scaleHint: "1/3 guarantees three equal buttons across, including gaps."
-      }));
-    } else if (kind === "picturebuttonrow") {
-      group.append(buildWidthModeField({
-        title: "Button width", modeKey: "widthmode", pixelKey: "buttonwidth",
-        scaleKey: "scalewidth", values, pixelDefault: "", scaleDefault: "1/3",
-        pixelHint: "Blank keeps the original equal-sized single row.",
-        scaleHint: "1/3 creates three columns and wraps extra buttons."
-      }));
-      group.append(buildWidthModeField({
-        title: "Entire row width", modeKey: "totalwidthmode",
-        pixelKey: "totalwidth", scaleKey: "totalwidthscale", values,
-        pixelDefault: "", scaleDefault: "1/1",
-        pixelHint: "Blank fills the article width.",
-        scaleHint: "1/1 is full width; 1/2 is half width."
+        pixelDefault: control.pixelDefault,
+        scaleDefault: control.scaleDefault,
+        pixelHint: control.pixelHint,
+        scaleHint: control.scaleHint
       }));
     }
-    return group;
+    for (const key of config.hidden) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.dataset.templateValue = key;
+      input.value = "";
+      wrapper.append(input);
+    }
+    return wrapper;
+  }
+
+  function appendTemplateValueField(parent, placeholder, values = {}) {
+    const key = String(placeholder.key || "");
+    const captionText = String(placeholder.label || key.replace(/[_-]+/g, " "));
+    const actual = String(values?.[key] ?? placeholder.defaultValue ?? "");
+    if (placeholder.kind === "image") {
+      const field = document.createElement("div");
+      field.className = "template-image-field";
+      const caption = document.createElement("span");
+      caption.className = "field-label";
+      caption.textContent = captionText;
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.dataset.templateValue = key;
+      input.value = actual;
+      const choice = document.createElement("div");
+      choice.className = "template-image-choice";
+      const selected = document.createElement("strong");
+      const media = app.media.find((item) => item.id === actual);
+      selected.textContent = media?.title || (actual ? "Catalog image selected" : "No image selected");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary-button";
+      button.textContent = actual ? "Change Image" : "Choose Image";
+      button.addEventListener("click", () =>
+        openMediaDialog({ targetInput: input, targetDisplay: selected, targetButton: button }));
+      choice.append(selected, button);
+      field.append(caption, input, choice);
+      parent.append(field);
+    } else {
+      const field = document.createElement("label");
+      const caption = document.createElement("span");
+      caption.className = "field-label";
+      caption.textContent = captionText;
+      const multiline = placeholder.kind === "textarea" ||
+        (placeholder.kind !== "text" && String(placeholder.defaultValue || "").length > 100);
+      const input = document.createElement(multiline ? "textarea" : "input");
+      if (multiline) input.rows = 3;
+      input.dataset.templateValue = key;
+      input.maxLength = 1000;
+      input.value = actual;
+      input.placeholder = String(placeholder.defaultValue ?? "Enter a value");
+      field.append(caption, input);
+      parent.append(field);
+    }
+  }
+
+  function buildRepeatGroup(group, values = {}) {
+    const wrapper = document.createElement("section");
+    wrapper.className = "template-repeat-group";
+    const countField = document.createElement("label");
+    const title = document.createElement("span");
+    title.className = "field-label";
+    title.textContent = group.label;
+    const input = document.createElement("input");
+    input.type = "number";
+    input.inputMode = "numeric";
+    input.min = String(group.min);
+    input.max = String(group.max);
+    input.step = "1";
+    input.required = true;
+    input.dataset.templateValue = group.count;
+    input.dataset.templateRepeatCount = group.count;
+    input.value = String(inferRepeatCount(group, values));
+    countField.append(title, input);
+    const hint = document.createElement("p");
+    hint.className = "template-repeat-hint";
+    hint.textContent = "Select " + group.min + "–" + group.max +
+      "; the fields below automatically match that amount.";
+    const entries = document.createElement("div");
+    entries.className = "template-repeat-items";
+    const draftValues = {...values};
+
+    function snapshot() {
+      entries.querySelectorAll("[data-template-value]").forEach((node) => {
+        draftValues[node.dataset.templateValue] = node.value;
+      });
+    }
+    function redraw() {
+      const quantity = Number(input.value);
+      if (!Number.isInteger(quantity) || quantity < group.min || quantity > group.max) {
+        input.setCustomValidity("Enter a whole number from " + group.min + " to " + group.max + ".");
+        return;
+      }
+      input.setCustomValidity("");
+      snapshot();
+      entries.replaceChildren();
+      for (let index = 1; index <= quantity; index += 1) {
+        const card = document.createElement("fieldset");
+        card.className = "template-repeat-item";
+        const legend = document.createElement("legend");
+        legend.textContent = group.itemLabel + " " + index;
+        card.append(legend);
+        for (const field of group.fields) {
+          const key = group.prefix + index + "_" + field.key;
+          const fallback = field.default.replace(/__N__|\{n\}/g, String(index));
+          appendTemplateValueField(card, {
+            key,
+            label: field.label,
+            kind: field.type,
+            defaultValue: fallback
+          }, draftValues);
+        }
+        entries.append(card);
+      }
+    }
+    input.addEventListener("input", redraw);
+    input.addEventListener("change", redraw);
+    wrapper.append(countField, hint, entries);
+    redraw();
+    return wrapper;
   }
 
   function validatePictureButtonWidthFields() {
@@ -3178,63 +3358,37 @@
       ui.insertTemplate.disabled = true;
       return;
     }
-    const pictureKind = pictureButtonEditorKind(template);
-    if (pictureKind) ui.templateValues.append(buildPictureButtonWidthFields(pictureKind, values));
+    const config = templateEditorConfig(template.currentRevision?.definition);
+    if (config?.widthControls?.length || config?.hidden?.length) {
+      ui.templateValues.append(buildTemplateWidthFields(config, values));
+    }
+    const reserved = new Set();
+    for (const ctrl of config?.widthControls || []) {
+      [ctrl.mode, ctrl.pixel, ctrl.scale].forEach((key) => reserved.add(key));
+    }
+    for (const key of config?.hidden || []) reserved.add(key);
+    for (const group of config?.repeatGroups || []) {
+      reserved.add(group.count);
+      for (const field of group.fields) reserved.add(group.prefix + "__N___" + field.key);
+    }
     const placeholders = Array.isArray(template.placeholders) ? template.placeholders : [];
-    if (!placeholders.length && !pictureKind) {
+    let ordinaryCount = 0;
+    for (const placeholder of placeholders) {
+      const key = String(placeholder.key || "");
+      if (reserved.has(key)) continue;
+      const label = config?.labels?.[key] || placeholder.label ||
+        key.replace(/[_-]+/g, " ");
+      appendTemplateValueField(ui.templateValues, {...placeholder,label}, values);
+      ordinaryCount += 1;
+    }
+    for (const group of config?.repeatGroups || []) {
+      ui.templateValues.append(buildRepeatGroup(group, values));
+    }
+    if (!ordinaryCount && !config?.widthControls?.length && !config?.repeatGroups?.length) {
       const note = document.createElement("p");
       note.className = "template-picker-note";
       note.textContent = "This design has no placeholders. It will be inserted exactly as drawn.";
       ui.templateValues.append(note);
-    } else {
-      placeholders.forEach((placeholder) => {
-        const reserved = pictureKind === "picturebutton"
-          ? ["widthmode", "width", "scalewidth", "csswidth"]
-          : pictureKind === "picturebuttonrow"
-            ? ["widthmode", "buttonwidth", "scalewidth", "totalwidthmode", "totalwidth", "totalwidthscale"]
-          : pictureKind === "categorygallery"
-            ? ["widthmode", "scalewidth", "2"] : [];
-        if (reserved.includes(String(placeholder.key || "").toLowerCase())) return;
-        if (placeholder.kind === "image") {
-          const field = document.createElement("div");
-          field.className = "template-image-field";
-          const caption = document.createElement("span");
-          caption.className = "field-label";
-          caption.textContent = placeholder.label || String(placeholder.key).replaceAll("_", " ");
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.dataset.templateValue = placeholder.key;
-          input.value = String(values?.[placeholder.key] || "");
-          const choice = document.createElement("div");
-          choice.className = "template-image-choice";
-          const selected = document.createElement("strong");
-          const currentMedia = app.media.find((item) => item.id === input.value);
-          selected.textContent = currentMedia?.title || (input.value ? "Catalog image selected" : "No image selected");
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "secondary-button";
-          button.textContent = input.value ? "Change Image" : "Choose Image";
-          button.addEventListener("click", () => openMediaDialog({ targetInput: input, targetDisplay: selected, targetButton: button }));
-          choice.append(selected, button);
-          field.append(caption, input, choice);
-          ui.templateValues.append(field);
-          return;
-        }
-        const label = document.createElement("label");
-        const caption = document.createElement("span");
-        caption.className = "field-label";
-        caption.textContent = pictureKind === "categorygallery" && String(placeholder.key) === "1"
-          ? "Category"
-          : (placeholder.label || String(placeholder.key).replaceAll("_", " "));
-        const input = document.createElement(String(placeholder.defaultValue || "").length > 100 ? "textarea" : "input");
-        if (input.tagName === "TEXTAREA") input.rows = 3;
-        input.dataset.templateValue = placeholder.key;
-        input.maxLength = 1000;
-        input.value = String(values?.[placeholder.key] ?? placeholder.defaultValue ?? "");
-        input.placeholder = String(placeholder.defaultValue || "Enter a value");
-        label.append(caption, input);
-        ui.templateValues.append(label);
-      });
     }
     ui.insertTemplate.disabled = false;
   }
@@ -4299,7 +4453,7 @@
         if (dialog === ui.searchDialog) closeSearchResults();
         else if (dialog === ui.mediaDialog) closeMediaDialog();
         else if (dialog === ui.imageOptionsDialog) closeImageOptions();
-        else if (dialog === ui.templateDialog) closeTemplateDialog();
+        else if (dialog === ui.templateDialog) return; // Preserve unsaved inputs on backdrop clicks.
         else if (dialog === ui.managementDialog) closePageManagement();
         else if (dialog === ui.trashDialog) closeTrashDialog();
         else setDialog(dialog, false);

@@ -91,7 +91,7 @@
       const line = clean.slice(0, item.index).split("\n").length;
       throw new Error(`Line ${line}: an opening ${item.type === "parameter" ? "{{{" : "{{"} has no matching closing braces.`);
     }
-    for (const tag of ["includeonly", "noinclude", "onlyinclude"]) {
+    for (const tag of ["includeonly", "noinclude", "onlyinclude", "cf-repeat"]) {
       const opening = (source.match(new RegExp(`<${tag}\\b`, "gi")) || []).length;
       const closing = (source.match(new RegExp(`<\\/${tag}\\s*>`, "gi")) || []).length;
       if (opening !== closing) throw new Error(`The <${tag}> and </${tag}> tags must be paired.`);
@@ -177,6 +177,53 @@
       index += 1;
     }
     return null;
+  }
+
+
+  // cf-repeat expands a variable number of template items, substituting
+  // __N__ in parameter names and labels before {{{parameters}}} expand.
+  // Its count parameter is declared by the template, not by website JS.
+  function expandRepeatBlocks(source, values) {
+    const repeat = /<cf-repeat\b([^>]*)>([\s\S]*?)<\/cf-repeat\s*>/gi;
+    let blockCount = 0;
+    let generated = 0;
+    return String(source || "").replace(repeat, (_match, attrs, body) => {
+      if (++blockCount > 10) throw new Error("A template can contain at most 10 repeat sections.");
+      const attribute = (key) => attrs.match(
+        new RegExp("\\b" + key + "\\s*=\\s*[\\\"']([^\\\"']*)[\\\"']", "i"))?.[1] || "";
+      const key = attribute("count").trim();
+      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(key)) {
+        throw new Error("cf-repeat requires a valid count parameter name.");
+      }
+      const prefix = attribute("prefix").trim();
+      const maximum = Math.max(1, Math.min(100, Number.parseInt(attribute("max"), 10) || 100));
+      const minimum = Math.max(0, Math.min(maximum, Number.parseInt(attribute("min"), 10) || 0));
+      const fallback = Math.max(minimum, Math.min(maximum, Number.parseInt(attribute("default"), 10) || 1));
+      let count = Number.parseInt(values?.[key], 10);
+      if (values?.[key] === "" || !Number.isFinite(count)) {
+        count = fallback;
+        // Older saved rows had no count parameter. Preserve nondefault
+        // data from them, including customized text without an image.
+        if (prefix && /^[a-zA-Z_][a-zA-Z0-9_-]{0,40}$/.test(prefix)) {
+          for (const [valueKey, value] of Object.entries(values || {})) {
+            const match = valueKey.match(new RegExp("^" + prefix + "(\\d+)_([A-Za-z0-9_-]+)$"));
+            if (!match || !String(value || "").trim()) continue;
+            const index = Number(match[1]);
+            if (String(value) !== "Button " + index && String(value) !== "Main Page") {
+              count = Math.max(count, index);
+            }
+          }
+        }
+      }
+      count = Math.max(minimum, Math.min(maximum, Math.floor(count)));
+      generated += body.length * count;
+      if (generated > 250000) throw new Error("Repeated template content is too large.");
+      let result = "";
+      for (let index = 1; index <= count; index += 1) {
+        result += body.replace(/__N__/g, String(index));
+      }
+      return result;
+    });
   }
 
   function expandParameters(source, values) {
@@ -628,6 +675,7 @@
 
   function expandSource(source, values = {}, options = {}, depth = 0, stack = []) {
     let output = transclusionSource(source);
+    output = expandRepeatBlocks(output, values);
     output = expandParameters(output, values);
     output = expandTemplates(output, options, depth, stack);
     output = renderLinks(output, options);

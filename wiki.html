@@ -1854,6 +1854,27 @@
       .template-picker-option.is-selected { border-color: rgba(223, 37, 49, 0.74); background: rgba(223, 37, 49, 0.14); outline: none; }
 
       .template-value-fields { display: grid; gap: 10px; }
+      /* Generic CF-EDITOR repeatGroups: count field + precisely N item cards. */
+      .template-repeat-group { display: grid; gap: 12px; min-width: 0; }
+      .template-repeat-hint { margin: -5px 0 3px; color: var(--cf-soft); font-size: .74rem; }
+      .template-repeat-items { display: grid; gap: 12px; }
+      .template-repeat-item {
+        display: grid;
+        gap: 10px;
+        min-width: 0;
+        padding: 14px;
+        border: 1px solid var(--cf-border);
+        border-radius: 14px;
+        background: rgba(255,255,255,.023);
+      }
+      .template-repeat-item legend {
+        padding: 0 6px;
+        color: var(--cf-white);
+        font-size: .84rem;
+        font-weight: 700;
+      }
+      .template-repeat-item .template-image-field { margin: 0; }
+
       /* Pixel/fraction controls for PictureButton and PictureButtonRow. */
       .template-special-width-fields { display: grid; gap: 12px; }
       .template-width-mode-field {
@@ -4018,7 +4039,7 @@
     <script src="wiki-style-client.js?v=1"></script>
     <script src="wiki-media-client.js"></script>
     <script src="wiki-wikitext.js?v=30-template-rows"></script>
-    <script src="wiki-template-wikitext.js?v=30-width-modes"></script>
-    <script src="wiki-editor.js?v=34-categorygallery-width-picker"></script>
+    <script src="wiki-template-wikitext.js?v=31-repeatable-templates"></script>
+    <script src="wiki-editor.js?v=36-declared-repeat-controls"></script>
   </body>
 </html>
