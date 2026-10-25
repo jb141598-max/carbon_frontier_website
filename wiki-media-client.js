@@ -186,6 +186,23 @@
       await localPut(item);
       return { ok: true, media: publicItem(item) };
     }
+    async function usage(id) {
+      // The live server checks the current page/template revisions and
+      // authorizes the requester before allowing any deletion.
+      if (testing) throw new Error("Deletion impact is only available on the live wiki catalog.");
+      return remote({ id, query: { usage: "1" } });
+    }
+    async function remove(id, { title, version } = {}) {
+      if (testing) throw new Error("Delete images from the live wiki catalog, not a local testing snapshot.");
+      return remote({
+        id, method: "DELETE",
+        body: JSON.stringify({
+          confirmation: "DELETE",
+          confirmedTitle: String(title || ""),
+          usageVersion: String(version || ""),
+        }),
+      });
+    }
     async function getBlob(id) {
       if (testing) {
         const item = await localGet(id);
@@ -206,7 +223,7 @@
       }
       throw new Error("The wiki image could not be loaded.");
     }
-    return Object.freeze({ list, upload, update, getBlob });
+    return Object.freeze({ list, upload, update, usage, remove, getBlob });
   }
 
   window.CarbonFrontierWikiMedia = Object.freeze({ create, metadata });

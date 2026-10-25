@@ -13,12 +13,17 @@
     "upload-source","upload-feedback","upload-button","detail-dialog","detail-form","close-detail-button",
     "cancel-detail-button","detail-preview","detail-heading","detail-title","detail-description","detail-alt",
     "detail-caption","detail-tags","detail-credit","detail-source","detail-type","detail-size","detail-date",
-    "detail-id","detail-feedback","save-detail-button",
+    "detail-id","detail-feedback","save-detail-button","delete-image-button",
+    "delete-confirm-dialog","delete-confirm-form","delete-confirm-title",
+    "close-delete-button","cancel-delete-button","confirm-delete-button",
+    "delete-impact-summary","delete-usage-list","delete-usage-note",
+    "delete-acknowledge","delete-feedback",
   ].map((id) => [id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()), document.getElementById(id)]));
 
   const state = {
     testing: isTestingEnvironment(), account: null, idToken: "", access: null, client: null,
     media: [], selectedId: "", offset: 0, total: 0, loading: false, googleInitialized: false,
+    deleteSelectedId: "", deleteUsage: null, deleteBusy: false,
     objectUrls: new Map(), uploadPreviewUrl: "", searchTimer: 0,
   };
 
@@ -59,7 +64,10 @@
   }
   function setDialog(element, open) {
     element.hidden = !open;
-    document.body.style.overflow = open ? "hidden" : "";
+    // The delete confirmation sits above the details dialog. Closing either
+    // overlay must not unlock page scrolling while the other remains open.
+    document.body.style.overflow = [ui.uploadDialog, ui.detailDialog, ui.deleteConfirmDialog]
+      .some((dialog) => dialog && !dialog.hidden) ? "hidden" : "";
   }
   function formatBytes(value) {
     const bytes = Number(value) || 0;
@@ -300,6 +308,8 @@
     setFeedback(ui.detailFeedback, media.canEditMetadata ? "These defaults are copied when an editor inserts the image." : "You can view these details, but only the uploader or assigned staff can change them.");
     [...ui.detailForm.querySelectorAll("input,textarea")].forEach((field) => { field.disabled = !media.canEditMetadata; });
     ui.saveDetailButton.hidden = !media.canEditMetadata;
+    ui.deleteImageButton.hidden = !media.canDelete || state.testing;
+    ui.deleteImageButton.disabled = !media.canDelete || state.testing;
     ui.detailPreview.replaceChildren();
     const image = document.createElement("img"); image.alt = media.altText || ""; image.hidden = true;
     const loading = document.createElement("span"); loading.textContent = "Loading image...";
@@ -307,7 +317,11 @@
     setDialog(ui.detailDialog, true);
     await hydrate(ui.detailPreview, media);
   }
-  function closeDetails() { state.selectedId = ""; setDialog(ui.detailDialog, false); }
+  function closeDetails() {
+    if (!ui.deleteConfirmDialog.hidden) closeDeleteConfirmation();
+    state.selectedId = "";
+    setDialog(ui.detailDialog, false);
+  }
   async function saveDetails(event) {
     event.preventDefault();
     const media = selectedMedia();
@@ -323,6 +337,147 @@
       setFeedback(ui.catalogFeedback, `Details saved for “${payload.media.title}”.`);
     } catch (error) { setFeedback(ui.detailFeedback, error.message || "The image details could not be saved.", true); }
     finally { ui.saveDetailButton.disabled = false; }
+  }
+
+
+  function renderDeleteUsage(usage) {
+    const images = Number(usage.pagePlacements) || 0;
+    const pageCount = Number(usage.pageCount) || 0;
+    const templates = Number(usage.templateReferences) || 0;
+    const templateCount = Number(usage.templateCount) || 0;
+    const plural = (n, one, many) => n === 1 ? one : many;
+    if (!images && !templates) {
+      ui.deleteImpactSummary.textContent = "No direct image references were found in current saved pages or template definitions. This does not guarantee the image is unused.";
+    } else {
+      ui.deleteImpactSummary.textContent =
+        "Deleting this image will invalidate at least " + images + " image " +
+        plural(images, "placement", "placements") + " across " + pageCount + " wiki " +
+        plural(pageCount, "page", "pages") + ", plus " + templates + " direct " +
+        plural(templates, "reference", "references") + " in " + templateCount + " template " +
+        plural(templateCount, "definition", "definitions") + ".";
+    }
+    ui.deleteUsageList.replaceChildren();
+    for (const page of usage.pages || []) {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = "wiki.html?page=" + encodeURIComponent(page.slug);
+      a.textContent = page.title || page.slug;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      li.append(a, document.createTextNode(" — " + page.count + " " +
+        plural(page.count, "placement", "placements")));
+      ui.deleteUsageList.append(li);
+    }
+    for (const template of usage.templates || []) {
+      const li = document.createElement("li");
+      li.textContent = "Template: " + (template.title || template.slug) +
+        " — " + template.count + " direct " + plural(template.count, "reference", "references");
+      ui.deleteUsageList.append(li);
+    }
+    ui.deleteUsageList.hidden = !ui.deleteUsageList.children.length;
+    ui.deleteUsageNote.textContent = "Counts cover direct references in current published pages and active template definitions, not old revisions, pending edits, or all dynamically generated CategoryGallery/DPL images. Deleting may break additional images.";
+    state.deleteUsage = usage;
+    ui.deleteAcknowledge.disabled = false;
+    ui.deleteAcknowledge.checked = false;
+    ui.confirmDeleteButton.disabled = true;
+  }
+
+  function closeDeleteConfirmation() {
+    if (state.deleteBusy) return;
+    state.deleteSelectedId = "";
+    state.deleteUsage = null;
+    ui.deleteAcknowledge.checked = false;
+    ui.deleteAcknowledge.disabled = true;
+    ui.confirmDeleteButton.disabled = true;
+    setDialog(ui.deleteConfirmDialog, false);
+  }
+
+  async function openDeleteConfirmation() {
+    const media = selectedMedia();
+    if (!media?.canDelete || state.testing || state.deleteBusy) return;
+    state.deleteSelectedId = media.id;
+    state.deleteUsage = null;
+    ui.deleteConfirmTitle.textContent = "Delete " + (media.title || media.originalName) + "?";
+    ui.deleteImpactSummary.textContent = "Checking current page and template references...";
+    ui.deleteUsageList.replaceChildren();
+    ui.deleteUsageList.hidden = true;
+    ui.deleteAcknowledge.checked = false;
+    ui.deleteAcknowledge.disabled = true;
+    ui.confirmDeleteButton.disabled = true;
+    setFeedback(ui.deleteFeedback, "Checking image usage...");
+    setDialog(ui.deleteConfirmDialog, true);
+    try {
+      const response = await state.client.usage(media.id);
+      if (state.deleteSelectedId !== media.id || ui.deleteConfirmDialog.hidden) return;
+      if (!response?.usage?.version) throw new Error("The image usage check did not finish.");
+      renderDeleteUsage(response.usage);
+      setFeedback(ui.deleteFeedback, "Review the affected pages and confirm if you want to continue.");
+    } catch (error) {
+      if (state.deleteSelectedId !== media.id || ui.deleteConfirmDialog.hidden) return;
+      ui.deleteImpactSummary.textContent = "The impact could not be checked. Deletion is disabled until the check succeeds.";
+      setFeedback(ui.deleteFeedback, error.message || "Unable to check usage.", true);
+    }
+  }
+
+  async function confirmDeleteImage(event) {
+    event.preventDefault();
+    if (state.deleteBusy || !state.deleteUsage?.version || !ui.deleteAcknowledge.checked) return;
+    const media = selectedMedia();
+    if (!media || media.id !== state.deleteSelectedId || !media.canDelete) return;
+    state.deleteBusy = true;
+    ui.confirmDeleteButton.disabled = true;
+    ui.cancelDeleteButton.disabled = true;
+    ui.closeDeleteButton.disabled = true;
+    setFeedback(ui.deleteFeedback, "Removing image from the catalog...");
+    try {
+      const result = await state.client.remove(media.id, {
+        title: media.title || media.originalName,
+        version: state.deleteUsage.version,
+      });
+      state.media = state.media.filter((entry) => entry.id !== media.id);
+      if (state.objectUrls.has(media.id)) {
+        URL.revokeObjectURL(state.objectUrls.get(media.id));
+        state.objectUrls.delete(media.id);
+      }
+      state.deleteBusy = false;
+      closeDeleteConfirmation();
+      closeDetails();
+      await loadCatalog();
+      const affected = Number(result.usage?.pagePlacements || 0);
+      setFeedback(ui.catalogFeedback, result.warning ||
+        "Image deleted. " + affected + " confirmed page " +
+        (affected === 1 ? "placement" : "placements") + " may now be missing.");
+    } catch (error) {
+      if (error?.status === 409 && /renamed/i.test(String(error.message || ""))) {
+        state.deleteUsage = null;
+        ui.deleteAcknowledge.checked = false;
+        ui.deleteAcknowledge.disabled = true;
+        ui.deleteImpactSummary.textContent = "This image was renamed. Close this panel, refresh the catalog, and review the new image details before deleting.";
+        setFeedback(ui.deleteFeedback, error.message, true);
+      } else if (error?.status === 409) {
+        ui.deleteAcknowledge.checked = false;
+        ui.deleteAcknowledge.disabled = true;
+        state.deleteUsage = null;
+        setFeedback(ui.deleteFeedback, "Image details or usages changed. Loading a fresh confirmation...", true);
+        try {
+          const response = await state.client.usage(media.id);
+          if (state.deleteSelectedId === media.id && !ui.deleteConfirmDialog.hidden) {
+            renderDeleteUsage(response.usage);
+            setFeedback(ui.deleteFeedback, "The usage list changed. Review it again before confirming.", true);
+          }
+        } catch (refreshError) {
+          ui.deleteImpactSummary.textContent = "Could not refresh image usage.";
+          setFeedback(ui.deleteFeedback, refreshError.message || "Please reopen the image.", true);
+        }
+      } else {
+        setFeedback(ui.deleteFeedback, error.message || "Image deletion failed. Nothing has been removed.", true);
+      }
+    } finally {
+      state.deleteBusy = false;
+      ui.cancelDeleteButton.disabled = false;
+      ui.closeDeleteButton.disabled = false;
+      ui.confirmDeleteButton.disabled = !(state.deleteUsage?.version && ui.deleteAcknowledge.checked);
+    }
   }
 
   async function initialize() {
@@ -359,11 +514,29 @@
   ui.closeDetailButton.addEventListener("click", closeDetails);
   ui.cancelDetailButton.addEventListener("click", closeDetails);
   ui.detailForm.addEventListener("submit", saveDetails);
+  ui.deleteImageButton.addEventListener("click", openDeleteConfirmation);
+  ui.deleteConfirmForm.addEventListener("submit", confirmDeleteImage);
+  ui.deleteAcknowledge.addEventListener("change", () => {
+    ui.confirmDeleteButton.disabled = !state.deleteUsage?.version ||
+      !ui.deleteAcknowledge.checked || state.deleteBusy;
+  });
+  ui.closeDeleteButton.addEventListener("click", closeDeleteConfirmation);
+  ui.cancelDeleteButton.addEventListener("click", closeDeleteConfirmation);
   ui.loadMoreButton.addEventListener("click", () => loadCatalog({ append: true }));
   ui.catalogSort.addEventListener("change", () => loadCatalog());
   ui.catalogSearch.addEventListener("input", () => { window.clearTimeout(state.searchTimer); state.searchTimer = window.setTimeout(() => loadCatalog(), 220); });
-  [ui.uploadDialog, ui.detailDialog].forEach((dialog) => dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog === ui.uploadDialog ? closeUpload() : closeDetails(); }));
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { if (!ui.detailDialog.hidden) closeDetails(); else if (!ui.uploadDialog.hidden) closeUpload(); } });
+  [ui.uploadDialog, ui.detailDialog, ui.deleteConfirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
+    if (event.target !== dialog) return;
+    if (dialog === ui.deleteConfirmDialog) closeDeleteConfirmation();
+    else if (dialog === ui.detailDialog) closeDetails();
+    else closeUpload();
+  }));
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!ui.deleteConfirmDialog.hidden) closeDeleteConfirmation();
+    else if (!ui.detailDialog.hidden) closeDetails();
+    else if (!ui.uploadDialog.hidden) closeUpload();
+  });
   window.addEventListener("beforeunload", () => state.objectUrls.forEach((url) => URL.revokeObjectURL(url)));
   window.addEventListener("carbon-frontier-testing-snapshot-updated", () => { if (state.testing && state.client) loadCatalog(); });
   initialize();

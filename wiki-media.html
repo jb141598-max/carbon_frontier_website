@@ -68,6 +68,36 @@
       .upload-preview,.detail-preview { display:grid; min-height:220px; place-items:center; overflow:hidden; border:1px dashed var(--border); border-radius:17px; color:var(--muted); background:rgba(255,255,255,.025); }
       .upload-preview img,.detail-preview img { max-width:100%; max-height:380px; object-fit:contain; }
       .form-actions { justify-content:flex-end; gap:9px; margin-top:18px; }
+      .detail-actions { flex-wrap: wrap; justify-content: space-between; gap: 14px; }
+      .detail-actions-right { display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin-left:auto; }
+      .danger-button { display:inline-flex; min-height:44px; align-items:center; justify-content:center;
+        border:1px solid rgba(255,95,109,.65); border-radius:999px; padding:10px 18px;
+        color:#ffb8be; background:rgba(223,37,49,.09); text-transform:uppercase;
+        letter-spacing:.055em; font-weight:700; cursor:pointer; }
+      .danger-button:hover:not(:disabled) { border-color:#fa5865; background:rgba(223,37,49,.22); color:#fff; }
+      .danger-button:disabled { cursor:not-allowed; opacity:.48; }
+      .danger-button.is-destructive { color:#fff; background:#ba202d; border-color:#ef3946; }
+      .danger-button.is-destructive:hover:not(:disabled) { background:#e52c3d; }
+      #delete-confirm-dialog { z-index:85; }
+      .delete-dialog-card { width:min(670px,100%); }
+      .delete-warning { padding:16px; border:1px solid rgba(255,95,109,.35);
+        border-radius:15px; background:rgba(223,37,49,.075); }
+      .delete-warning strong { display:block; margin-bottom:8px; font-size:1.02rem; }
+      .delete-warning p { margin:0; color:var(--muted); line-height:1.6; }
+      .delete-usage-list { max-height:170px; overflow:auto; margin:12px 0 0; padding:0 0 0 18px;
+        color:var(--muted); font-size:.85rem; }
+      .delete-usage-list li { padding:3px 0; }
+      .delete-usage-list a { color:#ffc2c6; }
+      .delete-usage-note { margin:12px 0 0; color:var(--soft); font-size:.78rem; line-height:1.6; }
+      .delete-acknowledge { display:flex; grid-template-columns:none; align-items:flex-start;
+        gap:11px; padding:13px 15px; margin-top:16px;
+        border:1px solid var(--border); border-radius:14px; color:var(--muted);
+        background:rgba(255,255,255,.025); cursor:pointer; }
+      .delete-acknowledge input { width:20px; min-width:20px; height:20px; min-height:20px;
+        padding:0; margin:2px 0 0; accent-color:var(--red); }
+      .delete-acknowledge span { flex:1; }
+      .delete-dialog-card .dialog-header h2 { font-size:clamp(1.4rem,3vw,2rem); overflow-wrap:anywhere; }
+      @media(max-width:520px){.detail-actions-right{margin-left:0}.detail-actions{align-items:stretch;flex-direction:column}.detail-actions>*{width:100%}}
       .detail-layout { display:grid; grid-template-columns:minmax(260px,.85fr) minmax(320px,1.15fr); gap:20px; }
       .detail-meta { flex-wrap:wrap; gap:7px 15px; margin-top:12px; color:var(--soft); font-size:.76rem; }
       .detail-id { overflow-wrap:anywhere; }
@@ -147,10 +177,42 @@
           </div>
         </div>
         <p class="feedback" id="detail-feedback" aria-live="polite"></p>
-        <div class="form-actions"><button class="secondary-button" id="cancel-detail-button" type="button">Close</button><button class="primary-button" id="save-detail-button" type="submit">Save Details</button></div>
+        <div class="form-actions detail-actions">
+          <button class="danger-button" id="delete-image-button" type="button" hidden>Remove Image</button>
+          <div class="detail-actions-right">
+            <button class="secondary-button" id="cancel-detail-button" type="button">Close</button>
+            <button class="primary-button" id="save-detail-button" type="submit">Save Details</button>
+          </div>
+        </div>
       </form>
     </div>
 
-    <script src="testing-sync.js"></script><script src="wiki-media-client.js"></script><script src="wiki-media-catalog.js"></script>
+    <div class="dialog" id="delete-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title" hidden>
+      <form class="dialog-card delete-dialog-card" id="delete-confirm-form">
+        <div class="dialog-header">
+          <div><p class="eyebrow">Permanent deletion</p><h2 id="delete-confirm-title">Remove this image?</h2></div>
+          <button class="icon-button" id="close-delete-button" type="button" aria-label="Cancel image deletion">×</button>
+        </div>
+        <div class="delete-warning">
+          <strong>Are you sure you want to delete this image?</strong>
+          <p id="delete-impact-summary" aria-live="polite">Checking usage across published wiki pages and templates...</p>
+          <ul class="delete-usage-list" id="delete-usage-list" hidden></ul>
+          <p class="delete-usage-note" id="delete-usage-note">
+            Only confirmed references in current saved pages and templates are counted. Dynamic category galleries, older revisions, and indirect references may contain additional uses.
+          </p>
+        </div>
+        <label class="delete-acknowledge">
+          <input type="checkbox" id="delete-acknowledge" disabled />
+          <span>I understand this cannot be undone and any referenced images may stop appearing on wiki pages.</span>
+        </label>
+        <p class="feedback" id="delete-feedback" aria-live="polite"></p>
+        <div class="form-actions">
+          <button class="secondary-button" id="cancel-delete-button" type="button">Keep Image</button>
+          <button class="danger-button is-destructive" id="confirm-delete-button" type="submit" disabled>Delete Permanently</button>
+        </div>
+      </form>
+    </div>
+
+    <script src="testing-sync.js"></script><script src="wiki-media-client.js?v=2-delete-impact"></script><script src="wiki-media-catalog.js?v=2-delete-impact"></script>
   </body>
 </html>

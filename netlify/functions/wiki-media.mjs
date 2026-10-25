@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import { getDatabase } from "@netlify/database";
+import { mediaUsageImpact } from "./_shared/wiki-media-usage.mjs";
 import {
   createViewer,
   insertAuditEntry,
@@ -101,8 +102,25 @@ function mediaItem(row, viewer, account) {
     canEditMetadata: Boolean(
       viewer.isAssignedStaff || (account?.email && account.email === row.uploaded_by_email)
     ),
+    canDelete: canDeleteMedia(row, viewer, account),
     url: `/api/wiki/media/${encodeURIComponent(row.id)}`,
   };
+}
+
+function canDeleteMedia(media, viewer, account) {
+  // Owners/admins can delete shared files; uploaders can delete their own.
+  return Boolean(viewer.canEdit && (
+    viewer.canModerate || (account?.email && account.email === media.uploaded_by_email)
+  ));
+}
+
+async function currentMediaReferences(client, media) {
+  // Only current published references can be counted confidently.
+  const [pageRows, templateRows] = await Promise.all([
+    client.query("SELECT p.slug, p.title, r.content_json FROM wiki_pages p JOIN wiki_revisions r ON r.id = p.current_revision_id WHERE p.is_deleted = FALSE"),
+    client.query("SELECT t.id, t.slug, t.name, r.definition_json FROM wiki_templates t JOIN wiki_template_revisions r ON r.id = t.current_revision_id WHERE t.is_deleted = FALSE"),
+  ]);
+  return mediaUsageImpact(media, pageRows.rows, templateRows.rows);
 }
 
 async function loadViewer(client, account) {
@@ -167,6 +185,19 @@ async function handleGet(request, account) {
         pagination: { offset, limit, total, hasMore: offset + items.rowCount < total },
         permissions: { canUpload: viewer.canEdit },
       });
+    }
+
+    if (new URL(request.url).searchParams.get("usage") === "1") {
+      if (!viewer.canEdit) return json({ error: "You cannot inspect image deletion impact." }, 403);
+      const entry = await client.query(
+        "SELECT id, original_name, uploaded_by_email FROM wiki_media WHERE id = $1", [id]
+      );
+      const media = entry.rows[0];
+      if (!media) return json({ error: "Wiki image not found." }, 404);
+      if (!canDeleteMedia(media, viewer, account)) {
+        return json({ error: "Only a wiki Owner/Admin or this image's uploader can delete it." }, 403);
+      }
+      return json({ ok: true, usage: await currentMediaReferences(client, media) });
     }
 
     const result = await client.query(
@@ -331,6 +362,71 @@ async function handleUpdate(request, account) {
   }
 }
 
+async function handleDelete(request, account) {
+  const id = requestedMediaId(request);
+  if (!id) return json({ error: "Choose an image to delete." }, 400);
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: "Deletion confirmation could not be read." }, 400); }
+  if (body?.confirmation !== "DELETE" ||
+      typeof body?.confirmedTitle !== "string" ||
+      !/^[a-f0-9]{64}$/.test(String(body?.usageVersion || ""))) {
+    return json({ error: "Review the image usage and explicitly confirm deletion first." }, 400);
+  }
+  const client = await db.pool.connect();
+  let committed = false;
+  let media;
+  let usage;
+  try {
+    await client.query("BEGIN");
+    const { viewer } = await loadViewer(client, account);
+    if (!viewer.canEdit) return json({ error: "This account cannot delete wiki images." }, 403);
+    const selected = await client.query(
+      "SELECT id, blob_key, original_name, uploaded_by_email FROM wiki_media WHERE id = $1 FOR UPDATE",
+      [id]
+    );
+    media = selected.rows[0];
+    if (!media) return json({ error: "Wiki image not found." }, 404);
+    if (!canDeleteMedia(media, viewer, account)) {
+      return json({ error: "Only a wiki Owner/Admin or this image's uploader can delete it." }, 403);
+    }
+    if (body.confirmedTitle !== media.original_name) {
+      return json({ error: "The image was renamed. Reopen its details before deleting." }, 409);
+    }
+    usage = await currentMediaReferences(client, media);
+    if (usage.version !== body.usageVersion) {
+      return json({
+        error: "The image's references changed. Review the new impact before deleting.", usage,
+      }, 409);
+    }
+    await client.query("DELETE FROM wiki_media WHERE id = $1", [id]);
+    await insertAuditEntry(client, {
+      action: "wiki_media_deleted", actorEmail: account.email,
+      details: {
+        mediaId: id, title: media.original_name,
+        pageCount: usage.pageCount, pagePlacements: usage.pagePlacements,
+        templateCount: usage.templateCount, templateReferences: usage.templateReferences,
+      },
+    });
+    await client.query("COMMIT");
+    committed = true;
+  } finally {
+    if (!committed) await client.query("ROLLBACK").catch(() => {});
+    client.release();
+  }
+  // Catalog metadata and audit commit before the binary object is cleaned up.
+  let storageWarning = "";
+  try { await mediaStore.delete(media.blob_key); }
+  catch (error) {
+    console.error("wiki-media blob cleanup failed", { mediaId: media.id, error });
+    storageWarning = "The catalog entry was removed; stored file cleanup needs attention.";
+  }
+  return json({
+    ok: true, deleted: { id: media.id, title: media.original_name }, usage,
+    ...(storageWarning ? { warning: storageWarning } : {}),
+  });
+}
+
 export default async function handler(request) {
   try {
     if (request.method === "GET") {
@@ -338,7 +434,7 @@ export default async function handler(request) {
       if (!auth.ok) return json({ error: auth.message }, auth.status);
       return handleGet(request, auth.account);
     }
-    if (!["POST", "PATCH"].includes(request.method)) {
+    if (!["POST", "PATCH", "DELETE"].includes(request.method)) {
       return json({ error: "Method not allowed." }, 405);
     }
     if (!verifyMutationOrigin(request)) {
@@ -346,9 +442,9 @@ export default async function handler(request) {
     }
     const auth = await verifyGoogleRequest(request);
     if (!auth.ok) return json({ error: auth.message }, auth.status);
-    return request.method === "POST"
-      ? handleUpload(request, auth.account)
-      : handleUpdate(request, auth.account);
+    if (request.method === "POST") return handleUpload(request, auth.account);
+    if (request.method === "PATCH") return handleUpdate(request, auth.account);
+    return handleDelete(request, auth.account);
   } catch (error) {
     console.error("wiki-media failed", error);
     return json({ error: "The wiki image service could not complete this request." }, 500);
