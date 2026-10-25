@@ -1834,6 +1834,52 @@
       .template-picker-option.is-selected { border-color: rgba(223, 37, 49, 0.74); background: rgba(223, 37, 49, 0.14); outline: none; }
 
       .template-value-fields { display: grid; gap: 10px; }
+      /* Pixel/fraction controls for PictureButton and PictureButtonRow. */
+      .template-special-width-fields { display: grid; gap: 12px; }
+      .template-width-mode-field {
+        min-width: 0; margin: 0; padding: 12px;
+        border: 1px solid var(--cf-border);
+        border-radius: 14px;
+        background: rgba(255,255,255,.025);
+      }
+      .template-width-mode-field legend {
+        padding: 0 5px; color: var(--cf-muted);
+        font-size: .8rem; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .08em;
+      }
+      .template-width-mode-grid {
+        display: grid;
+        grid-template-columns: repeat(2,minmax(0,1fr));
+        gap: 9px;
+      }
+      .template-width-option {
+        min-width: 0; padding: 12px;
+        border: 1px solid var(--cf-border);
+        border-radius: 12px; background: #111; opacity: .7;
+      }
+      .template-width-option.is-selected {
+        border-color: rgba(223,37,49,.82);
+        background: rgba(223,37,49,.12); opacity: 1;
+      }
+      .template-width-radio-line {
+        display: flex; align-items: center; gap: 9px;
+        min-height: 25px; color: var(--cf-white);
+        font-size: .82rem; font-weight: 600; cursor: pointer;
+      }
+      .template-width-radio-line input[type="radio"] {
+        flex: 0 0 18px; width: 18px; height: 18px;
+        min-height: 18px; margin: 0; padding: 0;
+        border: 0; accent-color: var(--cf-red); box-shadow: none;
+      }
+      .template-width-number-input { margin-top: 9px; }
+      .template-width-option-help {
+        display: block; margin-top: 8px; color: var(--cf-soft);
+        font-size: .71rem; line-height: 1.4;
+      }
+      @media (max-width:620px) {
+        .template-width-mode-grid { grid-template-columns: minmax(0,1fr); }
+      }
+
       .template-placement-panel {
         display: grid;
         gap: 14px;
@@ -3952,7 +3998,7 @@
     <script src="wiki-style-client.js?v=1"></script>
     <script src="wiki-media-client.js"></script>
     <script src="wiki-wikitext.js?v=30-template-rows"></script>
-    <script src="wiki-template-wikitext.js?v=29-picturebutton-image-fit"></script>
-    <script src="wiki-editor.js?v=31-picturebutton-inline"></script>
+    <script src="wiki-template-wikitext.js?v=30-width-modes"></script>
+    <script src="wiki-editor.js?v=32-width-modes"></script>
   </body>
 </html>

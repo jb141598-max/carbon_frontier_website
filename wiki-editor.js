@@ -1438,6 +1438,34 @@
           return;
         }
 
+        // Fractional buttons must resolve percentages against article width.
+        const saved = instance.__wikiTemplateBlock?.values || {};
+        if (instance.dataset.buttonTemplateKind === "tile" &&
+            String(saved.widthmode || "pixel").toLowerCase() === "scale" &&
+            !String(saved.csswidth || "").trim() && !fullWidth &&
+            !["behind", "front"].includes(objectLayout(instance))) {
+          rendered.style.width = contentWidth + "px";
+          rendered.style.maxWidth = "none";
+          rendered.style.transform = "none";
+          const tile = rendered.querySelector(".machine-img-fill")?.parentElement;
+          if (tile) {
+            const tileStyle = window.getComputedStyle(tile);
+            const rect = tile.getBoundingClientRect();
+            const width = rect.width + (parseFloat(tileStyle.marginLeft) || 0) +
+              (parseFloat(tileStyle.marginRight) || 0);
+            const height = rect.height + (parseFloat(tileStyle.marginTop) || 0) +
+              (parseFloat(tileStyle.marginBottom) || 0);
+            const scale = Math.min(requestedScale, contentWidth / Math.max(1, width));
+            instance.style.width = Math.ceil(width * scale) + "px";
+            instance.style.maxWidth = "100%";
+            instance.style.marginRight = "0";
+            instance.style.height = Math.ceil(height * scale) + "px";
+            rendered.style.transform = "scale(" + scale + ")";
+            rendered.style.transformOrigin = "top left";
+            return;
+          }
+        }
+
         // Measure the source itself. Wikitext templates are documents, not canvases,
         // so their saved canvas width/height must never create empty selection space.
         rendered.style.width = "max-content";
@@ -2880,6 +2908,140 @@
     return app.templates.find((template) => template.id === app.selectedTemplateId) || null;
   }
 
+  function pictureButtonEditorKind(template) {
+    if (template?.currentRevision?.definition?.kind !== "wikitext") return "";
+    const name = String(template?.slug || template?.name || "")
+      .replace(/^template\s*:/i, "").replace(/[\s_-]+/g, "").toLowerCase();
+    return ["picturebutton", "picturebuttonrow"].includes(name) ? name : "";
+  }
+
+  function validWidthFraction(value) {
+    const match = String(value ?? "").trim().match(/^(\d+(?:\.\d+)?)\s*(?:\/\s*(\d+(?:\.\d+)?))?$/);
+    if (!match) return false;
+    const a = Number(match[1]), b = Number(match[2] || 1);
+    return a > 0 && b > 0 && a <= b;
+  }
+
+  function buildWidthModeField({ title, modeKey, pixelKey, scaleKey, values,
+    pixelLabel = "Pixel size", scaleLabel = "Scale size",
+    pixelDefault = "", scaleDefault = "1/3", pixelHint = "", scaleHint = "" }) {
+    const field = document.createElement("fieldset");
+    field.className = "template-width-mode-field";
+    const legend = document.createElement("legend");
+    legend.textContent = title;
+    const modeInput = document.createElement("input");
+    modeInput.type = "hidden";
+    modeInput.dataset.templateValue = modeKey;
+    const grid = document.createElement("div");
+    grid.className = "template-width-mode-grid";
+    const choices = [];
+    for (const [mode, key, label, fallback, hint] of [
+      ["pixel", pixelKey, pixelLabel, pixelDefault, pixelHint],
+      ["scale", scaleKey, scaleLabel, scaleDefault, scaleHint]
+    ]) {
+      const card = document.createElement("div");
+      card.className = "template-width-option";
+      const radioLabel = document.createElement("label");
+      radioLabel.className = "template-width-radio-line";
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "widthmode-" + modeKey;
+      radio.value = mode;
+      const caption = document.createElement("span");
+      caption.textContent = label;
+      radioLabel.append(radio, caption);
+      const input = document.createElement("input");
+      input.type = "text";
+      input.inputMode = mode === "pixel" ? "numeric" : "text";
+      input.className = "template-width-number-input";
+      input.maxLength = 30;
+      input.dataset.templateValue = key;
+      input.dataset.templateWidthInput = mode;
+      input.setAttribute("aria-label", title + ": " + label);
+      input.value = String(values?.[key] ?? fallback);
+      input.placeholder = mode === "scale" ? "1/3" : "200";
+      card.append(radioLabel, input);
+      if (hint) {
+        const note = document.createElement("span");
+        note.className = "template-width-option-help";
+        note.textContent = hint;
+        card.append(note);
+      }
+      grid.append(card);
+      choices.push({ mode, radio, input, card });
+    }
+    field.append(legend, modeInput, grid);
+    const select = (value) => {
+      const mode = value === "scale" ? "scale" : "pixel";
+      field.dataset.activeMode = mode;
+      modeInput.value = mode;
+      for (const item of choices) {
+        const active = item.mode === mode;
+        item.radio.checked = active;
+        item.card.classList.toggle("is-selected", active);
+      }
+    };
+    for (const item of choices) {
+      item.radio.addEventListener("change", () => select(item.mode));
+      item.input.addEventListener("focus", () => select(item.mode));
+      item.input.addEventListener("input", () => select(item.mode));
+    }
+    select(values?.[modeKey]);
+    return field;
+  }
+
+  function buildPictureButtonWidthFields(kind, values) {
+    const group = document.createElement("div");
+    group.className = "template-special-width-fields";
+    if (kind === "picturebutton") {
+      group.append(buildWidthModeField({
+        title: "Button width", modeKey: "widthmode", pixelKey: "width",
+        scaleKey: "scalewidth", values, pixelDefault: "200", scaleDefault: "1/3",
+        scaleHint: "1/3 fits three buttons across."
+      }));
+      const override = document.createElement("input");
+      override.type = "hidden";
+      override.dataset.templateValue = "csswidth";
+      override.value = "";
+      group.append(override);
+    } else {
+      group.append(buildWidthModeField({
+        title: "Button width", modeKey: "widthmode", pixelKey: "buttonwidth",
+        scaleKey: "scalewidth", values, pixelDefault: "", scaleDefault: "1/3",
+        pixelHint: "Blank keeps the original equal-sized single row.",
+        scaleHint: "1/3 creates three columns and wraps extra buttons."
+      }));
+      group.append(buildWidthModeField({
+        title: "Entire row width", modeKey: "totalwidthmode",
+        pixelKey: "totalwidth", scaleKey: "totalwidthscale", values,
+        pixelDefault: "", scaleDefault: "1/1",
+        pixelHint: "Blank fills the article width.",
+        scaleHint: "1/1 is full width; 1/2 is half width."
+      }));
+    }
+    return group;
+  }
+
+  function validatePictureButtonWidthFields() {
+    for (const field of ui.templateValues.querySelectorAll(".template-width-mode-field")) {
+      const mode = field.dataset.activeMode || "pixel";
+      const input = field.querySelector('[data-template-width-input="' + mode + '"]');
+      if (!input) continue;
+      const value = input.value.trim();
+      if (mode === "scale" && !validWidthFraction(value)) {
+        setFeedback(ui.templateFeedback, "Enter a valid fraction such as 1/3 or 1/2.", true);
+        input.focus();
+        return false;
+      }
+      if (mode === "pixel" && value && (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 5000)) {
+        setFeedback(ui.templateFeedback, "Pixel width must be between 1 and 5000.", true);
+        input.focus();
+        return false;
+      }
+    }
+    return true;
+  }
+
   function renderTemplateValueFields(values = {}) {
     const template = selectedTemplate();
     ui.templateValues.replaceChildren();
@@ -2887,14 +3049,21 @@
       ui.insertTemplate.disabled = true;
       return;
     }
+    const pictureKind = pictureButtonEditorKind(template);
+    if (pictureKind) ui.templateValues.append(buildPictureButtonWidthFields(pictureKind, values));
     const placeholders = Array.isArray(template.placeholders) ? template.placeholders : [];
-    if (!placeholders.length) {
+    if (!placeholders.length && !pictureKind) {
       const note = document.createElement("p");
       note.className = "template-picker-note";
       note.textContent = "This design has no placeholders. It will be inserted exactly as drawn.";
       ui.templateValues.append(note);
     } else {
       placeholders.forEach((placeholder) => {
+        const reserved = pictureKind === "picturebutton"
+          ? ["widthmode", "width", "scalewidth", "csswidth"]
+          : pictureKind === "picturebuttonrow"
+            ? ["widthmode", "buttonwidth", "scalewidth", "totalwidthmode", "totalwidth", "totalwidthscale"] : [];
+        if (reserved.includes(String(placeholder.key || "").toLowerCase())) return;
         if (placeholder.kind === "image") {
           const field = document.createElement("div");
           field.className = "template-image-field";
@@ -3029,6 +3198,7 @@
       setFeedback(ui.templateFeedback, "Choose a template first.", true);
       return;
     }
+    if (!validatePictureButtonWidthFields()) return;
     const previous = app.editingTemplateNode;
     const scale = clampNumber(ui.templateScale?.value, 0.25, 3, 1);
     const fullWidth = Boolean(ui.templateFullWidth?.checked);
