@@ -1374,6 +1374,52 @@
     await hydrateMediaImages(container);
   }
 
+  function enforceCategoryGalleryColumns(instance, rendered, values) {
+    const slug = String(instance.dataset.wikiTemplateSlug || "")
+      .replace(/^template\s*:/i, "").replace(/[\s_-]+/g, "").toLowerCase();
+    if (slug !== "categorygallery" ||
+        String(values?.widthmode || "pixel").trim().toLowerCase() !== "scale") return;
+
+    const match = String(values?.scalewidth || "1/3").trim().match(/^1\s*\/\s*(\d+)$/);
+    const columns = match ? Math.max(1, Math.min(20, Number(match[1]))) : 3;
+    const gap = Math.max(0, Math.min(200, Number(values?.gap ?? 10) || 0));
+    const tiles = [...rendered.querySelectorAll(".machine-img-fill")]
+      .map((frame) => frame.parentElement).filter(Boolean);
+    if (!tiles.length) return;
+
+    // New templates have one gallery div. Older DPL templates emit
+    // PictureButtons directly. Support both without changing the wiki source.
+    const candidate = rendered.firstElementChild;
+    const root = rendered.children.length === 1 && candidate &&
+      !tiles.includes(candidate) && tiles.every((tile) => candidate.contains(tile))
+        ? candidate : rendered;
+    root.style.display = "grid";
+    root.style.gridTemplateColumns = "repeat(" + columns + ", minmax(0, 1fr))";
+    root.style.gap = gap + "px";
+    root.style.width = "100%";
+    root.style.maxWidth = "100%";
+    root.style.boxSizing = "border-box";
+    root.style.alignItems = "start";
+
+    for (const tile of tiles) {
+      // The gallery owns gaps. Do not add a second margin or fixed
+      // pixel width to the button occupying each fractional grid cell.
+      tile.style.width = "100%";
+      tile.style.maxWidth = "100%";
+      tile.style.margin = "0";
+      tile.style.boxSizing = "border-box";
+      let directChild = tile;
+      while (directChild.parentElement && directChild.parentElement !== root) {
+        directChild = directChild.parentElement;
+      }
+      if (directChild.parentElement === root) {
+        directChild.style.minWidth = "0";
+        directChild.style.width = "100%";
+        directChild.style.maxWidth = "100%";
+      }
+    }
+  }
+
   function renderTemplateInto(instance, template, values, fallbackDefinition = null) {
     const definition = template?.currentRevision?.definition || fallbackDefinition;
     if (!definition || (definition.kind !== "wikitext" && !definition.canvas)) {
@@ -1400,6 +1446,7 @@
         rendered.textContent = error.message || "This template source could not be rendered.";
       }
       instance.replaceChildren(rendered);
+      enforceCategoryGalleryColumns(instance, rendered, values);
       // Category galleries can expand to multiple PictureButtons without using
       // the standard PictureButtonRow template name.
       if (rendered.querySelectorAll(".machine-img-fill").length > 1) {
@@ -2980,7 +3027,7 @@
     if (template?.currentRevision?.definition?.kind !== "wikitext") return "";
     const name = String(template?.slug || template?.name || "")
       .replace(/^template\s*:/i, "").replace(/[\s_-]+/g, "").toLowerCase();
-    return ["picturebutton", "picturebuttonrow"].includes(name) ? name : "";
+    return ["picturebutton", "picturebuttonrow", "categorygallery"].includes(name) ? name : "";
   }
 
   function validWidthFraction(value) {
@@ -3072,7 +3119,21 @@
       override.dataset.templateValue = "csswidth";
       override.value = "";
       group.append(override);
-    } else {
+    } else if (kind === "categorygallery") {
+      // Gallery parameter 2 is the PIXEL WIDTH of each button, never
+      // the width of the entire gallery. Preserve |2=150 legacy use.
+      group.append(buildWidthModeField({
+        title: "Button width",
+        modeKey: "widthmode",
+        pixelKey: "2",
+        scaleKey: "scalewidth",
+        values,
+        pixelDefault: "100",
+        scaleDefault: "1/3",
+        pixelHint: "Width of each gallery button in pixels (default: 100).",
+        scaleHint: "1/3 guarantees three equal buttons across, including gaps."
+      }));
+    } else if (kind === "picturebuttonrow") {
       group.append(buildWidthModeField({
         title: "Button width", modeKey: "widthmode", pixelKey: "buttonwidth",
         scaleKey: "scalewidth", values, pixelDefault: "", scaleDefault: "1/3",
@@ -3130,7 +3191,9 @@
         const reserved = pictureKind === "picturebutton"
           ? ["widthmode", "width", "scalewidth", "csswidth"]
           : pictureKind === "picturebuttonrow"
-            ? ["widthmode", "buttonwidth", "scalewidth", "totalwidthmode", "totalwidth", "totalwidthscale"] : [];
+            ? ["widthmode", "buttonwidth", "scalewidth", "totalwidthmode", "totalwidth", "totalwidthscale"]
+          : pictureKind === "categorygallery"
+            ? ["widthmode", "scalewidth", "2"] : [];
         if (reserved.includes(String(placeholder.key || "").toLowerCase())) return;
         if (placeholder.kind === "image") {
           const field = document.createElement("div");
@@ -3160,7 +3223,9 @@
         const label = document.createElement("label");
         const caption = document.createElement("span");
         caption.className = "field-label";
-        caption.textContent = placeholder.label || String(placeholder.key).replaceAll("_", " ");
+        caption.textContent = pictureKind === "categorygallery" && String(placeholder.key) === "1"
+          ? "Category"
+          : (placeholder.label || String(placeholder.key).replaceAll("_", " "));
         const input = document.createElement(String(placeholder.defaultValue || "").length > 100 ? "textarea" : "input");
         if (input.tagName === "TEXTAREA") input.rows = 3;
         input.dataset.templateValue = placeholder.key;
