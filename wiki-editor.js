@@ -136,6 +136,8 @@
     mediaForm: document.getElementById("media-form"),
     mediaCatalogSearch: document.getElementById("media-catalog-search"),
     mediaCatalogGrid: document.getElementById("media-catalog-grid"),
+    mediaCatalogProgress: document.getElementById("media-catalog-progress"),
+    mediaCatalogMore: document.getElementById("media-catalog-more"),
     mediaAlt: document.getElementById("media-alt-input"),
     mediaAltField: document.getElementById("media-alt-field"),
     mediaCaption: document.getElementById("media-caption-input"),
@@ -211,12 +213,22 @@
     pageListPermissions: {},
     trashArmedSlug: "",
     media: [],
+    catalogMedia: [],
+    catalogTotal: 0,
+    catalogLoading: false,
+    catalogRequestId: 0,
+    catalogQuery: "",
+    catalogThumbObserver: null,
+    fullMediaLoaded: false,
+    fullMediaPromise: null,
     selectedMediaId: "",
     mediaSearchTimer: 0,
     mediaObjectUrls: new Map(),
+    mediaBlobPromises: new Map(),
     mediaTargetInput: null,
     mediaTargetDisplay: null,
     mediaTargetButton: null,
+    mediaTargetRemove: null,
     selectedFigure: null,
     selectedObject: null,
     selectedImageLayout: "inline",
@@ -1350,27 +1362,84 @@
     return node;
   }
 
+  async function ensureFullWikiMediaCatalog() {
+    if (app.fullMediaLoaded) return;
+    if (app.fullMediaPromise) return app.fullMediaPromise;
+    app.fullMediaPromise = (async () => {
+      // Template images may be referenced by name, even if the image picker
+      // is currently showing a paginated or filtered catalog subset.
+      const collected = new Map(app.media.map((item) => [item.id,item]));
+      // The server clamps limit to 100, so page through the catalog rather
+      // than incorrectly assuming limit=500 fetched every image.
+      for (let offset = 0; offset < 5000; offset += 100) {
+        const payload = await mediaClient.list({sort:"newest",offset,limit:100});
+        const batch = Array.isArray(payload.media) ? payload.media : [];
+        for (const item of batch) collected.set(item.id,item);
+        if (!batch.length || !payload.pagination?.hasMore ||
+            offset + batch.length >= Number(payload.pagination?.total || 0)) break;
+      }
+      app.media = [...collected.values()];
+      app.fullMediaLoaded = true;
+    })().finally(() => {app.fullMediaPromise = null;});
+    return app.fullMediaPromise;
+  }
+
+  function emptyPictureButtonFrame(frame, label = "No image selected") {
+    if (!frame || frame.querySelector(".cf-picturebutton-empty-image")) return;
+    const span = document.createElement("span");
+    span.className = "cf-picturebutton-empty-image";
+    span.textContent = label;
+    frame.append(span);
+  }
+
+  function preparePictureButtonFrames(rendered) {
+    rendered.querySelectorAll(".machine-img-fill").forEach((frame) => {
+      frame.style.aspectRatio = "1 / 1";
+      frame.style.minHeight = "72px";
+      frame.style.display = "flex";
+      frame.style.alignItems = "center";
+      frame.style.justifyContent = "center";
+      const images = [...frame.querySelectorAll("img")];
+      const loadedOrPending = images.some((img) =>
+        img.getAttribute("src") || img.getAttribute("data-wiki-file-title"));
+      if (loadedOrPending) return;
+      images.forEach((img) => img.remove());
+      emptyPictureButtonFrame(frame);
+    });
+  }
+
   async function hydrateWikitextTemplateMedia(container) {
     const images = [...container.querySelectorAll("img[data-wiki-file-title]")];
     if (!images.length) return;
-    if (!app.media.length) {
-      try { app.media = (await mediaClient.list({ sort: "newest", limit: 500 })).media || []; }
-      catch (error) { /* Missing catalog items stay as labeled image placeholders. */ }
-    }
-    const normalized = (value) => String(value || "").trim().replace(/^File:/i, "").replaceAll("_", " ").toLowerCase();
-    images.forEach((image) => {
-      const wanted = normalized(image.dataset.wikiFileTitle);
-      const media = app.media.find((item) => item.id === image.dataset.wikiFileTitle ||
-        [item.title, item.originalName].some((name) => normalized(name) === wanted));
-      if (media) image.dataset.wikiMediaId = media.id;
-      else {
-        image.hidden = true;
-        const missing = document.createElement("span");
-        missing.className = "cf-template-missing";
-        missing.textContent = `Missing image: ${image.dataset.wikiFileTitle}`;
-        image.after(missing);
+    try { await ensureFullWikiMediaCatalog(); }
+    catch { /* Missing images remain visible as placeholders. */ }
+
+    const normalized = (value) => String(value || "").trim().replace(/^File:/i, "")
+      .replaceAll("_"," ").toLowerCase();
+    for (const image of images) {
+      const title = String(image.dataset.wikiFileTitle || "").trim();
+      if (!title) {
+        image.remove();
+        emptyPictureButtonFrame(image.closest(".machine-img-fill"));
+        continue;
       }
-    });
+      const wanted = normalized(title);
+      const media = app.media.find((item) => item.id === title ||
+        [item.title,item.originalName].some((name) => normalized(name) === wanted));
+      if (media) {
+        image.dataset.wikiMediaId = media.id;
+      } else {
+        image.hidden = true;
+        const frame = image.closest(".machine-img-fill");
+        if (frame) emptyPictureButtonFrame(frame,"Image unavailable");
+        else {
+          const missing = document.createElement("span");
+          missing.className = "cf-template-missing";
+          missing.textContent = "Missing image: " + title;
+          image.after(missing);
+        }
+      }
+    }
     await hydrateMediaImages(container);
   }
 
@@ -1555,6 +1624,7 @@
         rendered.textContent = error.message || "This template source could not be rendered.";
       }
       instance.replaceChildren(rendered);
+      preparePictureButtonFrames(rendered);
       const declaredRole=templateLayoutKind(editorConfig);
       const count=rendered.querySelectorAll("."+(editorConfig?.itemClass||"machine-img-fill")).length;
       const inferredRole=count>1?"gallery":count===1?"tile":"";
@@ -2926,6 +2996,7 @@
     app.mediaTargetInput = options.targetInput || null;
     app.mediaTargetDisplay = options.targetDisplay || null;
     app.mediaTargetButton = options.targetButton || null;
+    app.mediaTargetRemove = options.targetRemove || null;
     if (!app.mediaTargetInput) saveCurrentSelection();
     ui.mediaForm.reset();
     app.selectedMediaId = app.mediaTargetInput?.value || "";
@@ -2934,13 +3005,15 @@
     ui.mediaCaptionField.hidden = Boolean(app.mediaTargetInput);
     ui.mediaAlt.required = !app.mediaTargetInput;
     ui.uploadMedia.textContent = app.mediaTargetInput ? "Use Selected Image" : "Insert Selected Image";
-    ui.uploadMedia.disabled = true;
+    ui.uploadMedia.disabled = !app.selectedMediaId;
     ui.mediaPreview.hidden = true;
     ui.mediaCatalogGrid.innerHTML = '<div class="media-catalog-state">Loading catalog images...</div>';
+    if (ui.mediaCatalogMore) ui.mediaCatalogMore.hidden = true;
+    if (ui.mediaCatalogProgress) ui.mediaCatalogProgress.textContent = "Loading images...";
     setFeedback(ui.mediaFeedback, "");
     setDialog(ui.mediaDialog, true);
     loadMediaCatalog().then(() => {
-      if (app.selectedMediaId) selectCatalogImage(app.selectedMediaId);
+      if (app.selectedMediaId && !ui.mediaDialog.hidden) selectCatalogImage(app.selectedMediaId);
     });
     window.setTimeout(() => ui.mediaCatalogSearch.focus(), 0);
   }
@@ -2950,89 +3023,205 @@
     app.mediaTargetInput = null;
     app.mediaTargetDisplay = null;
     app.mediaTargetButton = null;
+    app.mediaTargetRemove = null;
+    window.clearTimeout(app.mediaSearchTimer);
+    app.mediaSearchTimer = 0;
+    app.catalogRequestId += 1;
+    app.catalogThumbObserver?.disconnect();
   }
 
   async function catalogImageUrl(media) {
     if (app.mediaObjectUrls.has(media.id)) return app.mediaObjectUrls.get(media.id);
-    const url = URL.createObjectURL(await mediaClient.getBlob(media.id));
-    app.mediaObjectUrls.set(media.id, url);
-    return url;
+    if (app.mediaBlobPromises.has(media.id)) return app.mediaBlobPromises.get(media.id);
+    // Deduplicate simultaneous thumbnail/preview requests for the same file.
+    const promise = (async () => {
+      const url = URL.createObjectURL(await mediaClient.getBlob(media.id));
+      app.mediaObjectUrls.set(media.id, url);
+      return url;
+    })().finally(() => app.mediaBlobPromises.delete(media.id));
+    app.mediaBlobPromises.set(media.id, promise);
+    return promise;
   }
 
   async function hydrateCatalogThumbnail(container, media) {
+    if (!container || container.dataset.loading === "1") return;
+    container.dataset.loading = "1";
     try {
+      const src = await catalogImageUrl(media);
+      if (!container.isConnected) return;
       const image = document.createElement("img");
-      image.alt = media.altText || "";
-      image.src = await catalogImageUrl(media);
+      image.alt = media.altText || media.title || media.originalName || "Catalog image";
+      image.decoding = "async";
+      image.loading = "lazy";
+      image.src = src;
+      image.addEventListener("error", () => {
+        if (image.parentElement === container) container.textContent = "Preview unavailable";
+      }, {once:true});
       container.replaceChildren(image);
     } catch {
-      container.textContent = "Preview unavailable";
+      if (container.isConnected) container.textContent = "Preview unavailable";
+    } finally {
+      delete container.dataset.loading;
     }
   }
 
-  function renderMediaCatalog() {
-    ui.mediaCatalogGrid.replaceChildren();
-    if (!app.media.length) {
+  function prepareCatalogObserver() {
+    app.catalogThumbObserver?.disconnect();
+    app.catalogThumbObserver = typeof window.IntersectionObserver === "function"
+      ? new window.IntersectionObserver((entries, observer) => {
+          for (const entry of entries) {
+            if (!entry.isIntersecting) continue;
+            observer.unobserve(entry.target);
+            const media = app.catalogMedia.find((item) => item.id === entry.target.dataset.mediaId);
+            if (media) hydrateCatalogThumbnail(entry.target, media);
+          }
+        }, {root:ui.mediaCatalogGrid, rootMargin:"160px 0px", threshold:0.01})
+      : null;
+  }
+
+  function createCatalogCard(media) {
+    const card = document.createElement("button");
+    card.className = "media-catalog-card";
+    card.type = "button";
+    card.dataset.mediaId = media.id;
+    card.setAttribute("aria-label", "Choose image: " + (media.title || media.originalName || "Untitled"));
+    const thumbnail = document.createElement("span");
+    thumbnail.className = "media-catalog-thumb";
+    thumbnail.dataset.mediaId = media.id;
+    thumbnail.textContent = "Loading preview...";
+    const title = document.createElement("span");
+    title.className = "media-catalog-copy";
+    title.textContent = media.title || media.originalName || "Untitled image";
+    const check = document.createElement("span");
+    check.className = "media-catalog-check";
+    check.textContent = "✓";
+    check.setAttribute("aria-hidden", "true");
+    card.append(thumbnail, title, check);
+    if (app.catalogThumbObserver) app.catalogThumbObserver.observe(thumbnail);
+    else hydrateCatalogThumbnail(thumbnail, media);
+    return card;
+  }
+
+  function updateCatalogSelection() {
+    ui.mediaCatalogGrid.querySelectorAll(".media-catalog-card").forEach((card) => {
+      const selected = card.dataset.mediaId === app.selectedMediaId;
+      card.classList.toggle("is-selected", selected);
+      card.setAttribute("aria-pressed", String(selected));
+    });
+  }
+
+  function updateCatalogProgress() {
+    const showing = app.catalogMedia.length;
+    const total = app.catalogTotal;
+    if (ui.mediaCatalogProgress) {
+      ui.mediaCatalogProgress.textContent = total
+        ? "Showing " + showing + " of " + total + " images" : "No matching images";
+    }
+    if (ui.mediaCatalogMore) {
+      ui.mediaCatalogMore.hidden = showing >= total || !total;
+      ui.mediaCatalogMore.disabled = app.catalogLoading;
+      ui.mediaCatalogMore.textContent = app.catalogLoading ? "Loading more…" : "Load more images";
+    }
+  }
+
+  function renderMediaCatalog({append = false, batch = null} = {}) {
+    if (!append) {
+      ui.mediaCatalogGrid.replaceChildren();
+      prepareCatalogObserver();
+    }
+    if (!app.catalogMedia.length) {
       const empty = document.createElement("div");
       empty.className = "media-catalog-state";
       empty.textContent = ui.mediaCatalogSearch.value.trim()
         ? "No catalog images match that search."
         : "The catalog is empty. Open the full catalog to import an image from your files.";
       ui.mediaCatalogGrid.append(empty);
-      return;
+    } else {
+      for (const media of (append ? batch || [] : app.catalogMedia)) {
+        ui.mediaCatalogGrid.append(createCatalogCard(media));
+      }
     }
-    app.media.forEach((media) => {
-      const card = document.createElement("button");
-      card.className = `media-catalog-card${media.id === app.selectedMediaId ? " is-selected" : ""}`;
-      card.type = "button";
-      card.dataset.mediaId = media.id;
-      const thumbnail = document.createElement("span");
-      thumbnail.className = "media-catalog-thumb";
-      thumbnail.textContent = "Loading...";
-      const title = document.createElement("span");
-      title.className = "media-catalog-copy";
-      title.textContent = media.title || media.originalName;
-      card.append(thumbnail, title);
-      ui.mediaCatalogGrid.append(card);
-      hydrateCatalogThumbnail(thumbnail, media);
-    });
+    updateCatalogSelection();
+    updateCatalogProgress();
   }
 
-  async function loadMediaCatalog() {
+  async function loadMediaCatalog({append = false} = {}) {
+    if (ui.mediaDialog.hidden) return;
+    const query = ui.mediaCatalogSearch.value.trim();
+    if (append && (app.catalogLoading || !app.catalogMedia.length ||
+      app.catalogMedia.length >= app.catalogTotal || query !== app.catalogQuery)) return;
+    const request = append ? app.catalogRequestId : ++app.catalogRequestId;
+    const offset = append ? app.catalogMedia.length : 0;
+    if (!append) {
+      app.catalogQuery = query;
+      app.catalogMedia = [];
+      app.catalogTotal = 0;
+      app.catalogThumbObserver?.disconnect();
+      ui.mediaCatalogGrid.innerHTML = '<div class="media-catalog-state">Loading catalog images...</div>';
+      ui.mediaCatalogGrid.scrollTop = 0;
+      if (ui.mediaCatalogMore) ui.mediaCatalogMore.hidden = true;
+      if (ui.mediaCatalogProgress) ui.mediaCatalogProgress.textContent = "Loading images...";
+    }
+    app.catalogLoading = true;
+    if (append) updateCatalogProgress();
     try {
-      const payload = await mediaClient.list({ query: ui.mediaCatalogSearch.value.trim(), sort: "newest", limit: 100 });
-      app.media = payload.media || [];
-      if (app.selectedMediaId && !app.media.some((item) => item.id === app.selectedMediaId)) app.selectedMediaId = "";
-      renderMediaCatalog();
-      setFeedback(ui.mediaFeedback, `${payload.pagination?.total ?? app.media.length} catalog image${(payload.pagination?.total ?? app.media.length) === 1 ? "" : "s"}.`);
+      // Pull a manageable first page. Scrolling or Load More fetches the rest;
+      // offscreen thumbnails do not download until they approach the viewport.
+      const payload = await mediaClient.list({query,sort:"newest",offset,limit:36});
+      if (request !== app.catalogRequestId || ui.mediaDialog.hidden ||
+          query !== ui.mediaCatalogSearch.value.trim()) return;
+      const batch = Array.isArray(payload.media) ? payload.media : [];
+      const known = new Set(app.catalogMedia.map((item) => item.id));
+      const unique = batch.filter((item) => item.id && !known.has(item.id));
+      app.catalogMedia = append ? [...app.catalogMedia, ...unique] : unique;
+      app.catalogTotal = Math.max(app.catalogMedia.length, Number(payload.pagination?.total) || 0);
+      const index = new Map(app.media.map((item) => [item.id, item]));
+      for (const media of unique) index.set(media.id, media);
+      app.media = [...index.values()];
+      renderMediaCatalog({append,batch:unique});
+      setFeedback(ui.mediaFeedback, app.catalogMedia.length
+        ? "Select a picture to use it in the template."
+        : "No images matched. Try another search.");
     } catch (error) {
-      ui.mediaCatalogGrid.innerHTML = '<div class="media-catalog-state">Catalog unavailable.</div>';
+      if (request !== app.catalogRequestId || ui.mediaDialog.hidden) return;
+      if (!append) {
+        ui.mediaCatalogGrid.innerHTML = '<div class="media-catalog-state">Unable to load the image catalog.</div>';
+      }
       setFeedback(ui.mediaFeedback, error.message || "The image catalog could not be loaded.", true);
+      if (ui.mediaCatalogProgress) ui.mediaCatalogProgress.textContent = "Catalog unavailable";
+      if (ui.mediaCatalogMore) ui.mediaCatalogMore.hidden = true;
+    } finally {
+      if (request === app.catalogRequestId) {
+        app.catalogLoading = false;
+        if (app.catalogMedia.length) updateCatalogProgress();
+      }
     }
   }
 
   async function selectCatalogImage(id) {
-    const media = app.media.find((item) => item.id === id);
+    const media = app.catalogMedia.find((item) => item.id === id) ||
+      app.media.find((item) => item.id === id);
     if (!media) return;
     app.selectedMediaId = media.id;
     ui.mediaAlt.value = media.altText || "";
     ui.mediaCaption.value = media.defaultCaption || "";
     ui.uploadMedia.disabled = false;
-    renderMediaCatalog();
+    updateCatalogSelection();
     ui.mediaPreview.hidden = false;
     ui.mediaPreview.replaceChildren();
     const image = document.createElement("img");
-    image.alt = media.altText || "";
+    image.alt = media.altText || media.title || "Selected image";
     try { image.src = await catalogImageUrl(media); }
     catch { image.hidden = true; }
+    if (app.selectedMediaId !== media.id || ui.mediaDialog.hidden) return;
     const copy = document.createElement("div");
     copy.className = "media-selection-copy";
     const name = document.createElement("strong");
-    name.textContent = media.title || media.originalName;
+    name.textContent = media.title || media.originalName || "Selected image";
     const description = document.createElement("span");
-    description.textContent = media.description || "No catalog description.";
+    description.textContent = media.description || "No description yet.";
     copy.append(name, description);
-    ui.mediaPreview.append(image, copy);
+    ui.mediaPreview.replaceChildren(image, copy);
   }
 
   function insertDocumentBlock(element) {
@@ -3242,9 +3431,26 @@
       button.type = "button";
       button.className = "secondary-button";
       button.textContent = actual ? "Change Image" : "Choose Image";
-      button.addEventListener("click", () =>
-        openMediaDialog({ targetInput: input, targetDisplay: selected, targetButton: button }));
-      choice.append(selected, button);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary-button template-remove-image-button";
+      remove.textContent = "Remove Image";
+      remove.disabled = !actual;
+      remove.setAttribute("aria-label", "Remove " + captionText + " image");
+      remove.addEventListener("click", () => {
+        input.value = "";
+        selected.textContent = "No image selected";
+        button.textContent = "Choose Image";
+        remove.disabled = true;
+        setFeedback(ui.templateFeedback, "Image removed from this template field. Save the template instance to apply.");
+      });
+      button.addEventListener("click", () => openMediaDialog({
+        targetInput: input, targetDisplay: selected, targetButton: button, targetRemove: remove
+      }));
+      const actions = document.createElement("div");
+      actions.className = "template-image-actions";
+      actions.append(button, remove);
+      choice.append(selected, actions);
       field.append(caption, input, choice);
       parent.append(field);
     } else {
@@ -3534,9 +3740,11 @@
       const targetInput = app.mediaTargetInput;
       const targetDisplay = app.mediaTargetDisplay;
       const targetButton = app.mediaTargetButton;
+      const targetRemove = app.mediaTargetRemove;
       targetInput.value = media.id;
       if (targetDisplay) targetDisplay.textContent = media.title || media.originalName || "Catalog image selected";
       if (targetButton) targetButton.textContent = "Change Image";
+      if (targetRemove) targetRemove.disabled = false;
       closeMediaDialog();
       setFeedback(ui.templateFeedback, `“${media.title || media.originalName}” selected for this template image.`);
       return;
@@ -4370,8 +4578,18 @@
   });
   ui.mediaCatalogSearch.addEventListener("input", () => {
     window.clearTimeout(app.mediaSearchTimer);
-    app.mediaSearchTimer = window.setTimeout(loadMediaCatalog, 180);
+    // Invalidate any in-flight old search immediately, not after debounce.
+    app.catalogRequestId += 1;
+    app.catalogLoading = false;
+    app.mediaSearchTimer = window.setTimeout(() => loadMediaCatalog(), 180);
   });
+  ui.mediaCatalogGrid.addEventListener("scroll", () => {
+    const grid = ui.mediaCatalogGrid;
+    if (!app.catalogLoading && grid.scrollHeight - grid.scrollTop - grid.clientHeight < 240) {
+      loadMediaCatalog({append:true});
+    }
+  }, {passive:true});
+  ui.mediaCatalogMore?.addEventListener("click", () => loadMediaCatalog({append:true}));
   ui.closeMedia.addEventListener("click", closeMediaDialog);
   ui.cancelMedia.addEventListener("click", closeMediaDialog);
 
@@ -4539,6 +4757,14 @@
     const category = categoryFromLocation();
     if (category) await openCategoryPage(category, { push: false });
     else await openPage(app.currentSlug, { push: false });
+  });
+
+  window.addEventListener("pagehide", (event) => {
+    if (event.persisted) return; // Preserve images in the browser back-forward cache.
+    app.catalogThumbObserver?.disconnect();
+    for (const url of app.mediaObjectUrls.values()) URL.revokeObjectURL(url);
+    app.mediaObjectUrls.clear();
+    app.mediaBlobPromises.clear();
   });
 
   initialize();
