@@ -3920,7 +3920,7 @@
 
       elements.adminPanelButton.addEventListener("click", openAdminPanel);
       elements.closeAdminPanel.addEventListener("click", closeAdminPanel);
-      elements.panelBackdrop.addEventListener("click", closeAdminPanel);
+      // Admin panel backdrop intentionally does not dismiss the editor. Use the X button.
       elements.accountMenuButton.addEventListener("click", (event) => {
         event.stopPropagation();
         toggleAccountMenu();
@@ -4204,7 +4204,8 @@
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           closeAccountMenu();
-          closeAdminPanel();
+          // Keep the admin panel open to protect unsaved edits.
+          if (elements.adminPanel.classList.contains("is-open")) event.preventDefault();
         }
       });
 

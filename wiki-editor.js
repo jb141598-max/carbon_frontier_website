@@ -4239,7 +4239,8 @@
       event.preventDefault();
       buttons[app.searchIndex]?.click();
     } else if (event.key === "Escape") {
-      closeSearchResults();
+      // Preserve the search dialog; X closes it.
+      event.preventDefault();
     }
   });
   ui.searchResults.addEventListener("click", (event) => {
@@ -4656,61 +4657,23 @@
     openCategoryPage(button.dataset.openCategory);
   });
 
-  [
-    ui.searchDialog,
-    ui.newDialog,
-    ui.historyDialog,
-    ui.mediaDialog,
-    ui.imageOptionsDialog,
-    ui.templateDialog,
-    ui.managementDialog,
-    ui.trashDialog,
-  ].forEach((dialog) => {
-    dialog.addEventListener("click", (event) => {
-      if (event.target === dialog) {
-        if (dialog === ui.searchDialog) closeSearchResults();
-        else if (dialog === ui.mediaDialog) closeMediaDialog();
-        else if (dialog === ui.imageOptionsDialog) closeImageOptions();
-        else if (dialog === ui.templateDialog) return; // Preserve unsaved inputs on backdrop clicks.
-        else if (dialog === ui.managementDialog) closePageManagement();
-        else if (dialog === ui.trashDialog) closeTrashDialog();
-        else setDialog(dialog, false);
-      }
-    });
-  });
-
+  // Full-page dialogs remain open after backdrop clicks and Escape.
+  // Only their explicit X, Cancel, Close, or successful actions may dismiss.
   document.addEventListener("keydown", (event) => {
     if (app.editing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       saveEditing();
       return;
     }
-    if (event.key !== "Escape") {
-      if (!app.editing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        openSearchMenu();
-      }
+    if (!app.editing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      openSearchMenu();
       return;
     }
-    if (!ui.linkPopover.hidden) {
-      closeLinkPopover();
-    } else if (!ui.mediaDialog.hidden) {
-      closeMediaDialog();
-    } else if (!ui.imageOptionsDialog.hidden) {
-      closeImageOptions();
-    } else if (!ui.templateDialog.hidden) {
-      closeTemplateDialog();
-    } else if (!ui.managementDialog.hidden) {
-      closePageManagement();
-    } else if (!ui.trashDialog.hidden) {
-      closeTrashDialog();
-    } else if (!ui.historyDialog.hidden) {
-      closeHistory();
-    } else if (!ui.newDialog.hidden) {
-      closeNewPageDialog();
-    } else if (!ui.searchDialog.hidden) {
-      closeSearchResults();
-    }
+    if (event.key === "Escape" && [
+      ui.searchDialog, ui.newDialog, ui.historyDialog, ui.mediaDialog,
+      ui.imageOptionsDialog, ui.templateDialog, ui.managementDialog, ui.trashDialog,
+    ].some((dialog) => dialog && !dialog.hidden)) event.preventDefault();
   });
 
   document.addEventListener("pointermove", (event) => {

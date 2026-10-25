@@ -24,7 +24,8 @@
     testing: isTestingEnvironment(), account: null, idToken: "", access: null, client: null,
     media: [], selectedId: "", offset: 0, total: 0, loading: false, googleInitialized: false,
     deleteSelectedId: "", deleteUsage: null, deleteBusy: false,
-    objectUrls: new Map(), uploadPreviewUrl: "", searchTimer: 0,
+    objectUrls: new Map(), uploadPreviewUrl: "", uploadFileSelection: null,
+    uploadAutoTitle: "", uploadDragDepth: 0, searchTimer: 0,
   };
 
   function isTestingEnvironment() {
@@ -247,34 +248,192 @@
       setFeedback(ui.catalogFeedback, error.message || "The image catalog could not be loaded.", true);
     } finally { state.loading = false; ui.loadMoreButton.disabled = false; }
   }
+  const FILE_SIZE_LIMIT = 4 * 1024 * 1024;
+  const DROP_HINT = "Drag and drop an image here, or click to browse. PNG, JPG, WebP, or GIF up to 4 MB.";
+
+  function stopUploadDragState() {
+    state.uploadDragDepth = 0;
+    ui.uploadForm.classList.remove("is-drag-over");
+    ui.uploadPreview.classList.remove("is-drag-over");
+  }
+
+  function clearUploadObjectUrl() {
+    if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl);
+    state.uploadPreviewUrl = "";
+  }
+
+  function renderEmptyUploadPreview(message = DROP_HINT) {
+    clearUploadObjectUrl();
+    ui.uploadPreview.replaceChildren();
+    const hint = document.createElement("span");
+    hint.className = "upload-drop-hint";
+    hint.textContent = message;
+    ui.uploadPreview.append(hint);
+    ui.uploadPreview.classList.remove("has-file");
+    ui.uploadPreview.setAttribute("aria-label", message);
+  }
+
+  function invalidUploadReason(file) {
+    if (!file) return "Choose an image first.";
+    if (!ALLOWED_TYPES.has(file.type)) return "Choose a PNG, JPG, WebP, or GIF image.";
+    if (!file.size || file.size > FILE_SIZE_LIMIT) return "Images must be between 1 byte and 4 MB.";
+    return "";
+  }
+
+  function clearUploadFile() {
+    state.uploadFileSelection = null;
+    ui.uploadFile.value = "";
+    ui.uploadFile.required = true;
+    ui.uploadButton.disabled = true;
+  }
+
+  function selectUploadFile(file, { dropped = false } = {}) {
+    const error = invalidUploadReason(file);
+    if (error) {
+      clearUploadFile();
+      renderEmptyUploadPreview("Choose a supported image to continue.");
+      setFeedback(ui.uploadFeedback, error, true);
+      return false;
+    }
+    if (dropped) {
+      // DataTransfer lets a dropped image behave exactly like one chosen
+      // through the native input, including HTML form validation.
+      try {
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        ui.uploadFile.files = transfer.files;
+      } catch {
+        // Browsers that disallow changing input.files can still upload from
+        // our selected File object (the JS upload handler validates it).
+      }
+    }
+    state.uploadFileSelection = file;
+    ui.uploadFile.required = !(ui.uploadFile.files?.length || state.uploadFileSelection);
+    ui.uploadButton.disabled = false;
+    clearUploadObjectUrl();
+    state.uploadPreviewUrl = URL.createObjectURL(file);
+    const preview = document.createElement("img");
+    preview.src = state.uploadPreviewUrl;
+    preview.alt = "Preview of " + file.name;
+    const caption = document.createElement("div");
+    caption.className = "upload-file-caption";
+    const name = document.createElement("strong");
+    name.textContent = file.name;
+    const details = document.createElement("span");
+    details.textContent = formatBytes(file.size) + " · Click or drop to replace";
+    caption.append(name, details);
+    ui.uploadPreview.replaceChildren(preview, caption);
+    ui.uploadPreview.classList.add("has-file");
+    ui.uploadPreview.setAttribute("aria-label", "Selected " + file.name + ". Click to choose another image.");
+    const autoTitle = defaultTitle(file);
+    if (!ui.uploadTitle.value.trim() || ui.uploadTitle.value === state.uploadAutoTitle) {
+      ui.uploadTitle.value = autoTitle;
+    }
+    state.uploadAutoTitle = autoTitle;
+    if (!ui.uploadAlt.value.trim()) {
+      ui.uploadAlt.value = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+    }
+    setFeedback(ui.uploadFeedback, "Image selected. Review its title and details, then add it to the catalog.");
+    return true;
+  }
+
   function openUpload() {
+    clearUploadObjectUrl();
     ui.uploadForm.reset();
-    ui.uploadPreview.textContent = "Choose a PNG, JPG, WebP, or GIF up to 4 MB.";
+    state.uploadAutoTitle = "";
+    state.uploadFileSelection = null;
+    ui.uploadFile.required = true;
+    ui.uploadButton.disabled = true;
+    stopUploadDragState();
+    renderEmptyUploadPreview();
     setFeedback(ui.uploadFeedback, "");
     setDialog(ui.uploadDialog, true);
     window.setTimeout(() => ui.uploadFile.focus(), 0);
   }
+
   function closeUpload() {
-    if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl);
-    state.uploadPreviewUrl = "";
+    clearUploadObjectUrl();
+    stopUploadDragState();
+    state.uploadFileSelection = null;
     setDialog(ui.uploadDialog, false);
   }
+
   function previewUpload() {
     const file = ui.uploadFile.files?.[0];
-    ui.uploadPreview.replaceChildren();
-    if (!file) { ui.uploadPreview.textContent = "Choose a PNG, JPG, WebP, or GIF up to 4 MB."; return; }
-    if (state.uploadPreviewUrl) URL.revokeObjectURL(state.uploadPreviewUrl);
-    state.uploadPreviewUrl = URL.createObjectURL(file);
-    const image = document.createElement("img"); image.src = state.uploadPreviewUrl; image.alt = "Selected image preview"; ui.uploadPreview.append(image);
-    ui.uploadTitle.value = defaultTitle(file);
-    if (!ui.uploadAlt.value.trim()) ui.uploadAlt.value = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+    if (file) selectUploadFile(file);
+    else {
+      clearUploadFile();
+      renderEmptyUploadPreview();
+      setFeedback(ui.uploadFeedback, "");
+    }
   }
+
+  function hasFiles(event) {
+    return Array.from(event.dataTransfer?.types || []).includes("Files");
+  }
+
+  function wireUploadDropzone() {
+    // The preview is also an accessible Browse button.
+    ui.uploadPreview.addEventListener("click", () => ui.uploadFile.click());
+    ui.uploadPreview.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      ui.uploadFile.click();
+    });
+
+    // Accept drops anywhere inside the upload form, including the native
+    // Choose File control and the large preview area.
+    ui.uploadForm.addEventListener("dragenter", (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      state.uploadDragDepth += 1;
+      ui.uploadForm.classList.add("is-drag-over");
+    });
+    ui.uploadForm.addEventListener("dragover", (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+      ui.uploadForm.classList.add("is-drag-over");
+    });
+    ui.uploadForm.addEventListener("dragleave", (event) => {
+      if (!hasFiles(event)) return;
+      state.uploadDragDepth = Math.max(0, state.uploadDragDepth - 1);
+      if (!state.uploadDragDepth) stopUploadDragState();
+    });
+    ui.uploadForm.addEventListener("drop", (event) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      stopUploadDragState();
+      const files = Array.from(event.dataTransfer?.files || []);
+      if (files.length !== 1) {
+        setFeedback(ui.uploadFeedback, "Drop one image at a time. Multiple-file uploads are not supported.", true);
+        return;
+      }
+      selectUploadFile(files[0], { dropped: true });
+    });
+
+    // Prevent the browser from navigating away to the dropped image when a
+    // drag misses the form while the upload dialog is open.
+    document.addEventListener("dragover", (event) => {
+      if (!ui.uploadDialog.hidden && hasFiles(event)) event.preventDefault();
+    });
+    document.addEventListener("drop", (event) => {
+      if (ui.uploadDialog.hidden || !hasFiles(event)) return;
+      event.preventDefault();
+      stopUploadDragState();
+      if (!ui.uploadForm.contains(event.target)) {
+        setFeedback(ui.uploadFeedback, "Drop the image inside the upload window.", true);
+      }
+    });
+    window.addEventListener("dragend", stopUploadDragState);
+  }
+
   async function upload(event) {
     event.preventDefault();
-    const file = ui.uploadFile.files?.[0];
-    if (!file) { setFeedback(ui.uploadFeedback, "Choose an image first.", true); return; }
-    if (!ALLOWED_TYPES.has(file.type)) { setFeedback(ui.uploadFeedback, "Choose a PNG, JPG, WebP, or GIF image.", true); return; }
-    if (file.size <= 0 || file.size > 4 * 1024 * 1024) { setFeedback(ui.uploadFeedback, "Images must be between 1 byte and 4 MB.", true); return; }
+    const file = state.uploadFileSelection || ui.uploadFile.files?.[0];
+    const issue = invalidUploadReason(file);
+    if (issue) { setFeedback(ui.uploadFeedback, issue, true); return; }
     ui.uploadButton.disabled = true;
     setFeedback(ui.uploadFeedback, state.testing ? "Adding image to the local catalog..." : "Uploading image to the protected catalog...");
     try {
@@ -510,6 +669,7 @@
   ui.cancelUploadButton.addEventListener("click", closeUpload);
   ui.uploadFile.addEventListener("change", previewUpload);
   ui.uploadForm.addEventListener("submit", upload);
+  wireUploadDropzone();
   ui.catalogGrid.addEventListener("click", (event) => { const card = event.target.closest("[data-media-id]"); if (card) openDetails(card.dataset.mediaId); });
   ui.closeDetailButton.addEventListener("click", closeDetails);
   ui.cancelDetailButton.addEventListener("click", closeDetails);
@@ -525,17 +685,13 @@
   ui.loadMoreButton.addEventListener("click", () => loadCatalog({ append: true }));
   ui.catalogSort.addEventListener("change", () => loadCatalog());
   ui.catalogSearch.addEventListener("input", () => { window.clearTimeout(state.searchTimer); state.searchTimer = window.setTimeout(() => loadCatalog(), 220); });
-  [ui.uploadDialog, ui.detailDialog, ui.deleteConfirmDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
-    if (event.target !== dialog) return;
-    if (dialog === ui.deleteConfirmDialog) closeDeleteConfirmation();
-    else if (dialog === ui.detailDialog) closeDetails();
-    else closeUpload();
-  }));
+  // Modal backdrops and Escape do not close or discard the upload,
+  // image-details or deletion-confirmation dialogs. Only explicit controls
+  // (X, Cancel, Close, Keep Image) and successful actions dismiss them.
   document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    if (!ui.deleteConfirmDialog.hidden) closeDeleteConfirmation();
-    else if (!ui.detailDialog.hidden) closeDetails();
-    else if (!ui.uploadDialog.hidden) closeUpload();
+    if (event.key === "Escape" && [
+      ui.uploadDialog, ui.detailDialog, ui.deleteConfirmDialog,
+    ].some((dialog) => dialog && !dialog.hidden)) event.preventDefault();
   });
   window.addEventListener("beforeunload", () => state.objectUrls.forEach((url) => URL.revokeObjectURL(url)));
   window.addEventListener("carbon-frontier-testing-snapshot-updated", () => { if (state.testing && state.client) loadCatalog(); });

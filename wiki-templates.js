@@ -22,6 +22,7 @@
     view: document.getElementById("templates-view"),
     list: document.getElementById("template-list"),
     newButton: document.getElementById("new-template-button"),
+    closeNew: document.getElementById("close-new-template"),
     name: document.getElementById("template-name-input"),
     description: document.getElementById("template-description-input"),
     studio: document.getElementById("template-studio"),
@@ -1154,7 +1155,23 @@
   ui.sourceApply.addEventListener("click", applyTemplateSource);
   ui.sourceHelpButton.addEventListener("click", () => { const show = ui.sourceHelp.hidden; ui.sourceHelp.hidden = !show; ui.sourceHelpButton.setAttribute("aria-expanded", String(show)); });
   ui.sourceInput.addEventListener("input", () => setSourceStatus("Unsaved source changes · Apply to preview or save the template."));
-  ui.save.addEventListener("click", saveCurrent); ui.newButton.addEventListener("click", () => { ui.newForm.reset(); ui.newWidth.value = "720"; ui.newHeight.value = "420"; setFeedback(ui.newFeedback, ""); setDialog(ui.newDialog, true); setTimeout(() => ui.newName.focus(), 0); }); ui.cancelNew.addEventListener("click", () => setDialog(ui.newDialog, false)); ui.newDialog.addEventListener("click", (event) => { if (event.target === ui.newDialog) setDialog(ui.newDialog, false); }); ui.newForm.addEventListener("submit", createTemplate); document.addEventListener("keydown", keydown);
+  ui.save.addEventListener("click", saveCurrent);
+  ui.newButton.addEventListener("click", () => {
+    ui.newForm.reset();
+    ui.newWidth.value = "720";
+    ui.newHeight.value = "420";
+    setFeedback(ui.newFeedback, "");
+    setDialog(ui.newDialog, true);
+    setTimeout(() => ui.newName.focus(), 0);
+  });
+  // The create-template modal stays open on backdrop clicks and Escape.
+  ui.closeNew.addEventListener("click", () => setDialog(ui.newDialog, false));
+  ui.cancelNew.addEventListener("click", () => setDialog(ui.newDialog, false));
+  ui.newForm.addEventListener("submit", createTemplate);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !ui.newDialog.hidden) event.preventDefault();
+    keydown(event);
+  });
   ui.name.addEventListener("input", () => { if (state.draft) state.draft.name = ui.name.value; }); ui.description.addEventListener("input", () => { if (state.draft) state.draft.description = ui.description.value; });
 
   async function initialize() {

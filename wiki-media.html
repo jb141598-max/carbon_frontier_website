@@ -66,7 +66,18 @@
       label { display:grid; gap:6px; }
       .field-label { color:var(--muted); font-size:.76rem; text-transform:uppercase; letter-spacing:.07em; font-weight:700; }
       .upload-preview,.detail-preview { display:grid; min-height:220px; place-items:center; overflow:hidden; border:1px dashed var(--border); border-radius:17px; color:var(--muted); background:rgba(255,255,255,.025); }
+      .upload-preview { min-height:230px; padding:18px; gap:12px; cursor:pointer; text-align:center; transition:border-color .15s ease,background .15s ease,box-shadow .15s ease; }
+      .upload-preview:hover,.upload-preview:focus-visible { border-color:rgba(239,57,70,.8); background:rgba(223,37,49,.06); outline:none; }
+      .upload-preview:focus-visible { box-shadow:0 0 0 3px rgba(223,37,49,.2); }
+      .dialog-card.is-drag-over .upload-preview { border-color:#ff727d; background:rgba(223,37,49,.16); box-shadow:inset 0 0 0 2px rgba(239,57,70,.5); }
+      .upload-drop-hint { max-width:440px; line-height:1.7; font-weight:700; }
+      .upload-preview.has-file { grid-template-rows:minmax(100px,1fr) auto; }
       .upload-preview img,.detail-preview img { max-width:100%; max-height:380px; object-fit:contain; }
+      .upload-preview img { display:block; min-height:0; max-height:300px; border-radius:10px; }
+      .upload-file-caption { display:grid; gap:4px; max-width:100%; justify-items:center; }
+      .upload-file-caption strong { max-width:100%; color:#fff; overflow-wrap:anywhere; }
+      .upload-file-caption span { color:var(--soft); font-size:.77rem; }
+      @media (prefers-reduced-motion:reduce) { .upload-preview { transition:none; } }
       .form-actions { justify-content:flex-end; gap:9px; margin-top:18px; }
       .detail-actions { flex-wrap: wrap; justify-content: space-between; gap: 14px; }
       .detail-actions-right { display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin-left:auto; }
@@ -146,8 +157,8 @@
       <form class="dialog-card" id="upload-form">
         <div class="dialog-header"><div><p class="eyebrow">Add to catalog</p><h2 id="upload-heading">Import an image</h2></div><button class="icon-button" id="close-upload-button" type="button" aria-label="Close image import">×</button></div>
         <div class="dialog-grid">
-          <label class="wide"><span class="field-label">Image file</span><input id="upload-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required /></label>
-          <div class="upload-preview wide" id="upload-preview">Choose a PNG, JPG, WebP, or GIF up to 4 MB.</div>
+          <label class="wide"><span class="field-label">Image file (or drag and drop below)</span><input id="upload-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required /></label>
+          <div class="upload-preview wide" id="upload-preview" role="button" tabindex="0" aria-label="Drag an image here or click to choose a file">Drag and drop an image here, or click to browse. PNG, JPG, WebP, or GIF up to 4 MB.</div>
           <label class="wide"><span class="field-label">File title</span><input id="upload-title" maxlength="180" required placeholder="coal-drill.png" /></label>
           <label class="wide"><span class="field-label">Description</span><textarea id="upload-description" maxlength="1000" placeholder="What is shown, and when should editors use this image?"></textarea></label>
           <label><span class="field-label">Default alt text</span><input id="upload-alt" maxlength="240" placeholder="A coal drill beside a conveyor" /></label>
@@ -213,6 +224,6 @@
       </form>
     </div>
 
-    <script src="testing-sync.js"></script><script src="wiki-media-client.js?v=2-delete-impact"></script><script src="wiki-media-catalog.js?v=2-delete-impact"></script>
+    <script src="testing-sync.js"></script><script src="wiki-media-client.js?v=2-delete-impact"></script><script src="wiki-media-catalog.js?v=3-dropzone-persistent-dialogs"></script>
   </body>
 </html>

@@ -4777,7 +4777,7 @@
       elements.adminPanelButton.addEventListener("click", openAdminPanel);
       elements.addUpdateButton.addEventListener("click", createUpdate);
       elements.closeAdminPanel.addEventListener("click", closeAdminPanel);
-      elements.panelBackdrop.addEventListener("click", closeAdminPanel);
+      // Admin panel backdrop intentionally does not dismiss the editor. Use the X button.
       elements.updateForm.addEventListener("submit", handleUpdateSubmit);
       elements.saveUpdateButton.addEventListener("click", saveSelectedUpdateMeta);
       elements.archiveUpdateButton.addEventListener("click", toggleSelectedUpdateArchive);
@@ -5100,7 +5100,8 @@
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           closeAccountMenu();
-          closeAdminPanel();
+          // Keep the admin panel open to protect unsaved edits.
+          if (updatesState.adminPanelOpen) event.preventDefault();
         }
       });
 
