@@ -2495,37 +2495,149 @@
           flex-direction: column;
         }
       }
+
+      /* One coherent navigation surface, with a permission-aware Menu. */
+      .page-shell { overflow: visible; }
+      .topbar {
+        position: relative;
+        z-index: 60;
+        display: flex;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 14px;
+        min-height: 75px;
+        padding: 12px 17px;
+        border: 1px solid #3a3235;
+        border-radius: 18px;
+        background: linear-gradient(115deg, #292023 0%, #171719 45%, #20171b 100%);
+        box-shadow: 0 16px 38px rgba(0,0,0,.24);
+        margin-bottom: 30px;
+      }
+      .topbar-nav { flex-wrap: nowrap; gap: 3px; }
+      .topbar-nav .nav-button {
+        min-height: 42px; padding: 10px 13px; border: 0;
+        border-radius: 10px; background: transparent;
+      }
+      .topbar-nav .nav-button[aria-current="page"] {
+        background: rgba(223,37,49,.25);
+        color: #fff;
+      }
+      .topbar .wiki-topbar-tools { min-width: 145px; max-width: none; margin: 0; flex: 1; }
+      .topbar .wiki-top-search #wiki-search-input {
+        display:block; width:100%; min-height:44px;
+        border:1px solid #444043; border-radius:999px;
+        padding:10px 16px 10px 42px; text-align:left;
+        color:var(--cf-muted); font-size:.85rem;
+        background:#101113; cursor:pointer;
+      }
+      .topbar .wiki-top-search #wiki-search-input:hover,
+      .topbar .wiki-top-search #wiki-search-input:focus-visible {
+        border-color:#e84454; color:#fff; outline:none;
+      }
+      .topbar-actions { position: relative; flex: none; }
+      .nav-menu-toggle {
+        display: inline-flex; align-items: center; justify-content: center;
+        gap: 9px; min-height: 43px; padding: 10px 16px;
+        border: 1px solid #7b3a42; border-radius: 11px;
+        background: rgba(196,40,54,.21); color: #fff;
+        font: 700 .83rem Play,sans-serif; cursor: pointer;
+        letter-spacing: .04em;
+      }
+      .nav-menu-toggle:hover,.nav-menu-toggle[aria-expanded="true"] {
+        border-color: #ef4756; background: rgba(196,40,54,.38);
+      }
+      .wiki-menu-panel {
+        position: absolute; right: 0; top: calc(100% + 12px);
+        z-index: 100; width: min(320px,calc(100vw - 38px));
+        max-height: min(80vh,650px); overflow-y: auto;
+        display: grid; gap: 6px; padding: 12px;
+        border: 1px solid #484045; border-radius: 16px;
+        background: #151518;
+        box-shadow: 0 18px 60px rgba(0,0,0,.62);
+      }
+      .wiki-menu-panel[hidden] { display: none !important; }
+      .wiki-menu-link {
+        display: flex; align-items: center; min-height: 43px; padding: 11px 14px;
+        border: 1px solid transparent; border-radius: 10px;
+        color: #f4f4f5; text-decoration: none;
+        font-size: .86rem; font-weight: 700;
+      }
+      .wiki-menu-link:hover,.wiki-menu-link:focus-visible {
+        background: rgba(223,37,49,.15); border-color: #6e353e;
+        outline: none;
+      }
+      .wiki-menu-link[hidden] { display: none !important; }
+      .wiki-menu-account { padding-top: 9px; border-top: 1px solid #353438; }
+      .wiki-menu-account .account-entry { display: block; width: 100%; }
+      .wiki-menu-account .account-menu-panel {
+        position: static; width: 100%; max-width: 100%; display: none;
+        box-shadow: none; border: 1px solid #35343a; margin-top: 8px;
+        padding: 12px; background: #101012; transform: none;
+      }
+      .wiki-menu-account .account-entry.is-open .account-menu-panel {
+        display: grid; opacity: 1; pointer-events: auto; transform: none;
+      }
+      .wiki-menu-account .account-menu-button {
+        display: flex; align-items: center; gap: 10px;
+        width: 100%; height: auto; min-width: 0;
+        min-height: 45px; padding: 5px 9px; border-radius: 11px;
+      }
+      .wiki-menu-account .account-pill { display: none !important; }
+      .wiki-menu-account .account-menu-panel { right: 0; top: calc(100% + 9px); }
+      .article-breadcrumb { display:none !important; }
+      .article-meta { display:none; }
+      .article-surface.is-editing .article-meta { display:block; }
+      .article-surface.is-editing { overflow: visible; }
+      .document-toolbar {
+        position: sticky; top: 0; z-index: 75;
+        border-radius: 19px 19px 0 0;
+        background: #1b1b1e; 
+      }
+      @media (max-width: 900px) {
+        .topbar { flex-wrap: wrap; }
+        .topbar .wiki-topbar-tools { order: 0; flex-basis: auto; flex: 1 1 170px; }
+      }
+      @media (max-width: 700px) {
+        .topbar { display:flex; flex-direction:row; align-items:center; gap:8px; padding:10px; }
+        .topbar-nav { flex: 1 1 100%; width:100%; overflow-x: auto; }
+        .topbar-nav .nav-button { flex: 1; padding: 9px 10px; font-size:.72rem; }
+        .topbar .wiki-topbar-tools { order: 0; flex: 1 1 110px; display:flex; }
+        .topbar-actions { width: auto; flex: none; }
+        .nav-menu-toggle { padding: 10px 12px; }
+        .wiki-menu-panel { width: min(320px,calc(100vw - 34px)); }
+        .document-toolbar { top:0; border-radius: 14px 14px 0 0; }
+      }
     </style>
   </head>
   <body>
     <a class="skip-link" href="#wiki-main">Skip to wiki article</a>
     <div class="page-shell">
       <div class="content">
-        <header class="topbar">
+        <header class="topbar" role="banner">
           <nav class="topbar-nav" aria-label="Primary navigation">
-            <a class="nav-button" href="wiki.html">Wiki</a>
+            <a class="nav-button" href="wiki.html" aria-current="page">Wiki</a>
             <a class="nav-button" href="index.html">Roadmap</a>
             <a class="nav-button" href="updates.html">Updates</a>
           </nav>
-
           <div class="wiki-topbar-tools" id="wiki-topbar-tools" hidden>
             <div class="wiki-top-search" id="wiki-top-search">
               <span class="wiki-top-search-icon" aria-hidden="true">⌕</span>
-              <input
-                id="wiki-search-input"
-                type="text"
-                placeholder="Search wiki pages..."
-                autocomplete="off"
-                aria-label="Search wiki pages"
-                aria-haspopup="dialog"
-                aria-controls="wiki-search-dialog"
-                readonly
-              />
+              <button id="wiki-search-input" type="button" aria-label="Search wiki pages"
+                aria-haspopup="dialog" aria-controls="wiki-search-dialog">Search wiki pages...</button>
             </div>
           </div>
-
           <div class="topbar-actions">
-            <div class="account-entry" id="account-entry">
+            <button class="nav-menu-toggle" type="button" id="wiki-menu-toggle"
+              aria-controls="wiki-site-menu" aria-expanded="false">☰ Menu</button>
+            <div class="wiki-menu-panel" id="wiki-site-menu" role="group" aria-label="Wiki menu" hidden>
+              <a href="#" id="wiki-menu-new-page" class="wiki-menu-link" hidden>+ Create New Page</a>
+              <a href="/wiki/categories" id="wiki-menu-categories" class="wiki-menu-link" hidden>Categories</a>
+              <a href="/wiki/panel" id="wiki-menu-panel" class="wiki-menu-link" hidden>Wiki Panel</a>
+              <a href="/wiki/images" id="media-catalog-button" class="wiki-menu-link" hidden>Images</a>
+              <a href="/wiki/templates" id="templates-button" class="wiki-menu-link" hidden>Templates</a>
+              <a href="/wiki/login" id="wiki-menu-login" class="wiki-menu-link">Log In</a>
+              <div class="wiki-menu-account">
+<div class="account-entry" id="account-entry">
               <button
                 class="account-menu-button"
                 id="account-menu-button"
@@ -2535,6 +2647,7 @@
                 aria-controls="account-menu"
               >
                 <span class="account-avatar" id="account-avatar">CF</span>
+                <span class="wiki-account-label">Account</span>
               </button>
               <div class="account-pill" id="account-pill">Checking wiki access...</div>
               <div class="account-menu-panel" id="account-menu" aria-hidden="true">
@@ -2562,27 +2675,8 @@
                 <p class="auth-note" id="auth-note"></p>
               </div>
             </div>
-            <a class="secondary-button" id="analytics-button" href="wiki-analytics.html" hidden>
-              Analytics
-            </a>
-            <a class="secondary-button" id="moderation-button" href="wiki-moderation.html" hidden>
-              Moderation
-            </a>
-            <a class="secondary-button" id="import-wiki-button" href="wiki-import.html" hidden>
-              Import
-            </a>
-            <a class="secondary-button" id="templates-button" href="wiki-templates.html" hidden>
-              Templates
-            </a>
-            <a class="secondary-button" id="media-catalog-button" href="wiki-media.html" hidden>
-              Images
-            </a>
-            <a class="secondary-button" id="style-button" href="wiki-style.html" hidden>
-              Style
-            </a>
-            <a class="primary-button" id="access-panel-button" href="wiki-permissions.html" hidden>
-              Permissions
-            </a>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -2603,14 +2697,9 @@
           <div id="wiki-view" hidden>
             <div class="page-heading-row">
               <div class="page-heading">
-                <p class="eyebrow">Carbon Frontier Knowledge Base</p>
                 <h1>Wiki</h1>
               </div>
-              <div class="status-badges">
-                <span class="status-badge" id="visibility-badge">Private</span>
-                <span class="status-badge" id="editing-badge">Restricted editing</span>
-                <span class="role-badge" id="viewer-role-badge" hidden></span>
-              </div>
+
             </div>
 
             <section class="wiki-workspace" id="wiki-workspace" aria-label="Wiki article">
@@ -3270,6 +3359,12 @@
 
       const elements = {
         accountEntry: document.getElementById("account-entry"),
+        menuToggle: document.getElementById("wiki-menu-toggle"),
+        menuPanel: document.getElementById("wiki-site-menu"),
+        menuNewPage: document.getElementById("wiki-menu-new-page"),
+        menuCategories: document.getElementById("wiki-menu-categories"),
+        menuWikiPanel: document.getElementById("wiki-menu-panel"),
+        menuLogin: document.getElementById("wiki-menu-login"),
         accountMenuButton: document.getElementById("account-menu-button"),
         accountAvatar: document.getElementById("account-avatar"),
         accountPill: document.getElementById("account-pill"),
@@ -3282,20 +3377,12 @@
         emailSigninButton: document.getElementById("email-signin-button"),
         signoutButton: document.getElementById("signout-button"),
         authNote: document.getElementById("auth-note"),
-        analyticsButton: document.getElementById("analytics-button"),
-        moderationButton: document.getElementById("moderation-button"),
-        importWikiButton: document.getElementById("import-wiki-button"),
         templatesButton: document.getElementById("templates-button"),
         mediaCatalogButton: document.getElementById("media-catalog-button"),
-        styleButton: document.getElementById("style-button"),
-        accessPanelButton: document.getElementById("access-panel-button"),
         loadingView: document.getElementById("loading-view"),
         unavailableView: document.getElementById("unavailable-view"),
         unavailableCopy: document.getElementById("unavailable-copy"),
         wikiView: document.getElementById("wiki-view"),
-        visibilityBadge: document.getElementById("visibility-badge"),
-        editingBadge: document.getElementById("editing-badge"),
-        viewerRoleBadge: document.getElementById("viewer-role-badge"),
         viewerAccessTitle: document.getElementById("viewer-access-title"),
         viewerAccessCopy: document.getElementById("viewer-access-copy"),
         frontPageContent: document.getElementById("front-page-content"),
@@ -3462,6 +3549,16 @@
 
       function roleLabel(role) {
         return ROLE_LABELS[role] || "Signed in";
+      }
+
+      function openSiteMenu() {
+        elements.menuPanel.hidden = false;
+        elements.menuToggle.setAttribute("aria-expanded","true");
+      }
+      function closeSiteMenu() {
+        elements.menuPanel.hidden = true;
+        elements.menuToggle.setAttribute("aria-expanded","false");
+        closeAccountMenu();
       }
 
       function openAccountMenu() {
@@ -3965,13 +4062,12 @@
         if (!access || !viewer?.canView) {
           elements.wikiView.hidden = true;
           elements.unavailableView.hidden = false;
-          elements.analyticsButton.hidden = true;
-          elements.moderationButton.hidden = true;
-          elements.importWikiButton.hidden = true;
+          elements.menuWikiPanel.hidden = true;
+          elements.menuCategories.hidden = true;
+          elements.menuNewPage.hidden = true;
           elements.templatesButton.hidden = true;
           elements.mediaCatalogButton.hidden = true;
-          elements.styleButton.hidden = true;
-          elements.accessPanelButton.hidden = true;
+          elements.menuLogin.hidden = Boolean(viewer?.authenticated);
           elements.accountPill.textContent = viewer?.authenticated
             ? "No wiki access"
             : "Wiki is private";
@@ -3986,29 +4082,17 @@
 
         elements.unavailableView.hidden = true;
         elements.wikiView.hidden = false;
-        elements.analyticsButton.hidden = !viewer.canManageSettings;
-        elements.moderationButton.hidden = !viewer.canModerate;
-        elements.importWikiButton.hidden = !viewer.canManageSettings;
+        elements.menuWikiPanel.hidden = !viewer.isAssignedStaff;
+        elements.menuCategories.hidden = !viewer.canView;
+        elements.menuNewPage.hidden = !(viewer.authenticated && viewer.canEdit);
+        elements.menuLogin.hidden = Boolean(viewer.authenticated);
         elements.templatesButton.hidden = !viewer.isAssignedStaff;
         elements.mediaCatalogButton.hidden = !viewer.canEdit;
-        elements.styleButton.hidden = !viewer.canManageSettings;
-        elements.accessPanelButton.hidden = !viewer.canManageEditors;
         elements.accountPill.textContent = viewer.role
           ? `${roleLabel(viewer.role)} access`
           : viewer.canEdit
             ? "Public contributor"
             : "Public reader";
-
-        elements.visibilityBadge.textContent = settings.visibility === "public" ? "Public" : "Private";
-        elements.visibilityBadge.className = `status-badge is-${settings.visibility}`;
-        elements.editingBadge.textContent =
-          settings.editingMode === "open" ? "Open editing" : "Restricted editing";
-
-        elements.viewerRoleBadge.hidden = !viewer.role;
-        if (viewer.role) {
-          elements.viewerRoleBadge.textContent = roleLabel(viewer.role);
-          elements.viewerRoleBadge.dataset.role = viewer.role;
-        }
 
         elements.viewerAccessTitle.textContent = viewer.canEdit
           ? "Editing permission active"
@@ -4117,16 +4201,42 @@
         },
       };
 
+      elements.menuToggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        elements.menuPanel.hidden ? openSiteMenu() : closeSiteMenu();
+      });
+      elements.menuPanel.addEventListener("click", (event) => event.stopPropagation());
+      elements.menuNewPage.addEventListener("click", (event) => {
+        event.preventDefault();
+        const viewer=wikiState.access?.viewer;
+        if (!viewer?.authenticated || !viewer?.canEdit) {
+          location.href=elements.menuLogin.href;return;
+        }
+        closeSiteMenu();
+        if (typeof window.CarbonFrontierWikiOpenNewPage === "function") {
+          window.CarbonFrontierWikiOpenNewPage();
+        } else {
+          const create=document.getElementById("new-page-button");
+          if (create && !create.disabled) create.click();
+          else location.href="/wiki";
+        }
+      });
+      elements.menuLogin.href="/wiki/login?return="+encodeURIComponent(
+        location.pathname+location.search+location.hash
+      );
       elements.accountMenuButton.addEventListener("click", (event) => {
         event.stopPropagation();
         wikiState.accountMenuOpen ? closeAccountMenu() : openAccountMenu();
       });
 
       elements.accountMenu.addEventListener("click", (event) => event.stopPropagation());
-      document.addEventListener("click", closeAccountMenu);
+      document.addEventListener("click", () => {
+        closeAccountMenu();closeSiteMenu();
+      });
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
-          closeAccountMenu();
+          if (!elements.menuPanel.hidden) closeSiteMenu();
+          else closeAccountMenu();
           wikiState.accessPanelOpen = false;
           elements.accessPanel.hidden = true;
         }
@@ -4183,6 +4293,6 @@
     <script src="wiki-media-client.js"></script>
     <script src="wiki-wikitext.js?v=30-template-rows"></script>
     <script src="wiki-template-wikitext.js?v=31-repeatable-templates"></script>
-    <script src="wiki-editor.js?v=38-persistent-dialogs"></script>
+    <script src="wiki-editor.js?v=39-category-panel-navbar"></script>
   </body>
 </html>

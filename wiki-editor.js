@@ -2498,9 +2498,11 @@
   }
 
   function openNewPageDialog() {
-    if (app.editing) {
+    if (!viewer()?.authenticated || !viewer()?.canEdit) {
+      setFeedback(ui.feedback, "Log in with a verified account that has permission to create pages.", true);
       return;
     }
+    if (app.editing) return;
     closeSearchResults();
     ui.newForm.reset();
     app.slugManuallyEdited = false;
@@ -2605,7 +2607,8 @@
 
   function enterEditing() {
     const page = app.currentPage;
-    if (!page?.permissions?.canEdit || app.editing) {
+    // Editing requires a server-verified signed-in session, never anonymous access.
+    if (!viewer()?.authenticated || !page?.permissions?.canEdit || app.editing) {
       return;
     }
     app.editing = true;
@@ -2686,9 +2689,32 @@
   }
 
   function updateToolbarState() {
-    if (!app.editing || app.editorMode !== "visual") {
-      return;
+    if (!app.editing || app.editorMode !== "visual") return;
+    const selection = window.getSelection();
+    const anchor = selection?.anchorNode;
+    if (!anchor || !ui.content.contains(anchor)) return;
+    const selectedNode = anchor.nodeType === Node.ELEMENT_NODE ? anchor : anchor.parentElement;
+    // The formatting dropdown must reflect the actual paragraph/heading
+    // under the selection, not whatever was last selected manually.
+    const block = selectedNode?.closest?.("h2,h3,blockquote,p,div,li");
+    const topLevel = block && ui.content.contains(block) ? block : null;
+    let tag = topLevel?.tagName?.toLowerCase() || "";
+    // A text node nested in an inline wrapper may have a div ancestor.
+    // Walk back toward the article to find the nearest meaningful block.
+    if (!["p","h2","h3","blockquote"].includes(tag)) {
+      let parent = selectedNode;
+      while (parent && parent !== ui.content) {
+        const name = parent.tagName?.toLowerCase();
+        if (["p","h2","h3","blockquote"].includes(name)) {tag=name;break;}
+        parent = parent.parentElement;
+      }
     }
+    if (!["p","h2","h3","blockquote"].includes(tag)) {
+      const fromCommand = String(document.queryCommandValue("formatBlock") || "")
+        .replace(/[<>]/g,"").trim().toLowerCase();
+      tag = ["p","h2","h3","blockquote"].includes(fromCommand) ? fromCommand : "p";
+    }
+    ui.blockStyle.value = tag;
     [
       [ui.bold, "bold"],
       [ui.italic, "italic"],
@@ -2696,12 +2722,10 @@
       [ui.bullets, "insertUnorderedList"],
       [ui.numbers, "insertOrderedList"],
     ].forEach(([button, command]) => {
-      button.classList.toggle("is-active", document.queryCommandState(command));
+      button.classList.toggle("is-active", Boolean(document.queryCommandState(command)));
     });
     const activeFont = String(document.queryCommandValue("fontName") || "")
-      .replace(/["']/g, "")
-      .trim()
-      .toLowerCase();
+      .replace(/["']/g, "").trim().toLowerCase();
     ui.fontFamily.value = FONT_FAMILIES.get(activeFont) || "Play";
   }
 
@@ -4730,5 +4754,7 @@
     app.mediaBlobPromises.clear();
   });
 
+  // The global Menu's Create New Page action uses this same protected flow.
+  window.CarbonFrontierWikiOpenNewPage = openNewPageDialog;
   initialize();
 })();

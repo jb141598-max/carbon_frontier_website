@@ -19,6 +19,32 @@
   to = "/wiki-login.html"
   status = 200
 
+# Staff dashboard, category browser and category-management API.
+[[redirects]]
+  from = "/wiki/panel"
+  to = "/wiki-panel.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/panel/"
+  to = "/wiki-panel.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/categories"
+  to = "/wiki-categories.html"
+  status = 200
+
+[[redirects]]
+  from = "/wiki/categories/"
+  to = "/wiki-categories.html"
+  status = 200
+
+[[redirects]]
+  from = "/api/wiki/categories"
+  to = "/.netlify/functions/wiki-categories"
+  status = 200
+
 # Native Carbon Frontier wiki. These routes must stay above the broad
 # Updates permalink fallbacks below.
 [[redirects]]

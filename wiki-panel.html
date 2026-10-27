@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wiki Panel | Carbon Frontier</title>
+<link rel="stylesheet" href="/wiki-dashboard.css?v=1"><link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap" rel="stylesheet">
+</head><body><div class="page"><header class="top"><nav class="nav"><a href="/wiki">Wiki</a><a href="/">Roadmap</a><a href="/updates">Updates</a><a aria-current="page" href="/wiki/panel">Wiki Panel</a></nav><a class="btn" href="/wiki">Back to wiki</a></header>
+<main><p class="eyebrow">Staff tools</p><h1>Wiki Panel</h1><p class="sub">Manage and review Carbon Frontier's wiki. Tools appear only when your account has the appropriate permissions.</p>
+<div id="status" class="notice" role="status">Checking wiki permissions...</div>
+<section id="workspace" hidden><p class="feedback" id="role-copy"></p>
+<h2>Wiki tools</h2><div class="cards" id="editor-links">
+<a href="/wiki/categories" data-requires="isAssignedStaff"><strong>Categories</strong><span>Rename, merge, delete, and organize pages by category</span></a>
+<a href="/wiki/templates" data-requires="isAssignedStaff"><strong>Templates</strong><span>Edit reusable page designs</span></a>
+<a href="/wiki/images" data-requires="canEdit"><strong>Images</strong><span>Browse and upload shared wiki media</span></a>
+</div>
+<h2 style="margin-top:36px">Administration</h2>
+<div class="cards" id="admin-links">
+<a href="/wiki/style" data-requires="canManageSettings"><strong>Style</strong><span>Wiki colors, typography, and appearance</span></a>
+<a href="/wiki/moderation" data-requires="canModerate"><strong>Moderation</strong><span>Review edits and manage moderation</span></a>
+<a href="/wiki/analytics" data-requires="canManageSettings"><strong>Analytics</strong><span>Activity reports and wiki insights</span></a>
+<a href="/wiki/permissions" data-requires="canManageEditors"><strong>Permissions</strong><span>Manage staff roles and wiki access</span></a>
+</div>
+<p class="notice" id="no-admin" hidden>You have editor access; administration tools are reserved for Owners and Admins.</p>
+</section></main></div>
+<script src="/wiki-admin-auth.js?v=1"></script><script src="/wiki-panel.js?v=1"></script></body></html>

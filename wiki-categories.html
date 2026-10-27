@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Categories | Carbon Frontier Wiki</title>
+<link rel="stylesheet" href="/wiki-dashboard.css?v=1"><link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap" rel="stylesheet">
+</head><body><div class="page"><header class="top"><nav class="nav"><a href="/wiki">Wiki</a><a href="/">Roadmap</a><a href="/updates">Updates</a><a aria-current="page" href="/wiki/categories">Categories</a></nav><a class="btn" href="/wiki/panel">Wiki Panel</a></header>
+<main><p class="eyebrow">Wiki organization</p><h1>Categories</h1><p class="sub">Manage all wiki categories. Deleting a category only removes its page memberships; it never deletes wiki articles. Categories can also be added from each article's Page Settings.</p>
+<div id="status" class="notice" role="status">Loading categories and checking permissions...</div>
+<section id="workspace" hidden><div class="toolbar"><input class="search" type="search" id="filter" placeholder="Search categories..." aria-label="Filter categories"><span id="count" class="sub"></span></div>
+<p class="feedback" id="feedback" role="status" aria-live="polite"></p>
+<div class="categories" id="categories"></div>
+</section></main></div>
+<div class="dialog" id="category-dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" hidden>
+<form class="dialog-card" id="category-form">
+<div class="dialog-head"><div><p class="eyebrow">Category management</p><h2 id="dialog-title">Change category</h2></div><button class="btn" type="button" id="dialog-x" aria-label="Close">×</button></div>
+<p id="dialog-description" class="sub"></p>
+<div class="dialog-fields">
+<label id="rename-field">New category name<input type="text" id="rename-input" maxlength="80" autocomplete="off"></label>
+<label id="merge-field" hidden>Merge into<select id="merge-target"></select></label>
+<label id="delete-field" hidden>Confirm category name<input type="text" id="delete-confirm" autocomplete="off"></label>
+</div>
+<p class="feedback" id="dialog-feedback" role="alert"></p>
+<div class="dialog-actions"><button class="btn" id="dialog-cancel" type="button">Cancel</button><button class="btn primary" id="dialog-submit" type="submit">Save</button></div>
+</form></div>
+<script src="/wiki-admin-auth.js?v=1"></script><script src="/wiki-categories.js?v=1"></script></body></html>
