@@ -1425,7 +1425,9 @@
       }
       const wanted = normalized(title);
       const media = app.media.find((item) => item.id === title ||
-        [item.title,item.originalName].some((name) => normalized(name) === wanted));
+        [item.title,item.originalName].some((name) => normalized(name) === wanted)) ||
+        app.media.find((item) => (item.aliases || []).some((alias) =>
+          alias.id === title || normalized(alias.title) === wanted));
       if (media) {
         image.dataset.wikiMediaId = media.id;
       } else {
@@ -1601,6 +1603,7 @@
     const definition = template?.currentRevision?.definition || fallbackDefinition;
     if (!definition || (definition.kind !== "wikitext" && !definition.canvas)) {
       instance.textContent = "This template is unavailable.";
+      instance.classList.remove("cf-template-await-layout");
       return;
     }
     if (definition.kind === "wikitext" && definition.source && templateWikitext?.render) {
@@ -1679,6 +1682,7 @@
           instance.style.height = scale === 1
             ? "auto"
             : `${Math.ceil(Math.max(1, rendered.scrollHeight) * scale)}px`;
+          instance.classList.remove("cf-template-await-layout");
           return;
         }
 
@@ -1713,6 +1717,7 @@
             instance.style.width = `${targetWidth}px`;
             instance.style.maxWidth = "100%";
             instance.style.height = "auto";
+            instance.classList.remove("cf-template-await-layout");
             return;
           }
         }
@@ -1744,6 +1749,7 @@
         rendered.style.maxWidth = "none";
         rendered.style.transform = `scale(${scale})`;
         rendered.style.transformOrigin = "top left";
+        instance.classList.remove("cf-template-await-layout");
       };
 
       instance.__sizeWikitextTemplate = sizeWikitextTemplate;
@@ -1788,6 +1794,7 @@
     window.requestAnimationFrame(() => {
       if (!instance.isConnected) return;
       size();
+      instance.classList.remove("cf-template-await-layout");
       if (window.ResizeObserver) {
         instance.__templateResizeObserver?.disconnect?.();
         instance.__templateResizeObserver = new ResizeObserver(size);
@@ -1839,7 +1846,7 @@
 
   function createTemplateInstance(block, live = true) {
     const instance = document.createElement("div");
-    instance.className = "wiki-template-instance";
+    instance.className = "wiki-template-instance cf-template-await-layout";
     instance.contentEditable = "false";
     instance.dataset.wikiTemplateId = String(block.templateId || "");
     instance.dataset.wikiTemplateSlug = String(block.templateSlug || "");
@@ -3224,7 +3231,7 @@
 
   async function selectCatalogImage(id) {
     const media = app.catalogMedia.find((item) => item.id === id) ||
-      app.media.find((item) => item.id === id);
+      app.media.find((item) => item.id === id || (item.aliases || []).some((alias) => alias.id === id));
     if (!media) return;
     app.selectedMediaId = media.id;
     ui.mediaAlt.value = media.altText || "";
@@ -3449,7 +3456,7 @@
       const choice = document.createElement("div");
       choice.className = "template-image-choice";
       const selected = document.createElement("strong");
-      const media = app.media.find((item) => item.id === actual);
+      const media = app.media.find((item) => item.id === actual || (item.aliases || []).some((alias) => alias.id === actual));
       selected.textContent = media?.title || (actual ? "Catalog image selected" : "No image selected");
       const button = document.createElement("button");
       button.type = "button";
@@ -4235,6 +4242,13 @@
       const initialCategory = categoryFromLocation();
       if (initialCategory) await openCategoryPage(initialCategory, { push: false });
       else await openPage(app.currentSlug, { push: false });
+      // Shared Roadmap/Updates topbars deep-link into the wiki search or
+      // the protected Create New Page dialog.
+      const params = new URL(window.location.href).searchParams;
+      if (params.get("search") === "1") openSearchMenu();
+      else if (params.get("new") === "1" && viewer()?.authenticated && viewer()?.canEdit) {
+        openNewPageDialog();
+      }
     } catch (error) {
       renderPageError(error);
       setFeedback(ui.feedback, error?.message || "The wiki could not be loaded.", true);
@@ -4376,6 +4390,13 @@
     if (isPlacedObject(object)) selectFigure(object);
     else clearSelectedFigure();
   });
+  // Links inside template previews must never navigate while editing. Keep
+  // click/bubble events so a double-click still opens the template editor.
+  ui.content.addEventListener("click", (event) => {
+    if (app.editing && event.target.closest(".wiki-template-instance")) {
+      event.preventDefault();
+    }
+  }, true);
   ui.content.addEventListener("dblclick", (event) => {
     const template = event.target.closest(".wiki-template-instance");
     if (app.editing && template?.parentElement === ui.content) {

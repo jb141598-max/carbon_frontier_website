@@ -1834,21 +1834,29 @@
         }
       }
     </style>
+    <link rel="stylesheet" href="/cf-site-topbar.css?v=1" />
   </head>
   <body>
     <div class="page-shell">
       <div class="content">
-        <header class="topbar">
+        <header class="topbar cf-unified-topbar" role="banner">
           <nav class="topbar-nav" aria-label="Primary navigation">
-            <a class="nav-button" href="updates.html">Updates</a>
-            <a class="nav-button" href="wiki.html">Wiki</a>
+            <a class="nav-button" href="/wiki">Wiki</a>
+            <a class="nav-button" href="/index.html" aria-current="page">Roadmap</a>
+            <a class="nav-button" href="/updates">Updates</a>
           </nav>
-          <div class="brand-lockup">
-            <p class="brand">Carbon Frontier</p>
-            <p class="brand-subline">Roadmap website prototype</p>
-          </div>
+          <a class="cf-top-search" href="/wiki?search=1" aria-label="Search wiki pages"><span aria-hidden="true">⌕</span><span>Search wiki pages...</span></a>
           <div class="topbar-actions">
-            <div class="account-entry" id="account-entry">
+            <button class="cf-site-menu-toggle" id="cf-site-menu-toggle" aria-expanded="false" aria-controls="cf-site-menu" type="button">☰ Menu</button>
+            <div class="cf-site-menu" id="cf-site-menu" hidden aria-label="Site menu">
+              <a class="cf-menu-link" href="/wiki/categories">Categories</a>
+              <a class="cf-menu-link" id="cf-menu-wiki-panel" href="/wiki/panel" hidden>Wiki Panel</a>
+              <a class="cf-menu-link" id="cf-menu-images" href="/wiki/images" hidden>Images</a>
+              <a class="cf-menu-link" id="cf-menu-templates" href="/wiki/templates" hidden>Templates</a>
+              <a class="cf-menu-link" id="cf-menu-new-page" href="/wiki?new=1" hidden>+ Create New Page</a>
+              <a class="cf-menu-link" id="cf-menu-login" href="/login">Log In</a>
+              <div class="cf-menu-account">
+                <div class="account-entry" id="account-entry">
               <button
                 class="account-menu-button"
                 id="account-menu-button"
@@ -1879,9 +1887,13 @@
                 <p class="auth-note" id="auth-note"></p>
               </div>
             </div>
-            <button class="admin-button" id="admin-panel-button" type="button" hidden>
+              </div>
+              <div class="cf-menu-admin">
+                <button class="admin-button" id="admin-panel-button" type="button" hidden>
               Open Admin Panel
             </button>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -4233,5 +4245,6 @@
         renderAll();
       })();
     </script>
+    <script defer src="/cf-site-topbar.js?v=1"></script>
   </body>
 </html>

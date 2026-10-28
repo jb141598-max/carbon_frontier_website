@@ -103,6 +103,8 @@ function mediaItem(row, viewer, account) {
       viewer.isAssignedStaff || (account?.email && account.email === row.uploaded_by_email)
     ),
     canDelete: canDeleteMedia(row, viewer, account),
+    canMerge: Boolean(viewer.canModerate && viewer.canEdit),
+    aliases: Array.isArray(row.aliases) ? row.aliases : [],
     url: `/api/wiki/media/${encodeURIComponent(row.id)}`,
   };
 }
@@ -160,14 +162,18 @@ async function handleGet(request, account) {
       const where = query
         ? `WHERE original_name ILIKE $1 OR description ILIKE $1 OR alt_text ILIKE $1
                  OR default_caption ILIKE $1 OR credit ILIKE $1
-                 OR array_to_string(tags, ' ') ILIKE $1`
+                 OR array_to_string(tags, ' ') ILIKE $1
+                 OR EXISTS (SELECT 1 FROM wiki_media_redirects r
+                   WHERE r.target_id = wiki_media.id AND r.source_name ILIKE $1)`
         : "";
       const parameters = query ? [pattern, limit, offset] : [limit, offset];
       const limitPosition = query ? 2 : 1;
       const [items, count] = await Promise.all([
         client.query(
           `SELECT id, original_name, description, alt_text, default_caption, tags, credit,
-                  source_url, content_type, size_bytes, uploaded_by_email, uploaded_at, updated_at
+                  source_url, content_type, size_bytes, uploaded_by_email, uploaded_at, updated_at,
+                  COALESCE((SELECT json_agg(json_build_object('id', r.source_id, 'title', r.source_name))
+                    FROM wiki_media_redirects r WHERE r.target_id = wiki_media.id), '[]'::json) AS aliases
            FROM wiki_media ${where}
            ORDER BY ${SORT_SQL.get(sort)}
            LIMIT $${limitPosition} OFFSET $${limitPosition + 1}`,
@@ -205,7 +211,18 @@ async function handleGet(request, account) {
        FROM wiki_media WHERE id = $1`,
       [id]
     );
-    const media = result.rows[0];
+    let media = result.rows[0];
+    if (!media) {
+      // Merged legacy media IDs continue to serve the surviving image, so
+      // existing pages and past revisions remain readable.
+      const redirected = await client.query(
+        "SELECT m.id, m.blob_key, m.original_name, m.content_type, m.size_bytes " +
+        "FROM wiki_media_redirects r JOIN wiki_media m ON m.id = r.target_id " +
+        "WHERE r.source_id = $1 LIMIT 1",
+        [id]
+      );
+      media = redirected.rows[0];
+    }
     if (!media) return json({ error: "Wiki image not found." }, 404);
     const data = await mediaStore.get(media.blob_key, { type: "arrayBuffer" });
     if (!data) return json({ error: "Wiki image data is unavailable." }, 404);
@@ -399,6 +416,12 @@ async function handleDelete(request, account) {
         error: "The image's references changed. Review the new impact before deleting.", usage,
       }, 409);
     }
+    const dependents = await client.query(
+      "SELECT COUNT(*)::int AS count FROM wiki_media_redirects WHERE target_id = $1", [id]
+    );
+    if (Number(dependents.rows[0]?.count) > 0) {
+      return json({ error: "This image is the target of existing merges. Merge it into a different image instead of deleting it, so older pages keep working." }, 409);
+    }
     await client.query("DELETE FROM wiki_media WHERE id = $1", [id]);
     await insertAuditEntry(client, {
       action: "wiki_media_deleted", actorEmail: account.email,
@@ -427,6 +450,90 @@ async function handleDelete(request, account) {
   });
 }
 
+
+async function handleMerge(request, account) {
+  const id = requestedMediaId(request);
+  if (!id) return json({ error: "Select the image to merge." }, 400);
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: "Unable to read image merge details." }, 400); }
+  const targetId = String(body?.targetId || "").trim();
+  if (!targetId || targetId === id || body?.confirmation !== "MERGE" ||
+      typeof body?.confirmedSourceTitle !== "string") {
+    return json({ error: "Choose a different destination and confirm the merge." }, 400);
+  }
+
+  const client = await db.pool.connect();
+  let committed = false;
+  let source;
+  let target;
+  try {
+    await client.query("BEGIN");
+    const { viewer } = await loadViewer(client, account);
+    // A merge redirects every old page reference, so only senior wiki staff
+    // can perform it (regular uploaders cannot redirect global media).
+    if (!viewer.canEdit || !viewer.canModerate) {
+      return json({ error: "Only wiki Owners and Admins may merge shared images." }, 403);
+    }
+    const selected = await client.query(
+      "SELECT id, original_name, blob_key FROM wiki_media WHERE id = ANY($1::text[]) ORDER BY id FOR UPDATE",
+      [[id, targetId]]
+    );
+    source = selected.rows.find((row) => row.id === id);
+    target = selected.rows.find((row) => row.id === targetId);
+    if (!source || !target) return json({ error: "One of these images no longer exists. Refresh the catalog." }, 409);
+    if (source.original_name !== body.confirmedSourceTitle) {
+      return json({ error: "Source image details changed. Review the merge again." }, 409);
+    }
+
+    const usage = await currentMediaReferences(client, {
+      id: source.id, original_name: source.original_name
+    });
+    // Redirect any earlier merges that pointed at the source as well.
+    await client.query(
+      "UPDATE wiki_media_redirects SET target_id = $1 WHERE target_id = $2",
+      [target.id, source.id]
+    );
+    await client.query(
+      "INSERT INTO wiki_media_redirects (source_id, source_name, target_id, created_by_email) VALUES ($1, $2, $3, $4)",
+      [source.id, source.original_name, target.id, account.email]
+    );
+    await client.query("DELETE FROM wiki_media WHERE id = $1", [source.id]);
+    await insertAuditEntry(client, {
+      action: "wiki_media_merged",
+      actorEmail: account.email,
+      details: {
+        sourceId: source.id, sourceName: source.original_name,
+        targetId: target.id, targetName: target.original_name,
+        pageCount: usage.pageCount, pagePlacements: usage.pagePlacements,
+        templateReferences: usage.templateReferences,
+      },
+    });
+    await client.query("COMMIT");
+    committed = true;
+
+    // Clean up only the discarded binary, not the surviving image.
+    let warning = "";
+    try { await mediaStore.delete(source.blob_key); }
+    catch (error) {
+      console.error("Merged media blob cleanup failed", { sourceId: source.id, error });
+      warning = "The merge succeeded, but discarded file storage cleanup needs attention.";
+    }
+    return json({
+      ok: true,
+      merge: {
+        sourceId: source.id, sourceName: source.original_name,
+        targetId: target.id, targetName: target.original_name,
+      },
+      usage,
+      ...(warning ? { warning } : {}),
+    });
+  } finally {
+    if (!committed) await client.query("ROLLBACK").catch(() => {});
+    client.release();
+  }
+}
+
 export default async function handler(request) {
   try {
     if (request.method === "GET") {
@@ -434,7 +541,7 @@ export default async function handler(request) {
       if (!auth.ok) return json({ error: auth.message }, auth.status);
       return handleGet(request, auth.account);
     }
-    if (!["POST", "PATCH", "DELETE"].includes(request.method)) {
+    if (!["POST", "PATCH", "DELETE", "PUT"].includes(request.method)) {
       return json({ error: "Method not allowed." }, 405);
     }
     if (!verifyMutationOrigin(request)) {
@@ -444,6 +551,7 @@ export default async function handler(request) {
     if (!auth.ok) return json({ error: auth.message }, auth.status);
     if (request.method === "POST") return handleUpload(request, auth.account);
     if (request.method === "PATCH") return handleUpdate(request, auth.account);
+    if (request.method === "PUT") return handleMerge(request, auth.account);
     return handleDelete(request, auth.account);
   } catch (error) {
     console.error("wiki-media failed", error);

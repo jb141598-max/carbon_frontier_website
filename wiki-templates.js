@@ -408,7 +408,9 @@
     for (const image of images) {
       const wanted = normalized(image.dataset.wikiFileTitle);
       const media = catalog.find((item) => item.id === image.dataset.wikiFileTitle ||
-        [item.title, item.originalName].some((name) => normalized(name) === wanted));
+        [item.title, item.originalName].some((name) => normalized(name) === wanted)) ||
+        catalog.find((item) => (item.aliases || []).some((alias) =>
+          alias.id === image.dataset.wikiFileTitle || normalized(alias.title) === wanted));
       if (media) {
         await hydrateImage(image, { mediaId: media.id, url: media.url && /^data:image\//i.test(media.url) ? media.url : "" });
       } else if (!image.nextElementSibling?.classList?.contains("cf-template-missing")) {

@@ -26,35 +26,37 @@
   }
   function openDialog(action,category,page=null){
     state.dialogAction=action;state.dialogCategory=category;state.dialogPage=page;
+    const selectedCategory = category || { name:"", page_count:0, id:"" };
     $("category-dialog").hidden=false;
-    $("rename-field").hidden=action!=="rename";
+    $("rename-field").hidden=!["create","rename"].includes(action);
     $("merge-field").hidden=action!=="merge";
     $("delete-field").hidden=action!=="delete";
-    $("rename-input").value=category.name;
+    $("rename-input").value=category?.name||"";
     $("delete-confirm").value="";
     $("merge-target").replaceChildren();
     for(const possible of state.categories){
-      if(possible.id===category.id)continue;
+      if(possible.id===category?.id)continue;
       const opt=el("option",{text:possible.name});opt.value=possible.id;
       $("merge-target").append(opt);
     }
-    const titles={rename:"Rename category",merge:"Merge categories",delete:"Delete category",detach:"Remove page from category"};
+    const titles={create:"Add category",rename:"Rename category",merge:"Merge categories",delete:"Delete category",detach:"Remove page from category"};
     const descriptions={
-      rename:"Rename "+category.name+". All existing page memberships will be kept. Links and templates referencing the old category name may need updating.",
-      merge:"Combine all pages from "+category.name+" into the destination. "+category.name+" will be removed; pages will not be deleted.",
-      delete:"Delete "+category.name+" and remove its membership from all "+category.page_count+" page(s). Wiki pages themselves will remain.",
-      detach:"Remove "+(page?.title||"this page")+" from "+category.name+"? The wiki page will remain available."
+      create:"Create a new category. It will appear immediately even if no pages have been assigned yet.",
+      rename:"Rename "+selectedCategory.name+". All existing page memberships will be kept. Links and templates referencing the old category name may need updating.",
+      merge:"Combine all pages from "+selectedCategory.name+" into the destination. "+selectedCategory.name+" will be removed; pages will not be deleted.",
+      delete:"Delete "+selectedCategory.name+" and remove its membership from all "+selectedCategory.page_count+" page(s). Wiki pages themselves will remain.",
+      detach:"Remove "+(page?.title||"this page")+" from "+selectedCategory.name+"? The wiki page will remain available."
     };
     $("dialog-title").textContent=titles[action];
     $("dialog-description").textContent=descriptions[action];
-    $("dialog-submit").textContent=action==="rename"?"Rename":
+    $("dialog-submit").textContent=action==="create"?"Add Category":action==="rename"?"Rename":
       action==="merge"?"Merge into selected category":
       action==="delete"?"Delete category":"Remove from category";
-    $("dialog-submit").classList.toggle("danger",action!=="rename");
+    $("dialog-submit").classList.toggle("danger",!["create","rename"].includes(action));
     feedback("",false,$("dialog-feedback"));
     $("category-form").reset();
-    $("rename-input").value=category.name;
-    if(action==="rename")$("rename-input").focus();
+    $("rename-input").value=category?.name||"";
+    if(action==="create"||action==="rename")$("rename-input").focus();
     else if(action==="merge")$("merge-target").focus();
     else if(action==="delete")$("delete-confirm").focus();
     else $("dialog-submit").focus();
@@ -130,10 +132,10 @@
   }
   async function submitAction(event){
     event.preventDefault();
-    if(state.loading||!state.dialogCategory)return;
+    if(state.loading||(!state.dialogCategory&&state.dialogAction!=="create"))return;
     const action=state.dialogAction,category=state.dialogCategory;
-    const body={id:category.id};
-    if(action==="rename"){
+    const body=category?{id:category.id}:{};
+    if(action==="create"||action==="rename"){
       body.name=$("rename-input").value.trim();
       if(!body.name){feedback("Enter a category name.",true,$("dialog-feedback"));return;}
     } else if(action==="merge"){
@@ -153,14 +155,14 @@
       const result=await call({body:{action,...body}});
       state.loading=false;
       closeDialog();
-      if(action==="merge"){
+      if(action==="merge"||action==="create"){
         state.expanded=result.result?.id||"";
       }else if(action==="delete"){
         state.expanded="";state.details=null;
       }
       await reload();
       feedback(
-        action==="rename"?"Category renamed.":
+        action==="create"?"Category created. Assign pages through Page Settings.":action==="rename"?"Category renamed.":
         action==="merge"?"Categories merged. Existing wiki pages were preserved.":
         action==="delete"?"Category deleted. No wiki pages were deleted.":
         "Page removed from the category."
@@ -173,6 +175,7 @@
   $("dialog-x").addEventListener("click",closeDialog);
   $("dialog-cancel").addEventListener("click",closeDialog);
   $("filter").addEventListener("input",render);
+  $("add-category-button").addEventListener("click",()=>openDialog("create",null));
   // The confirmation dialog cannot be dismissed by accidentally clicking
   // outside; use X or Cancel, matching the rest of the wiki's overlays.
   document.addEventListener("keydown",event=>{
@@ -186,6 +189,7 @@
         return;
       }
       await reload({stayExpanded:false});
+      $("add-category-button").hidden=!state.canManage;
       $("status").hidden=true;$("workspace").hidden=false;
     }catch(error){window.CFWikiStaff.showDenied(error.message||"Unable to load categories.");}
   })();

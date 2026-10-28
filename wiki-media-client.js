@@ -203,6 +203,17 @@
         }),
       });
     }
+    async function merge(id, { targetId, sourceTitle } = {}) {
+      if (testing) throw new Error("Image merging is only supported in the live catalog.");
+      return remote({
+        id, method: "PUT",
+        body: JSON.stringify({
+          targetId: String(targetId || ""),
+          confirmedSourceTitle: String(sourceTitle || ""),
+          confirmation: "MERGE",
+        }),
+      });
+    }
     async function getBlob(id) {
       if (testing) {
         const item = await localGet(id);
@@ -223,7 +234,7 @@
       }
       throw new Error("The wiki image could not be loaded.");
     }
-    return Object.freeze({ list, upload, update, usage, remove, getBlob });
+    return Object.freeze({ list, upload, update, usage, remove, merge, getBlob });
   }
 
   window.CarbonFrontierWikiMedia = Object.freeze({ create, metadata });

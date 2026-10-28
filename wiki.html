@@ -2496,6 +2496,18 @@
         }
       }
 
+      .wiki-visually-hidden {
+        position:absolute!important; width:1px!important; height:1px!important;
+        padding:0!important; margin:-1px!important; overflow:hidden!important;
+        clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important;
+      }
+      .page-heading-row { margin-bottom:0!important; min-height:0!important; }
+      .wiki-template-instance.cf-template-await-layout { visibility:hidden!important; }
+      .article-surface.is-editing .wiki-template-instance a,
+      .article-surface.is-editing .wiki-template-instance button:not(.object-resize-handle),
+      .article-surface.is-editing .wiki-template-instance [role="button"] {
+        pointer-events:none!important;
+      }
       /* One coherent navigation surface, with a permission-aware Menu. */
       .page-shell { overflow: visible; }
       .topbar {
@@ -2697,7 +2709,7 @@
           <div id="wiki-view" hidden>
             <div class="page-heading-row">
               <div class="page-heading">
-                <h1>Wiki</h1>
+                <h1 class="wiki-visually-hidden">Carbon Frontier Wiki</h1>
               </div>
 
             </div>
@@ -4293,6 +4305,6 @@
     <script src="wiki-media-client.js"></script>
     <script src="wiki-wikitext.js?v=30-template-rows"></script>
     <script src="wiki-template-wikitext.js?v=31-repeatable-templates"></script>
-    <script src="wiki-editor.js?v=39-category-panel-navbar"></script>
+    <script src="wiki-editor.js?v=40-template-merge-layout"></script>
   </body>
 </html>

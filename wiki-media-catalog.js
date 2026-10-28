@@ -13,7 +13,11 @@
     "upload-source","upload-feedback","upload-button","detail-dialog","detail-form","close-detail-button",
     "cancel-detail-button","detail-preview","detail-heading","detail-title","detail-description","detail-alt",
     "detail-caption","detail-tags","detail-credit","detail-source","detail-type","detail-size","detail-date",
-    "detail-id","detail-feedback","save-detail-button","delete-image-button",
+    "detail-id","detail-feedback","save-detail-button","delete-image-button","merge-image-button",
+    "merge-image-dialog","merge-image-form","merge-image-title","close-merge-image",
+    "merge-source-description","merge-target-search","merge-target-select",
+    "merge-target-description","merge-impact","merge-acknowledge","merge-feedback",
+    "cancel-merge-image","confirm-merge-image",
     "delete-confirm-dialog","delete-confirm-form","delete-confirm-title",
     "close-delete-button","cancel-delete-button","confirm-delete-button",
     "delete-impact-summary","delete-usage-list","delete-usage-note",
@@ -24,6 +28,7 @@
     testing: isTestingEnvironment(), account: null, idToken: "", access: null, client: null,
     media: [], selectedId: "", offset: 0, total: 0, loading: false, googleInitialized: false,
     deleteSelectedId: "", deleteUsage: null, deleteBusy: false,
+    mergeSourceId: "", mergeBusy: false, mergeTargetOptions: [], mergeSearchTimer: 0,
     objectUrls: new Map(), uploadPreviewUrl: "", uploadFileSelection: null,
     uploadAutoTitle: "", uploadDragDepth: 0, searchTimer: 0,
   };
@@ -67,7 +72,7 @@
     element.hidden = !open;
     // The delete confirmation sits above the details dialog. Closing either
     // overlay must not unlock page scrolling while the other remains open.
-    document.body.style.overflow = [ui.uploadDialog, ui.detailDialog, ui.deleteConfirmDialog]
+    document.body.style.overflow = [ui.uploadDialog, ui.detailDialog, ui.deleteConfirmDialog, ui.mergeImageDialog]
       .some((dialog) => dialog && !dialog.hidden) ? "hidden" : "";
   }
   function formatBytes(value) {
@@ -468,7 +473,12 @@
     [...ui.detailForm.querySelectorAll("input,textarea")].forEach((field) => { field.disabled = !media.canEditMetadata; });
     ui.saveDetailButton.hidden = !media.canEditMetadata;
     ui.deleteImageButton.hidden = !media.canDelete || state.testing;
-    ui.deleteImageButton.disabled = !media.canDelete || state.testing;
+    ui.deleteImageButton.disabled = !media.canDelete || state.testing || Boolean(media.aliases?.length);
+    ui.deleteImageButton.title = media.aliases?.length
+      ? "This image is the target of earlier merges. Merge it into another image instead of deleting."
+      : "Permanently delete this image";
+    ui.mergeImageButton.hidden = !media.canMerge || state.testing;
+    ui.mergeImageButton.disabled = !media.canMerge || state.testing;
     ui.detailPreview.replaceChildren();
     const image = document.createElement("img"); image.alt = media.altText || ""; image.hidden = true;
     const loading = document.createElement("span"); loading.textContent = "Loading image...";
@@ -478,6 +488,7 @@
   }
   function closeDetails() {
     if (!ui.deleteConfirmDialog.hidden) closeDeleteConfirmation();
+    if (!ui.mergeImageDialog.hidden) closeMergeImage();
     state.selectedId = "";
     setDialog(ui.detailDialog, false);
   }
@@ -498,6 +509,141 @@
     finally { ui.saveDetailButton.disabled = false; }
   }
 
+
+
+  function closeMergeImage() {
+    if (state.mergeBusy) return;
+    window.clearTimeout(state.mergeSearchTimer);
+    state.mergeSourceId = "";
+    state.mergeTargetOptions = [];
+    ui.mergeAcknowledge.checked = false;
+    ui.mergeAcknowledge.disabled = true;
+    ui.confirmMergeImage.disabled = true;
+    setDialog(ui.mergeImageDialog, false);
+  }
+
+  function syncMergeButton() {
+    const selected = state.mergeTargetOptions.find(
+      (media) => media.id === ui.mergeTargetSelect.value
+    );
+    if (selected) {
+      ui.mergeTargetDescription.textContent =
+        "Keep “" + (selected.title || selected.originalName) + "” and its existing image. " +
+        "The duplicate will redirect to this image.";
+    } else {
+      ui.mergeTargetDescription.textContent = "Select a different image to keep.";
+    }
+    ui.mergeAcknowledge.disabled = !selected;
+    if (!selected) ui.mergeAcknowledge.checked = false;
+    ui.confirmMergeImage.disabled =
+      !selected || !ui.mergeAcknowledge.checked || state.mergeBusy;
+  }
+
+  async function loadMergeTargets() {
+    const sourceId = state.mergeSourceId;
+    const query = ui.mergeTargetSearch.value.trim();
+    ui.mergeTargetSelect.replaceChildren();
+    setFeedback(ui.mergeFeedback, "Finding destination images...");
+    try {
+      const data = await state.client.list({ query, sort: "name", limit: 100 });
+      if (sourceId !== state.mergeSourceId || ui.mergeImageDialog.hidden) return;
+      state.mergeTargetOptions = (data.media || [])
+        .filter((item) => item.id !== sourceId);
+      for (const item of state.mergeTargetOptions) {
+        const option = document.createElement("option");
+        option.value = item.id;
+        option.textContent = item.title || item.originalName || item.id;
+        ui.mergeTargetSelect.append(option);
+      }
+      ui.mergeTargetSelect.selectedIndex = -1;
+      if (!state.mergeTargetOptions.length) {
+        setFeedback(ui.mergeFeedback, "No matching images found. Search for an existing destination.", true);
+      } else {
+        setFeedback(ui.mergeFeedback, "Select the image to keep from " +
+          state.mergeTargetOptions.length + " matching result(s).");
+      }
+      syncMergeButton();
+    } catch (error) {
+      if (sourceId !== state.mergeSourceId) return;
+      state.mergeTargetOptions = [];
+      syncMergeButton();
+      setFeedback(ui.mergeFeedback, error.message || "Could not search images.", true);
+    }
+  }
+
+  async function openMergeImage() {
+    const source = selectedMedia();
+    if (!source?.canMerge || state.testing) return;
+    state.mergeSourceId = source.id;
+    state.mergeTargetOptions = [];
+    ui.mergeSourceDescription.textContent =
+      "Merge duplicate “" + (source.title || source.originalName) +
+      "” into a different image. The destination keeps its original filename, " +
+      "and old source image IDs and filenames remain valid redirects.";
+    ui.mergeImageTitle.textContent = "Merge “" + (source.title || source.originalName) + "”";
+    ui.mergeTargetSearch.value = "";
+    ui.mergeTargetSelect.replaceChildren();
+    ui.mergeAcknowledge.checked = false;
+    ui.mergeAcknowledge.disabled = true;
+    ui.confirmMergeImage.disabled = true;
+    ui.mergeImpact.textContent = "Checking current usages...";
+    setDialog(ui.mergeImageDialog, true);
+    const usagePromise = state.client.usage(source.id).then((data) => {
+      if (state.mergeSourceId !== source.id || ui.mergeImageDialog.hidden) return;
+      const u = data.usage || {};
+      ui.mergeImpact.textContent =
+        "Confirmed references: " + (u.pagePlacements || 0) +
+        " image placements on " + (u.pageCount || 0) +
+        " current wiki pages, plus " + (u.templateReferences || 0) +
+        " template references. Older revisions and dynamic galleries may have more.";
+    }).catch(() => {
+      if (state.mergeSourceId === source.id)
+        ui.mergeImpact.textContent = "Reference count unavailable. Old references will still redirect to the destination.";
+    });
+    await Promise.all([loadMergeTargets(), usagePromise]);
+  }
+
+  async function performMergeImage(event) {
+    event.preventDefault();
+    if (state.mergeBusy || !ui.mergeAcknowledge.checked) return;
+    const source = selectedMedia();
+    const target = state.mergeTargetOptions.find(
+      (item) => item.id === ui.mergeTargetSelect.value
+    );
+    if (!source?.canMerge || source.id !== state.mergeSourceId ||
+        !target || source.id === target.id) return;
+    state.mergeBusy = true;
+    ui.confirmMergeImage.disabled = true;
+    ui.cancelMergeImage.disabled = true;
+    ui.closeMergeImage.disabled = true;
+    setFeedback(ui.mergeFeedback, "Merging image references...");
+    try {
+      const response = await state.client.merge(source.id, {
+        targetId: target.id,
+        sourceTitle: source.title || source.originalName,
+      });
+      const oldUrl = state.objectUrls.get(source.id);
+      if (oldUrl) { URL.revokeObjectURL(oldUrl); state.objectUrls.delete(source.id); }
+      state.mergeBusy = false;
+      closeMergeImage();
+      closeDetails();
+      ui.catalogSearch.value = "";
+      await loadCatalog();
+      setFeedback(ui.catalogFeedback, response.warning ||
+        "Merged “" + response.merge.sourceName + "” into “" +
+        response.merge.targetName + "”. Existing page images now display the destination.");
+    } catch (error) {
+      setFeedback(ui.mergeFeedback,
+        (error?.message || "Image merge failed. No changes were made.") +
+        (error?.status === 409 ? " Refresh the catalog and try again." : ""), true);
+    } finally {
+      state.mergeBusy = false;
+      ui.confirmMergeImage.disabled =
+        !(ui.mergeAcknowledge.checked && ui.mergeTargetSelect.value);
+      ui.cancelMergeImage.disabled = false;
+      ui.closeMergeImage.disabled = false;
+    }
+  }
 
   function renderDeleteUsage(usage) {
     const images = Number(usage.pagePlacements) || 0;
@@ -675,6 +821,16 @@
   ui.cancelDetailButton.addEventListener("click", closeDetails);
   ui.detailForm.addEventListener("submit", saveDetails);
   ui.deleteImageButton.addEventListener("click", openDeleteConfirmation);
+  ui.mergeImageButton.addEventListener("click", openMergeImage);
+  ui.mergeImageForm.addEventListener("submit", performMergeImage);
+  ui.mergeTargetSearch.addEventListener("input", () => {
+    window.clearTimeout(state.mergeSearchTimer);
+    state.mergeSearchTimer = window.setTimeout(loadMergeTargets, 240);
+  });
+  ui.mergeTargetSelect.addEventListener("change", syncMergeButton);
+  ui.mergeAcknowledge.addEventListener("change", syncMergeButton);
+  ui.cancelMergeImage.addEventListener("click", closeMergeImage);
+  ui.closeMergeImage.addEventListener("click", closeMergeImage);
   ui.deleteConfirmForm.addEventListener("submit", confirmDeleteImage);
   ui.deleteAcknowledge.addEventListener("change", () => {
     ui.confirmDeleteButton.disabled = !state.deleteUsage?.version ||

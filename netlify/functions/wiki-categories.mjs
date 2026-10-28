@@ -67,7 +67,7 @@ async function handlePost(request, account) {
   catch { return json({ error: "Provide a valid JSON request." }, 400); }
   const action = String(body?.action || "");
   const id = String(body?.id || "");
-  if (!validId(id) || !["rename", "merge", "delete", "detach"].includes(action)) {
+  if ((action !== "create" && !validId(id)) || !["create", "rename", "merge", "delete", "detach"].includes(action)) {
     return json({ error: "Specify a valid category and action." }, 400);
   }
   const client = await db.pool.connect();
@@ -78,6 +78,28 @@ async function handlePost(request, account) {
     const viewer = createViewer(state, account);
     if (!viewer.authenticated || !viewer.isAssignedStaff) {
       return json({ error: "Only signed-in assigned wiki staff can modify categories." }, 403);
+    }
+    if (action === "create") {
+      const name = cleanCategoryName(body.name);
+      const slug = categorySlug(name);
+      if (!name || !slug) return json({ error: "Enter a valid category name." }, 400);
+      const existing = await client.query(
+        "SELECT id FROM wiki_categories WHERE slug = $1 OR LOWER(name) = LOWER($2) LIMIT 1",
+        [slug, name]
+      );
+      if (existing.rowCount) return json({ error: "This category already exists." }, 409);
+      const newId = crypto.randomUUID();
+      await client.query(
+        "INSERT INTO wiki_categories (id, slug, name) VALUES ($1, $2, $3)",
+        [newId, slug, name]
+      );
+      await insertAuditEntry(client, {
+        action: "wiki_category_create", actorEmail: account.email,
+        details: { categoryId: newId, categoryName: name, slug },
+      });
+      await client.query("COMMIT");
+      committed = true;
+      return json({ ok: true, result: { id: newId, slug, name } }, 201);
     }
     const category = await categoryById(client, id, true);
     if (!category) return json({ error: "That category no longer exists." }, 404);

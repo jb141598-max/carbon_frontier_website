@@ -89,7 +89,15 @@
       .danger-button:disabled { cursor:not-allowed; opacity:.48; }
       .danger-button.is-destructive { color:#fff; background:#ba202d; border-color:#ef3946; }
       .danger-button.is-destructive:hover:not(:disabled) { background:#e52c3d; }
-      #delete-confirm-dialog { z-index:85; }
+      #delete-confirm-dialog, #merge-image-dialog { z-index:85; }
+      .media-management-actions { display:flex; gap:9px; flex-wrap:wrap; align-items:center; }
+      .merge-dialog-card { width:min(670px,100%); display:grid; gap:12px; }
+      .merge-dialog-card .dialog-header { margin-bottom:4px; }
+      .merge-dialog-card select { width:100%; min-height:210px; padding:8px; border:1px solid var(--border); border-radius:13px; background:#101114; color:#fff; }
+      .merge-dialog-card select option { padding:9px; }
+      .merge-dialog-card select option:checked { background:#7e2631; }
+      .merge-copy { margin:0; color:var(--muted); font-size:.83rem; line-height:1.6; }
+      .merge-dialog-card label.wide { display:grid; gap:8px; }
       .delete-dialog-card { width:min(670px,100%); }
       .delete-warning { padding:16px; border:1px solid rgba(255,95,109,.35);
         border-radius:15px; background:rgba(223,37,49,.075); }
@@ -142,7 +150,7 @@
             <label class="search-field"><span aria-hidden="true">⌕</span><input id="catalog-search" type="search" placeholder="Search titles, descriptions, tags, or credits..." aria-label="Search image catalog" /></label>
             <div class="tool-group">
               <select id="catalog-sort" aria-label="Sort images"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Title A–Z</option></select>
-              <button class="primary-button" id="open-upload-button" type="button">Import from Files</button>
+              <button class="primary-button" id="open-upload-button" type="button">Import</button>
             </div>
           </div>
           <div class="catalog-status"><span id="catalog-count">Loading images...</span><span>PNG, JPG, WebP, or GIF · 4 MB maximum</span></div>
@@ -189,7 +197,10 @@
         </div>
         <p class="feedback" id="detail-feedback" aria-live="polite"></p>
         <div class="form-actions detail-actions">
-          <button class="danger-button" id="delete-image-button" type="button" hidden>Remove Image</button>
+          <div class="media-management-actions">
+            <button class="danger-button" id="delete-image-button" type="button" hidden>Remove Image</button>
+            <button class="secondary-button" id="merge-image-button" type="button" hidden>Merge</button>
+          </div>
           <div class="detail-actions-right">
             <button class="secondary-button" id="cancel-detail-button" type="button">Close</button>
             <button class="primary-button" id="save-detail-button" type="submit">Save Details</button>
@@ -224,6 +235,32 @@
       </form>
     </div>
 
-    <script src="testing-sync.js"></script><script src="wiki-media-client.js?v=2-delete-impact"></script><script src="wiki-media-catalog.js?v=3-dropzone-persistent-dialogs"></script>
+    <div class="dialog" id="merge-image-dialog" role="dialog" aria-modal="true" aria-labelledby="merge-image-title" hidden>
+      <form class="dialog-card merge-dialog-card" id="merge-image-form">
+        <div class="dialog-header">
+          <div><p class="eyebrow">Merge duplicate images</p><h2 id="merge-image-title">Choose an image to keep</h2></div>
+          <button class="icon-button" id="close-merge-image" type="button" aria-label="Close image merge">×</button>
+        </div>
+        <p class="merge-copy" id="merge-source-description"></p>
+        <label class="wide"><span class="field-label">Find the destination image (the one to keep)</span>
+          <input id="merge-target-search" type="search" placeholder="Search image titles..." autocomplete="off" />
+        </label>
+        <label class="wide"><span class="field-label">Image to keep</span>
+          <select id="merge-target-select" size="7" required aria-label="Select the destination image"></select>
+        </label>
+        <p class="merge-copy" id="merge-target-description">Search and select an existing image. Its filename and content will be kept.</p>
+        <p class="merge-copy" id="merge-impact"></p>
+        <label class="delete-acknowledge">
+          <input type="checkbox" id="merge-acknowledge" disabled />
+          <span>I understand the duplicate will be removed from the catalog and all old image references will display the destination image instead. The destination's name and pixels are kept.</span>
+        </label>
+        <p class="feedback" id="merge-feedback" aria-live="polite"></p>
+        <div class="form-actions">
+          <button class="secondary-button" id="cancel-merge-image" type="button">Cancel</button>
+          <button class="danger-button is-destructive" id="confirm-merge-image" type="submit" disabled>Merge Images</button>
+        </div>
+      </form>
+    </div>
+    <script src="testing-sync.js"></script><script src="wiki-media-client.js?v=3-image-merging"></script><script src="wiki-media-catalog.js?v=4-image-merging"></script>
   </body>
 </html>
