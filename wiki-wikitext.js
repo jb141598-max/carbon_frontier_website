@@ -24,12 +24,14 @@
     const category = title.match(/^Category\s*:\s*(.+)$/i);
     if (category) {
       const categorySlug = slugify(category[1]);
-      return (categorySlug ? "wiki.html?category=" + encodeURIComponent(categorySlug) : "") +
+      return (categorySlug ? "/wiki/category/" + encodeURIComponent(categorySlug) : "/wiki") +
         (fragment.length ? "#" + encodeURIComponent(slugify(fragment.join("#"))) : "");
     }
     const known = pages.find((page) => page.title?.toLowerCase() === title.toLowerCase() || page.slug === title);
     const slug = known?.slug || (title ? slugify(title) : "");
-    return (slug ? "wiki.html?page=" + encodeURIComponent(slug) : "") + (fragment.length ? "#" + encodeURIComponent(slugify(fragment.join("#"))) : "");
+    // A fragment-only link targets this same article, not the wiki homepage.
+    if (!slug && fragment.length) return "#" + encodeURIComponent(slugify(fragment.join("#")));
+    return (slug && slug !== "front-page" ? "/wiki/" + encodeURIComponent(slug) : "/wiki") + (fragment.length ? "#" + encodeURIComponent(slugify(fragment.join("#"))) : "");
   }
 
   // Split delimiters only outside links, template calls, and nowiki spans.

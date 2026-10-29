@@ -442,7 +442,7 @@
 
   function pageHref(page) {
     if (state.testing || /wiki-analytics\.html$/i.test(window.location.pathname)) {
-      return page.slug === "front-page" ? "wiki.html" : `wiki.html?page=${encodeURIComponent(page.slug)}`;
+      return page.slug === "front-page" ? "/wiki" : `/wiki/${encodeURIComponent(page.slug)}`;
     }
     return page.slug === "front-page" ? "/wiki" : `/wiki/${encodeURIComponent(page.slug)}`;
   }

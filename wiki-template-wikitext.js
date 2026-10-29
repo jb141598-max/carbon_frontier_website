@@ -328,7 +328,7 @@
       .replace(/%TITLE%/gi, title)
       .replace(/%PAGENAME%/gi, title)
       .replace(/%PAGEID%/gi, String(page?.id || ""))
-      .replace(/%PAGEURL%/gi, `wiki.html?page=${encodeURIComponent(slug)}`);
+      .replace(/%PAGEURL%/gi, `/wiki/${encodeURIComponent(slug)}`);
   }
 
   function renderDynamicPageList(content, options = {}, depth = 0, stack = []) {
@@ -512,12 +512,12 @@
     if (raw.toLowerCase() === "cf-edit-current") {
       const currentSlug = String(options.currentSlug || "").trim();
       return currentSlug && currentSlug !== "front-page"
-        ? `wiki.html?page=${encodeURIComponent(currentSlug)}&edit=1`
-        : "wiki.html?edit=1";
+        ? `/wiki/${encodeURIComponent(currentSlug)}?edit=1`
+        : "/wiki?edit=1";
     }
     const [rawTitle = "", ...fragmentParts] = raw.split("#");
     const title = rawTitle.trim();
-    if (!title) return "wiki.html";
+    if (!title) return "/wiki";
 
     const categoryMatch = title.match(/^category\s*:\s*(.+)$/i);
     if (categoryMatch) {
@@ -533,7 +533,7 @@
         }
       }
       if (!categorySlug) categorySlug = slugify(wantedCategory);
-      return categorySlug ? `wiki.html?category=${encodeURIComponent(categorySlug)}` : "wiki.html";
+      return categorySlug ? `/wiki/category/${encodeURIComponent(categorySlug)}` : "/wiki";
     }
 
     let slug = "";
@@ -546,7 +546,7 @@
     }
     if (!slug) slug = slugify(title);
 
-    let href = `wiki.html?page=${encodeURIComponent(slug)}`;
+    let href = `/wiki/${encodeURIComponent(slug)}`;
     if (fragmentParts.length) {
       const fragment = slugify(fragmentParts.join("#"));
       if (fragment) href += `#${encodeURIComponent(fragment)}`;

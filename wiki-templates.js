@@ -161,14 +161,14 @@
         category.name.toLowerCase() === wanted.toLowerCase() || category.slug.toLowerCase() === wanted.toLowerCase()
       );
       const slug = known?.slug || slugify(wanted);
-      return slug ? `wiki.html?category=${encodeURIComponent(slug)}` : "wiki.html";
+      return slug ? `/wiki/category/${encodeURIComponent(slug)}` : "/wiki";
     }
     const wanted = String(title || "").trim();
     const known = state.linkTargets.pages.find((page) =>
       page.title.toLowerCase() === wanted.toLowerCase() || page.slug.toLowerCase() === wanted.toLowerCase()
     );
     const slug = known?.slug || slugify(wanted);
-    let href = slug ? `wiki.html?page=${encodeURIComponent(slug)}` : "wiki.html";
+    let href = slug && slug !== "front-page" ? `/wiki/${encodeURIComponent(slug)}` : "/wiki";
     if (fragmentParts.length) {
       const fragment = slugify(fragmentParts.join("#"));
       if (fragment) href += `#${encodeURIComponent(fragment)}`;

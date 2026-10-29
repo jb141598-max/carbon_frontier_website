@@ -19,6 +19,19 @@ document.addEventListener("keydown",(event)=>{
 item("cf-menu-login").href="/login?return="+encodeURIComponent(
   location.pathname+location.search+location.hash
 );
+const signout=item("cf-menu-signout");
+if(signout) signout.addEventListener("click",()=>{
+  localStorage.removeItem("carbon-frontier-google-session-v1");
+  window.location.assign("/login?return="+encodeURIComponent(location.pathname+location.search));
+});
+const accountLabel=item("cf-menu-user");
+function showAccount(viewer, account) {
+  if (!accountLabel) return;
+  accountLabel.hidden=!viewer?.authenticated;
+  accountLabel.textContent=viewer?.authenticated
+    ? "Signed in: "+String(account?.email||"Wiki account") : "";
+  if(signout) signout.hidden=!viewer?.authenticated;
+}
 const raw=localStorage.getItem("carbon-frontier-google-session-v1");
 let account=null;
 try{account=JSON.parse(raw||"null")}catch{}
@@ -33,11 +46,13 @@ fetch("/api/wiki-access",{
 }).then(payload=>{
   const viewer=payload.viewer||{};
   item("cf-menu-login").hidden=Boolean(viewer.authenticated);
+  showAccount(viewer,account);
   item("cf-menu-wiki-panel").hidden=!viewer.isAssignedStaff;
   item("cf-menu-images").hidden=!viewer.canEdit;
   item("cf-menu-templates").hidden=!viewer.isAssignedStaff;
   item("cf-menu-new-page").hidden=!(viewer.authenticated&&viewer.canEdit);
 }).catch(()=>{
+  showAccount(null, null);
   item("cf-menu-login").hidden=false;
   item("cf-menu-wiki-panel").hidden=true;
   item("cf-menu-images").hidden=true;

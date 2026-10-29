@@ -13,7 +13,7 @@
     <meta property="og:type" content="article" />
     <meta property="og:title" content="Carbon Frontier Wiki" />
     <meta property="og:description" content="Explore the Carbon Frontier community knowledge base." />
-    <link rel="canonical" href="wiki.html" />
+    <link rel="canonical" href="https://carbonfrontier.net/wiki" />
     <meta
       name="google-signin-client_id"
       content="609911855152-3q1n4oiiaaokhq0lrr0blf1bdif6ev6q.apps.googleusercontent.com"
@@ -1231,7 +1231,7 @@
 
       .wiki-dialog {
         position: fixed;
-        z-index: 60;
+        z-index: 1800;
         inset: 0;
         display: grid;
         place-items: center;
@@ -1240,7 +1240,7 @@
         backdrop-filter: blur(10px);
       }
 
-      #media-dialog { z-index: 80; }
+      #media-dialog { z-index: 1850; }
 
       .dialog-card,
       .editor-shell {
@@ -2627,7 +2627,7 @@
       <div class="content">
         <header class="topbar" role="banner">
           <nav class="topbar-nav" aria-label="Primary navigation">
-            <a class="nav-button" href="wiki.html" aria-current="page">Wiki</a>
+            <a class="nav-button" href="/wiki" aria-current="page">Wiki</a>
             <a class="nav-button" href="index.html">Roadmap</a>
             <a class="nav-button" href="updates.html">Updates</a>
           </nav>
@@ -2778,7 +2778,7 @@
                       <button class="toolbar-button toolbar-save" id="save-page-button" type="button">Save</button>
                     </div>
                     <div class="toolbar-link-popover" id="toolbar-link-popover" hidden>
-                      <input id="toolbar-link-url" type="url" placeholder="https://example.com" aria-label="Link address" />
+                      <input id="toolbar-link-url" type="text" placeholder="Page name (buildables) or https://example.com" aria-label="Wiki page or website link" autocomplete="off" />
                       <button class="toolbar-button toolbar-save" id="toolbar-link-apply" type="button">Apply Link</button>
                       <button class="toolbar-button" id="toolbar-link-cancel" type="button">Cancel</button>
                     </div>
@@ -3301,7 +3301,7 @@
       </div>
     </div>
 
-    <script src="testing-sync.js"></script>
+    <script src="/testing-sync.js"></script>
     <script>
       const AUTH_STORAGE_KEY = "carbon-frontier-google-session-v1";
       const WIKI_ACCESS_ENDPOINTS = [
@@ -4301,10 +4301,10 @@
       waitForGoogle();
       loadWikiAccess();
     </script>
-    <script src="wiki-style-client.js?v=1"></script>
-    <script src="wiki-media-client.js"></script>
-    <script src="wiki-wikitext.js?v=30-template-rows"></script>
-    <script src="wiki-template-wikitext.js?v=31-repeatable-templates"></script>
-    <script src="wiki-editor.js?v=40-template-merge-layout"></script>
+    <script src="/wiki-style-client.js?v=1"></script>
+    <script src="/wiki-media-client.js"></script>
+    <script src="/wiki-wikitext.js?v=31-canonical-links"></script>
+    <script src="/wiki-template-wikitext.js?v=32-clean-wiki-links"></script>
+    <script src="/wiki-editor.js?v=41-clean-urls-modal-links"></script>
   </body>
 </html>

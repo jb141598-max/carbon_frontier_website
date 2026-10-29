@@ -2,7 +2,31 @@
 <title>Categories | Carbon Frontier Wiki</title>
 <link rel="stylesheet" href="/wiki-dashboard.css?v=1"><link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Play:wght@400;700&display=swap" rel="stylesheet">
-</head><body><div class="page"><header class="top"><nav class="nav"><a href="/wiki">Wiki</a><a href="/">Roadmap</a><a href="/updates">Updates</a><a aria-current="page" href="/wiki/categories">Categories</a></nav><a class="btn" href="/wiki/panel">Wiki Panel</a></header>
+<link rel="stylesheet" href="/cf-site-topbar.css?v=2-staff-tools" />
+</head><body><div class="page"><header class="cf-unified-topbar cf-tools-topbar" role="banner">
+          <nav class="topbar-nav" aria-label="Primary navigation">
+            <a class="nav-button" href="/wiki">Wiki</a>
+            <a class="nav-button" href="/index.html">Roadmap</a>
+            <a class="nav-button" href="/updates">Updates</a>
+          </nav>
+          <a class="cf-top-search" href="/wiki?search=1" aria-label="Search wiki pages"><span aria-hidden="true">⌕</span><span>Search wiki pages...</span></a>
+          <div class="topbar-actions">
+            <button class="cf-site-menu-toggle" id="cf-site-menu-toggle" type="button" aria-expanded="false" aria-controls="cf-site-menu">☰ Menu</button>
+            <div class="cf-site-menu" id="cf-site-menu" hidden aria-label="Site menu">
+              <a class="cf-menu-link" href="/wiki/categories">Categories</a>
+              <a class="cf-menu-link" id="cf-menu-wiki-panel" href="/wiki/panel" hidden>Wiki Panel</a>
+              <a class="cf-menu-link" id="cf-menu-images" href="/wiki/images" hidden>Images</a>
+              <a class="cf-menu-link" id="cf-menu-templates" href="/wiki/templates" hidden>Templates</a>
+              <a class="cf-menu-link" id="cf-menu-new-page" href="/wiki?new=1" hidden>+ Create New Page</a>
+              <a class="cf-menu-link" id="cf-menu-login" href="/login">Log In</a>
+              <div class="cf-menu-account">
+                <span class="cf-menu-user" id="cf-menu-user" hidden></span>
+                <button class="cf-menu-link cf-menu-signout" id="cf-menu-signout" type="button" hidden>Sign Out</button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <header class="top cf-legacy-topbar"><nav class="nav"><a href="/wiki">Wiki</a><a href="/">Roadmap</a><a href="/updates">Updates</a><a aria-current="page" href="/wiki/categories">Categories</a></nav><a class="btn" href="/wiki/panel">Wiki Panel</a></header>
 <main><p class="eyebrow">Wiki organization</p><h1>Categories</h1><p class="sub">Manage all wiki categories. Deleting a category only removes its page memberships; it never deletes wiki articles. Categories can also be added from each article's Page Settings.</p>
 <div id="status" class="notice" role="status">Loading categories and checking permissions...</div>
 <section id="workspace" hidden><div class="toolbar"><input class="search" type="search" id="filter" placeholder="Search categories..." aria-label="Filter categories"><span id="count" class="sub"></span><button id="add-category-button" class="btn primary" type="button" hidden>+ Add Category</button></div>
@@ -21,4 +45,5 @@
 <p class="feedback" id="dialog-feedback" role="alert"></p>
 <div class="dialog-actions"><button class="btn" id="dialog-cancel" type="button">Cancel</button><button class="btn primary" id="dialog-submit" type="submit">Save</button></div>
 </form></div>
-<script src="/wiki-admin-auth.js?v=1"></script><script src="/wiki-categories.js?v=2-add-category"></script></body></html>
+<script src="/wiki-admin-auth.js?v=1"></script><script src="/wiki-categories.js?v=2-add-category"></script><script defer src="/cf-site-topbar.js?v=2-staff-tools"></script>
+</body></html>

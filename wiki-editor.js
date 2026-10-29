@@ -837,7 +837,7 @@
 
   function updateBrowserAddress(slug, replace = false) {
     let target;
-    if (isTesting() || /wiki\.html$/i.test(window.location.pathname)) {
+    if (isTesting()) {
       target = new URL(window.location.href);
       target.searchParams.delete("history");
       target.searchParams.delete("category");
@@ -855,7 +855,7 @@
   function updateCategoryBrowserAddress(categorySlug, replace = false) {
     const normalized = normalizeSlug(categorySlug);
     let target;
-    if (isTesting() || /wiki\.html$/i.test(window.location.pathname)) {
+    if (isTesting()) {
       target = new URL(window.location.href);
       target.searchParams.delete("history");
       target.searchParams.delete("page");
@@ -1212,7 +1212,7 @@
   function visualTemplateWikiTarget(target) {
     const raw = String(target || "").trim().replace(/^:/, "");
     if (raw.toLowerCase() === "cf-edit-current") {
-      const href = isTesting() || /wiki\.html$/i.test(window.location.pathname)
+      const href = isTesting()
         ? (app.currentSlug && app.currentSlug !== "front-page"
             ? `wiki.html?page=${encodeURIComponent(app.currentSlug)}&edit=1`
             : "wiki.html?edit=1")
@@ -1230,7 +1230,7 @@
         category.name.toLowerCase() === categoryName.toLowerCase() || category.slug.toLowerCase() === categoryName.toLowerCase()
       );
       const slug = knownCategory?.slug || wikitext.slugify(categoryName);
-      const href = isTesting() || /wiki\.html$/i.test(window.location.pathname)
+      const href = isTesting()
         ? `wiki.html?category=${encodeURIComponent(slug)}`
         : `/wiki/category/${encodeURIComponent(slug)}`;
       return { kind: "category", href, slug };
@@ -1240,7 +1240,7 @@
       String(page?.slug || "").trim().toLowerCase() === wanted.toLowerCase()
     );
     const slug = known?.slug || wikitext.slugify(wanted);
-    let href = isTesting() || /wiki\.html$/i.test(window.location.pathname)
+    let href = isTesting()
       ? (slug ? `wiki.html?page=${encodeURIComponent(slug)}` : "wiki.html")
       : (slug ? `/wiki/${encodeURIComponent(slug)}` : "/wiki");
     if (fragmentParts.length) {
@@ -2173,7 +2173,7 @@
     if (description) description.content = summary;
     if (openGraphTitle) openGraphTitle.content = `${page.title} | Carbon Frontier Wiki`;
     if (openGraphDescription) openGraphDescription.content = summary;
-    if (canonical) canonical.href = `wiki.html?page=${encodeURIComponent(page.slug)}`;
+    if (canonical) canonical.href = new URL(page.slug === "front-page" ? "/wiki" : `/wiki/${encodeURIComponent(page.slug)}`, window.location.origin).href;
   }
 
   function categoryDirectory() {
@@ -2358,7 +2358,7 @@
   }
 
   function categoryPageHref(page) {
-    if (isTesting() || /wiki\.html$/i.test(window.location.pathname)) {
+    if (isTesting()) {
       return `wiki.html?page=${encodeURIComponent(page.slug)}`;
     }
     return `/wiki/${encodeURIComponent(page.slug)}`;
@@ -2486,6 +2486,11 @@
         updateBrowserAddress(payload.redirect.targetSlug, true);
       }
       renderPage(payload.page);
+      if (!isTesting() &&
+          (/\/wiki\.html$/i.test(window.location.pathname) ||
+           new URL(window.location.href).searchParams.has("page"))) {
+        updateBrowserAddress(app.currentSlug, true);
+      }
       const pageUrl = new URL(window.location.href);
       if (pageUrl.searchParams.get("edit") === "1") {
         pageUrl.searchParams.delete("edit");
@@ -4340,14 +4345,27 @@
       return;
     }
     try {
-      const parsed = new URL(url.includes(":") ? url : `https://${url}`);
-      if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) {
-        throw new Error("Unsupported link type");
+      let href = "";
+      if (/^https?:\/\//i.test(url) || /^mailto:/i.test(url)) {
+        const parsed = new URL(url);
+        if (!["http:", "https:", "mailto:"].includes(parsed.protocol)) throw new Error("Invalid protocol");
+        href = parsed.href;
+      } else if (/^\/wiki(?:\/|$)/i.test(url)) {
+        href = new URL(url, window.location.origin).href;
+      } else if (/^(?:www\.)?[^\s/]+\.[a-z]{2,}(?:[/?#]|$)/i.test(url)) {
+        href = new URL("https://" + url).href;
+      } else {
+        const [rawTitle, ...fragmentParts] = url.replace(/^\[\[|\]\]$/g, "").split("#");
+        if (!rawTitle.trim()) throw new Error("Missing page title");
+        const resolved = visualTemplateWikiTarget(
+          rawTitle + (fragmentParts.length ? "#" + fragmentParts.join("#") : "")
+        );
+        href = new URL(resolved.href, window.location.origin).href;
       }
-      executeEditorCommand("createLink", parsed.href);
+      executeEditorCommand("createLink", href);
       closeLinkPopover();
     } catch (error) {
-      setFeedback(ui.feedback, "Enter a valid http, https, or email link.", true);
+      setFeedback(ui.feedback, "Enter a wiki page name (like buildables), /wiki/buildables, or a valid website URL.", true);
     }
   });
   ui.content.addEventListener("keyup", updateToolbarState);

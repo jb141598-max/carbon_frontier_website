@@ -665,7 +665,7 @@
     for (const page of usage.pages || []) {
       const li = document.createElement("li");
       const a = document.createElement("a");
-      a.href = "wiki.html?page=" + encodeURIComponent(page.slug);
+      a.href = page.slug === "front-page" ? "/wiki" : "/wiki/" + encodeURIComponent(page.slug);
       a.textContent = page.title || page.slug;
       a.target = "_blank";
       a.rel = "noopener noreferrer";

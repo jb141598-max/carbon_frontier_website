@@ -122,18 +122,42 @@
       .detail-id { overflow-wrap:anywhere; }
       @media(max-width:760px) { .page-shell{padding:16px}.topbar,.heading-row,.catalog-tools{align-items:stretch;flex-direction:column}.topbar-actions{justify-content:flex-start}.account-pill{max-width:80vw}.catalog-tools .tool-group{flex-wrap:wrap}.dialog-grid,.detail-layout{grid-template-columns:1fr}.dialog-grid .wide{grid-column:auto}.catalog-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}.card-image{height:145px} }
     </style>
-  </head>
+  <link rel="stylesheet" href="/cf-site-topbar.css?v=2-staff-tools" />
+</head>
   <body>
     <div class="page-shell"><div class="content">
-      <header class="topbar">
+      <header class="cf-unified-topbar cf-tools-topbar" role="banner">
+          <nav class="topbar-nav" aria-label="Primary navigation">
+            <a class="nav-button" href="/wiki">Wiki</a>
+            <a class="nav-button" href="/index.html">Roadmap</a>
+            <a class="nav-button" href="/updates">Updates</a>
+          </nav>
+          <a class="cf-top-search" href="/wiki?search=1" aria-label="Search wiki pages"><span aria-hidden="true">⌕</span><span>Search wiki pages...</span></a>
+          <div class="topbar-actions">
+            <button class="cf-site-menu-toggle" id="cf-site-menu-toggle" type="button" aria-expanded="false" aria-controls="cf-site-menu">☰ Menu</button>
+            <div class="cf-site-menu" id="cf-site-menu" hidden aria-label="Site menu">
+              <a class="cf-menu-link" href="/wiki/categories">Categories</a>
+              <a class="cf-menu-link" id="cf-menu-wiki-panel" href="/wiki/panel" hidden>Wiki Panel</a>
+              <a class="cf-menu-link" id="cf-menu-images" href="/wiki/images" hidden>Images</a>
+              <a class="cf-menu-link" id="cf-menu-templates" href="/wiki/templates" hidden>Templates</a>
+              <a class="cf-menu-link" id="cf-menu-new-page" href="/wiki?new=1" hidden>+ Create New Page</a>
+              <a class="cf-menu-link" id="cf-menu-login" href="/login">Log In</a>
+              <div class="cf-menu-account">
+                <span class="cf-menu-user" id="cf-menu-user" hidden></span>
+                <button class="cf-menu-link cf-menu-signout" id="cf-menu-signout" type="button" hidden>Sign Out</button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <header class="topbar cf-legacy-topbar">
         <nav class="topbar-nav" aria-label="Primary navigation">
-          <a class="nav-button" href="wiki.html">Wiki</a><a class="nav-button" href="index.html">Roadmap</a><a class="nav-button" href="updates.html">Updates</a>
+          <a class="nav-button" href="/wiki">Wiki</a><a class="nav-button" href="/index.html">Roadmap</a><a class="nav-button" href="/updates">Updates</a>
         </nav>
         <div class="topbar-actions">
           <div class="account-pill" id="account-pill">Checking access...</div>
-          <a class="secondary-button" href="wiki-templates.html">Templates</a>
-          <a class="secondary-button" href="wiki-import.html">Import</a>
-          <a class="secondary-button" href="wiki-permissions.html">Permissions</a>
+          <a class="secondary-button" href="/wiki/templates">Templates</a>
+          <a class="secondary-button" href="/wiki/import">Import</a>
+          <a class="secondary-button" href="/wiki/permissions">Permissions</a>
         </div>
       </header>
 
@@ -261,6 +285,7 @@
         </div>
       </form>
     </div>
-    <script src="testing-sync.js"></script><script src="wiki-media-client.js?v=3-image-merging"></script><script src="wiki-media-catalog.js?v=4-image-merging"></script>
-  </body>
+    <script src="/testing-sync.js"></script><script src="/wiki-media-client.js?v=3-image-merging"></script><script src="/wiki-media-catalog.js?v=5-clean-links"></script>
+  <script defer src="/cf-site-topbar.js?v=2-staff-tools"></script>
+</body>
 </html>

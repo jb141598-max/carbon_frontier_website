@@ -141,3 +141,20 @@
     order:1;min-height:180px!important;max-height:none!important;overflow:visible!important;
   }
 }
+
+/* Replace the former scattered staff-page buttons with the single toolbar. */
+.cf-legacy-topbar { display:none!important; }
+.cf-unified-topbar .cf-menu-user {
+  display:block;padding:10px 14px;color:#bdb9bf;
+  font:400 .77rem Play,sans-serif;overflow-wrap:anywhere;
+}
+.cf-unified-topbar .cf-menu-user[hidden],
+.cf-unified-topbar .cf-menu-signout[hidden] { display:none!important; }
+.cf-unified-topbar .cf-menu-signout {
+  width:100%;text-align:left;cursor:pointer;
+  background:transparent;border:1px solid transparent;border-radius:10px;
+}
+.cf-unified-topbar .cf-menu-signout:hover {
+  background:rgba(223,37,49,.15);border-color:#6e353e;
+}
+.cf-tools-topbar .cf-top-search{margin:0}
