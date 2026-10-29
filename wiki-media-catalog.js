@@ -21,7 +21,7 @@
     "delete-confirm-dialog","delete-confirm-form","delete-confirm-title",
     "close-delete-button","cancel-delete-button","confirm-delete-button",
     "delete-impact-summary","delete-usage-list","delete-usage-note",
-    "delete-acknowledge","delete-feedback",
+    "delete-acknowledge","delete-feedback","retry-catalog-button",
   ].map((id) => [id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()), document.getElementById(id)]));
 
   const state = {
@@ -118,13 +118,28 @@
     }
     let lastError = new Error("The wiki access service is unavailable.");
     for (const endpoint of ACCESS_ENDPOINTS) {
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 9000);
       try {
-        const response = await fetchWithAuth(endpoint);
+        const response = await fetchWithAuth(endpoint, { signal: controller.signal });
         const payload = await response.json().catch(() => null);
-        if (response.status === 404 && endpoint.startsWith("/api/")) { lastError = new Error("Wiki access service not found."); continue; }
-        if (!response.ok) { const error = new Error(payload?.error || `Access request failed (${response.status}).`); error.status = response.status; throw error; }
+        if (response.status === 404 && endpoint.startsWith("/api/")) {
+          lastError = new Error("Wiki access service not found.");
+          continue;
+        }
+        if (!response.ok) {
+          const error = new Error(payload?.error || `Access request failed (${response.status}).`);
+          error.status = response.status;
+          throw error;
+        }
         return payload;
-      } catch (error) { lastError = error; if (error?.status && error.status !== 404) throw error; }
+      } catch (error) {
+        lastError = error?.name === "AbortError"
+          ? new Error("Wiki access took too long. Please retry the catalog.") : error;
+        if (error?.status >= 400 && error?.status < 500 && error?.status !== 404) throw error;
+      } finally {
+        window.clearTimeout(timer);
+      }
     }
     throw lastError;
   }
@@ -810,6 +825,7 @@
     }
   }
 
+  ui.retryCatalogButton.addEventListener("click", initialize);
   ui.openUploadButton.addEventListener("click", openUpload);
   ui.closeUploadButton.addEventListener("click", closeUpload);
   ui.cancelUploadButton.addEventListener("click", closeUpload);

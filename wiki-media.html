@@ -122,7 +122,7 @@
       .detail-id { overflow-wrap:anywhere; }
       @media(max-width:760px) { .page-shell{padding:16px}.topbar,.heading-row,.catalog-tools{align-items:stretch;flex-direction:column}.topbar-actions{justify-content:flex-start}.account-pill{max-width:80vw}.catalog-tools .tool-group{flex-wrap:wrap}.dialog-grid,.detail-layout{grid-template-columns:1fr}.dialog-grid .wide{grid-column:auto}.catalog-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}.card-image{height:145px} }
     </style>
-  <link rel="stylesheet" href="/cf-site-topbar.css?v=2-staff-tools" />
+  <link rel="stylesheet" href="/cf-site-topbar.css?v=3-access-tool-menu" />
 </head>
   <body>
     <div class="page-shell"><div class="content">
@@ -162,7 +162,15 @@
       </header>
 
       <section class="loading-card" id="loading-view"><h1>Images</h1><p>Checking your wiki access and loading the image catalog.</p></section>
-      <section class="unavailable-card" id="unavailable-view" hidden><h1>Catalog unavailable</h1><p id="unavailable-copy">Sign in with an account that can edit the wiki.</p><div id="google-signin-slot"></div></section>
+      <section class="unavailable-card" id="unavailable-view" hidden>
+        <h1>Catalog unavailable</h1>
+        <p id="unavailable-copy">Sign in with an account that can edit the wiki.</p>
+        <div class="form-actions">
+          <a class="primary-button" href="/login?return=%2Fwiki%2Fimages">Sign in with email</a>
+          <button class="secondary-button" id="retry-catalog-button" type="button">Retry catalog</button>
+        </div>
+        <div id="google-signin-slot"></div>
+      </section>
 
       <main id="catalog-view" hidden>
         <div class="heading-row">
@@ -285,7 +293,7 @@
         </div>
       </form>
     </div>
-    <script src="/testing-sync.js"></script><script src="/wiki-media-client.js?v=3-image-merging"></script><script src="/wiki-media-catalog.js?v=5-clean-links"></script>
-  <script defer src="/cf-site-topbar.js?v=2-staff-tools"></script>
+    <script src="/testing-sync.js"></script><script src="/wiki-media-client.js?v=3-image-merging"></script><script src="/wiki-media-catalog.js?v=6-access-recovery"></script>
+  <script defer src="/cf-site-topbar.js?v=3-access-tool-menu"></script>
 </body>
 </html>

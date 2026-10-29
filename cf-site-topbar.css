@@ -158,3 +158,10 @@
   background:rgba(223,37,49,.15);border-color:#6e353e;
 }
 .cf-tools-topbar .cf-top-search{margin:0}
+
+/* Additional protected staff destinations in the shared menu. */
+.cf-site-menu .cf-menu-staff-tools{
+  display:grid;gap:6px;padding-top:9px;
+  margin-top:4px;border-top:1px solid #353438;
+}
+.cf-site-menu .cf-menu-staff-tools[hidden]{display:none!important}
