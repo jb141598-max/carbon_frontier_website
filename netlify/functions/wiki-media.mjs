@@ -1,6 +1,7 @@
 import { getStore } from "@netlify/blobs";
 import { getDatabase } from "@netlify/database";
 import { mediaUsageImpact } from "./_shared/wiki-media-usage.mjs";
+import { canReadWikiMedia, canEditWikiMediaMetadata } from "./_shared/wiki-media-policy.mjs";
 import {
   createViewer,
   insertAuditEntry,
@@ -99,9 +100,7 @@ function mediaItem(row, viewer, account) {
     uploadedAt: new Date(row.uploaded_at).toISOString(),
     updatedAt: new Date(row.updated_at || row.uploaded_at).toISOString(),
     uploadedByLabel: account?.email === row.uploaded_by_email ? "You" : "Wiki contributor",
-    canEditMetadata: Boolean(
-      viewer.isAssignedStaff || (account?.email && account.email === row.uploaded_by_email)
-    ),
+    canEditMetadata: canEditWikiMediaMetadata(viewer, account, row.uploaded_by_email),
     canDelete: canDeleteMedia(row, viewer, account),
     canMerge: Boolean(viewer.canModerate && viewer.canEdit),
     aliases: Array.isArray(row.aliases) ? row.aliases : [],
@@ -146,13 +145,13 @@ async function handleGet(request, account) {
   const client = await db.pool.connect();
   try {
     const { viewer } = await loadViewer(client, account);
-    if (!viewer.canView) return json({ error: "Wiki not available." }, 403);
+    if (!canReadWikiMedia(viewer)) return json({ error: "Wiki not available." }, 403);
 
     const id = requestedMediaId(request);
     if (!id) {
-      if (!viewer.canEdit) {
-        return json({ error: "Only people who can edit the wiki can browse the image catalog." }, 403);
-      }
+      // Template galleries resolve File:... by name. Public viewers need
+      // read-only catalog metadata, even without editing privileges.
+      // Uploads, metadata edits, usage checks, merges and deletes remain gated.
       const url = new URL(request.url);
       const query = cleanText(url.searchParams.get("q"), 100);
       const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 60));

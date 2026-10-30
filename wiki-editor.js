@@ -411,10 +411,6 @@
     throw lastError;
   }
 
-  function fetchProtectedMedia(mediaId) {
-    return mediaClient.getBlob(mediaId);
-  }
-
   function readLocalOverrides() {
     try {
       const current = localStorage.getItem(LOCAL_PAGE_OVERRIDES_KEY);
@@ -926,21 +922,29 @@
     await Promise.all(images.map(async (imageElement) => {
       imageElement.loading = "lazy";
       imageElement.decoding = "async";
-      if (imageElement.dataset.mediaLoading === "1" || imageElement.src) {
-        return;
-      }
+      if (imageElement.dataset.mediaLoading === "1" || imageElement.src) return;
+      const mediaId = String(imageElement.dataset.wikiMediaId || "").trim();
+      if (!mediaId) return;
       imageElement.dataset.mediaLoading = "1";
       const loading = imageElement.closest("figure")?.querySelector(".wiki-image-loading");
+      const pictureFrame = imageElement.closest(".machine-img-fill");
+      const showUnavailable = (message) => {
+        if (loading) loading.textContent = message;
+        if (pictureFrame) emptyPictureButtonFrame(pictureFrame, "Image unavailable");
+      };
       try {
-        const blob = await fetchProtectedMedia(imageElement.dataset.wikiMediaId);
-        const objectUrl = URL.createObjectURL(blob);
-        imageElement.src = objectUrl;
+        // Reuse the catalog thumbnail cache for article images and template
+        // galleries. Identical media IDs now share one in-flight fetch and URL.
+        const objectUrl = await catalogImageUrl({ id: mediaId });
+        if (!imageElement.isConnected) return;
         imageElement.addEventListener("load", () => loading?.remove(), { once: true });
+        imageElement.addEventListener("error", () => {
+          showUnavailable("This wiki image could not be displayed.");
+        }, { once: true });
+        imageElement.src = objectUrl;
         imageElement.hidden = false;
       } catch (error) {
-        if (loading) {
-          loading.textContent = error?.message || "This wiki image could not be loaded.";
-        }
+        showUnavailable(error?.message || "This wiki image could not be loaded.");
       }
     }));
   }
@@ -1411,10 +1415,11 @@
   async function hydrateWikitextTemplateMedia(container) {
     const images = [...container.querySelectorAll("img[data-wiki-file-title]")];
     if (!images.length) return;
+    let catalogFailed = false;
     try { await ensureFullWikiMediaCatalog(); }
-    catch { /* Missing images remain visible as placeholders. */ }
+    catch { catalogFailed = true; /* Preserve image frames when access fails. */ }
 
-    const normalized = (value) => String(value || "").trim().replace(/^File:/i, "")
+    const normalized = (value) => String(value || "").trim().replace(/^(?:File|Image):/i, "")
       .replaceAll("_"," ").toLowerCase();
     for (const image of images) {
       const title = String(image.dataset.wikiFileTitle || "").trim();
@@ -1433,11 +1438,11 @@
       } else {
         image.hidden = true;
         const frame = image.closest(".machine-img-fill");
-        if (frame) emptyPictureButtonFrame(frame,"Image unavailable");
+        if (frame) emptyPictureButtonFrame(frame, catalogFailed ? "Image temporarily unavailable" : "Image unavailable");
         else {
           const missing = document.createElement("span");
           missing.className = "cf-template-missing";
-          missing.textContent = "Missing image: " + title;
+          missing.textContent = catalogFailed ? "Image temporarily unavailable: " + title : "Missing image: " + title;
           image.after(missing);
         }
       }
